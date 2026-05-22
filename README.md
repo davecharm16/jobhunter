@@ -36,6 +36,18 @@ Copy `.env.example` to `.env`, then replace the placeholder `LLM_API_KEY` and `M
 
 `jobhunter paste` validates local secrets and the monthly LLM spend cap before any future pipeline work. Job Hunter only writes local files and never submits to Upwork, LinkedIn, OnlineJobs.ph, or any job board.
 
+Hand a job description to the paste pipeline either by piping it to stdin or by passing a saved file:
+
+```bash
+# Pipe a JD from your clipboard:
+pbpaste | jobhunter paste
+
+# Or pass a saved JD file:
+jobhunter paste --file jd-acme-senior-python.txt
+```
+
+If both `--file` and a piped stdin are provided in the same invocation, `--file` wins. `jobhunter paste` only holds the JD in memory — no `./out/` directory is created in Story 1.4; tailoring lands in Story 1.5.
+
 The canonical CV must be a text format (JSON Resume v1.0.0 today; markdown or YAML if the fall-back criterion in [`DECISIONS.md`](./DECISIONS.md) §2 fires). `.pdf`, `.docx`, and `.doc` paths are rejected by extension before any read attempt — Job Hunter never parses binary CV formats.
 
 ## Repo layout
@@ -63,4 +75,4 @@ The canonical CV must be a text format (JSON Resume v1.0.0 today; markdown or YA
 
 ## Status
 
-Stories 1.1–1.3 (walking-skeleton runtime + CLI scaffold + canonical-CV reader hardening) complete. See `_bmad-output/implementation-artifacts/sprint-status.yaml` for sprint progress.
+Stories 1.1–1.4 (walking-skeleton runtime + CLI scaffold + canonical-CV reader hardening + JD ingest via stdin/`--file`) complete. See `_bmad-output/implementation-artifacts/sprint-status.yaml` for sprint progress.

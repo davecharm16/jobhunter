@@ -9,62 +9,12 @@ import sys
 from pathlib import Path
 
 from jobhunter.config import PROJECT_ROOT
-
-
-def _pythonpath_with_src(
-    env: dict[str, str],
-    src_path: Path | None = None,
-) -> dict[str, str]:
-    src_path_text = str(PROJECT_ROOT / "src" if src_path is None else src_path)
-    existing_pythonpath = env.get("PYTHONPATH")
-    env["PYTHONPATH"] = (
-        src_path_text
-        if not existing_pythonpath
-        else os.pathsep.join([src_path_text, existing_pythonpath])
-    )
-    return env
-
-
-def _cli_env(src_path: Path | None = None, **overrides: str) -> dict[str, str]:
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if key not in {"LLM_API_KEY", "MONTHLY_SPEND_CAP_USD"}
-    }
-    env.update(overrides)
-    return _pythonpath_with_src(env, src_path)
-
-
-def _isolated_cli_env(tmp_path: Path, **overrides: str) -> dict[str, str]:
-    src_path = tmp_path / "src"
-    shutil.copytree(
-        PROJECT_ROOT / "src" / "jobhunter",
-        src_path / "jobhunter",
-        ignore=shutil.ignore_patterns("__pycache__"),
-    )
-    # Mirror the committed canonical CV into the isolated tree so the Story 1.3
-    # reader contract resolves cleanly when env-valid tests reach `read_canonical_cv()`.
-    canonical_src = PROJECT_ROOT / "canonical-cv.json"
-    if canonical_src.is_file():
-        shutil.copyfile(canonical_src, tmp_path / "canonical-cv.json")
-    return _cli_env(src_path, **overrides)
-
-
-def _run_module_cli(
-    *args: str,
-    env: dict[str, str] | None = None,
-    cwd: Path | None = None,
-    input_text: str | None = None,
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, "-m", "jobhunter.cli", *args],
-        capture_output=True,
-        text=True,
-        env=_cli_env() if env is None else env,
-        cwd=PROJECT_ROOT if cwd is None else cwd,
-        input=input_text,
-        timeout=5,
-    )
+from tests.integration._cli_helpers import (
+    _cli_env,
+    _isolated_cli_env,
+    _pythonpath_with_src,
+    _run_module_cli,
+)
 
 
 def test_jobhunter_console_script_exits_two_with_usage_listing_paste() -> None:
@@ -197,13 +147,15 @@ def test_paste_subprocess_invalid_monthly_cap_fails_before_pipeline_work(
     assert not output_dir.exists()
 
 
-def test_paste_subprocess_valid_env_stops_at_story_1_4_boundary(tmp_path) -> None:
+def test_paste_subprocess_valid_env_stdin_stops_at_story_1_5_boundary(
+    tmp_path,
+) -> None:
     output_dir = tmp_path / "out"
 
     result = _run_module_cli(
         "paste",
         cwd=tmp_path,
-        input_text="this input must not be consumed\n",
+        input_text="Senior Python role at Acme. Must have FastAPI.\n",
         env=_isolated_cli_env(
             tmp_path,
             LLM_API_KEY="test-key",
@@ -213,7 +165,9 @@ def test_paste_subprocess_valid_env_stops_at_story_1_4_boundary(tmp_path) -> Non
 
     assert result.returncode == 1
     assert result.stdout == ""
-    assert "Story 1.4" in result.stderr
+    assert "Story 1.5" in result.stderr
+    assert "stdin" in result.stderr
+    assert "Story 1.4" not in result.stderr
     assert not output_dir.exists()
 
 
@@ -239,15 +193,22 @@ def test_cli_paste_fails_before_pipeline_work_when_env_missing(monkeypatch, caps
     assert captured.out == ""
 
 
-def test_cli_paste_reaches_story_1_4_boundary_with_valid_env(monkeypatch, capsys) -> None:
+def test_cli_paste_reaches_story_1_5_boundary_with_valid_env_and_stdin(
+    monkeypatch, capsys, tmp_canonical_cv
+) -> None:
+    import io
+
     from jobhunter.cli import main
 
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+    monkeypatch.setattr(sys, "stdin", io.StringIO("JD text from a fixture"))
 
-    assert main(["paste"]) != 0
+    assert main(["paste"]) == 1
     captured = capsys.readouterr()
-    assert "Story 1.4" in captured.err
+    assert "Story 1.5" in captured.err
+    assert "stdin" in captured.err
+    assert "Story 1.4" not in captured.err
     assert captured.out == ""
 
 
@@ -561,3 +522,273 @@ def test_cli_paste_does_not_create_out_directory_on_rejection(
 
     assert main(["paste"]) == 2
     assert not (tmp_path / "out").exists()
+
+
+# --- Story 1.4: JD ingest paths ---------------------------------------------
+
+
+def test_paste_subprocess_with_file_succeeds_at_story_1_5_boundary(
+    tmp_path,
+) -> None:
+    jd_path = tmp_path / "jd.txt"
+    jd_path.write_text(
+        "Senior Python role at Acme. Must have FastAPI.\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+
+    result = _run_module_cli(
+        "paste",
+        "--file",
+        str(jd_path),
+        cwd=tmp_path,
+        # No stdin piped — exercising the --file path alone.
+        env=_isolated_cli_env(
+            tmp_path,
+            LLM_API_KEY="test-key",
+            MONTHLY_SPEND_CAP_USD="25.00",
+        ),
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "Story 1.5" in result.stderr
+    assert "--file" in result.stderr
+    assert "Story 1.4" not in result.stderr
+    assert not output_dir.exists()
+
+
+def test_paste_subprocess_file_precedence_over_stdin(tmp_path) -> None:
+    jd_path = tmp_path / "from-file.txt"
+    jd_path.write_text("FROM FILE: senior python role.\n", encoding="utf-8")
+
+    result = _run_module_cli(
+        "paste",
+        "--file",
+        str(jd_path),
+        cwd=tmp_path,
+        input_text="FROM STDIN: should be ignored.\n",
+        env=_isolated_cli_env(
+            tmp_path,
+            LLM_API_KEY="test-key",
+            MONTHLY_SPEND_CAP_USD="25.00",
+        ),
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "Story 1.5" in result.stderr
+    assert "--file" in result.stderr
+    # The boundary message names the file as the source, not stdin.
+    assert "from stdin" not in result.stderr
+
+
+def test_paste_subprocess_missing_file_exits_two_with_path_in_stderr(
+    tmp_path,
+) -> None:
+    missing = tmp_path / "does-not-exist.txt"
+    output_dir = tmp_path / "out"
+
+    result = _run_module_cli(
+        "paste",
+        "--file",
+        str(missing),
+        cwd=tmp_path,
+        input_text="must not be consumed\n",
+        env=_isolated_cli_env(
+            tmp_path,
+            LLM_API_KEY="test-key",
+            MONTHLY_SPEND_CAP_USD="25.00",
+        ),
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert str(missing) in result.stderr
+    assert "Story 1.5" not in result.stderr
+    assert not output_dir.exists()
+
+
+def test_paste_subprocess_empty_stdin_exits_two(tmp_path) -> None:
+    output_dir = tmp_path / "out"
+
+    result = _run_module_cli(
+        "paste",
+        cwd=tmp_path,
+        input_text="",
+        env=_isolated_cli_env(
+            tmp_path,
+            LLM_API_KEY="test-key",
+            MONTHLY_SPEND_CAP_USD="25.00",
+        ),
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "empty" in result.stderr.lower()
+    assert "Story 1.5" not in result.stderr
+    assert not output_dir.exists()
+
+
+def test_paste_subprocess_whitespace_only_stdin_exits_two(tmp_path) -> None:
+    output_dir = tmp_path / "out"
+
+    result = _run_module_cli(
+        "paste",
+        cwd=tmp_path,
+        input_text="   \n\t  \n",
+        env=_isolated_cli_env(
+            tmp_path,
+            LLM_API_KEY="test-key",
+            MONTHLY_SPEND_CAP_USD="25.00",
+        ),
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "empty" in result.stderr.lower()
+    assert "Story 1.5" not in result.stderr
+    assert not output_dir.exists()
+
+
+def test_paste_subprocess_file_pointing_at_directory_exits_two(
+    tmp_path,
+) -> None:
+    # Make a subdirectory so `--file <dir>` is unambiguously a directory path.
+    target_dir = tmp_path / "not-a-file"
+    target_dir.mkdir()
+
+    result = _run_module_cli(
+        "paste",
+        "--file",
+        str(target_dir),
+        cwd=tmp_path,
+        env=_isolated_cli_env(
+            tmp_path,
+            LLM_API_KEY="test-key",
+            MONTHLY_SPEND_CAP_USD="25.00",
+        ),
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert str(target_dir) in result.stderr
+    assert "Story 1.5" not in result.stderr
+
+
+def test_cli_paste_with_file_in_process_reaches_story_1_5_boundary(
+    monkeypatch, capsys, tmp_path, tmp_canonical_cv
+) -> None:
+    from jobhunter.cli import main
+
+    jd_path = tmp_path / "jd.txt"
+    jd_path.write_text("In-process JD content", encoding="utf-8")
+
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+
+    assert main(["paste", "--file", str(jd_path)]) == 1
+    captured = capsys.readouterr()
+    assert "Story 1.5" in captured.err
+    assert "--file" in captured.err
+    assert captured.out == ""
+
+
+def test_cli_paste_with_stdin_in_process_reaches_story_1_5_boundary(
+    monkeypatch, capsys, tmp_canonical_cv
+) -> None:
+    import io
+
+    from jobhunter.cli import main
+
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+    monkeypatch.setattr(sys, "stdin", io.StringIO("JD content via stdin"))
+
+    assert main(["paste"]) == 1
+    captured = capsys.readouterr()
+    assert "Story 1.5" in captured.err
+    assert "stdin" in captured.err
+    assert captured.out == ""
+
+
+def test_cli_paste_no_input_tty_exits_two_without_blocking(
+    monkeypatch, capsys, tmp_canonical_cv
+) -> None:
+    """AC4: TTY stdin with no --file must NOT call stdin.read()."""
+    from types import SimpleNamespace
+
+    import pytest
+
+    from jobhunter.cli import main
+
+    def _must_not_read() -> str:
+        pytest.fail("stdin.read() must not be called in TTY mode")
+
+    stub_stdin = SimpleNamespace(isatty=lambda: True, read=_must_not_read)
+    monkeypatch.setattr(sys, "stdin", stub_stdin)
+
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+
+    assert main(["paste"]) == 2
+    captured = capsys.readouterr()
+    assert "Provide a JD" in captured.err or "stdin" in captured.err
+    assert "Story 1.5" not in captured.err
+    assert captured.out == ""
+
+
+def test_cli_paste_missing_file_in_process_exits_two(
+    monkeypatch, capsys, tmp_path, tmp_canonical_cv
+) -> None:
+    from jobhunter.cli import main
+
+    missing = tmp_path / "nope.txt"
+
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+
+    assert main(["paste", "--file", str(missing)]) == 2
+    captured = capsys.readouterr()
+    assert str(missing) in captured.err
+    assert "Story 1.5" not in captured.err
+    assert captured.out == ""
+
+
+def test_cli_paste_does_not_write_jd_to_disk(
+    monkeypatch, capsys, tmp_path, tmp_canonical_cv
+) -> None:
+    """AC10: Story 1.4 must not persist the JD anywhere."""
+    from jobhunter.cli import main
+
+    jd_path = tmp_path / "jd.txt"
+    jd_path.write_text("disk-write guard JD", encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+
+    # Snapshot allowed paths before invocation. tmp_canonical_cv lives outside
+    # tmp_path (under its own monkeypatch-controlled location), so the only
+    # file inside tmp_path is jd.txt.
+    before = {p.resolve() for p in tmp_path.iterdir()}
+    assert main(["paste", "--file", str(jd_path)]) == 1
+    after = {p.resolve() for p in tmp_path.iterdir()}
+
+    assert after == before, f"Story 1.4 wrote unexpected files: {after - before}"
+    assert not (tmp_path / "out").exists()
+
+
+def test_paste_help_documents_file_flag_and_stdin_contract(
+    capsys,
+) -> None:
+    from jobhunter.cli import main
+
+    # main() catches argparse's SystemExit and returns the exit code.
+    assert main(["paste", "--help"]) == 0
+    captured = capsys.readouterr()
+    help_text = captured.out
+    assert "--file" in help_text
+    assert "stdin" in help_text
+    # Precedence rule must be visible in --help (AC3).
+    assert "wins" in help_text.lower() or "precedence" in help_text.lower()
