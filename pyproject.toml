@@ -11,6 +11,7 @@ readme = "README.md"
 authors = [{ name = "dave" }]
 dependencies = [
     "jsonschema>=4.21",
+    "python-dotenv>=1.2.2",
 ]
 
 [project.optional-dependencies]

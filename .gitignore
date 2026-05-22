@@ -1,5 +1,10 @@
 .claude/.story-automator-active
 
+# Local secrets
+.env
+.env.*
+!.env.example
+
 # Python
 __pycache__/
 *.pyc

@@ -13,21 +13,28 @@ Requires Python ≥ 3.11.
 python3 -m venv .venv
 source .venv/bin/activate
 
-# 2. Install in editable mode (pulls in jsonschema).
+# 2. Install in editable mode (pulls in jsonschema and dotenv support).
 pip install -e .
 
-# 3. Validate the canonical CV against the vendored JSON Resume v1.0.0 schema.
+# 3. Copy local runtime configuration placeholders and fill in private values.
+cp .env.example .env
+
+# 4. Validate the canonical CV against the vendored JSON Resume v1.0.0 schema.
 #    Exits 0 on success, non-zero with a human-readable error on failure.
 python scripts/validate_canonical_cv.py
 
-# 4. (Optional) Install dev deps and run the test suite.
+# 5. (Optional) Install dev deps and run the test suite.
 pip install -e ".[dev]"
 pytest
 ```
 
 The validator reads from the vendored schema at `schemas/jsonresume-v1.0.0.json` and never touches the network — paste mode must keep working offline (PRD NFR13).
 
-The `jobhunter` CLI entry point is registered but currently a stub (exit code 2). Story 1.2 wires real subcommands and secrets handling.
+## Configuration
+
+Copy `.env.example` to `.env`, then replace the placeholder `LLM_API_KEY` and `MONTHLY_SPEND_CAP_USD` values for your local machine. `.env` and local dotenv variants are ignored by git; keep secrets out of commits.
+
+`jobhunter paste` validates local secrets and the monthly LLM spend cap before any future pipeline work. Job Hunter only writes local files and never submits to Upwork, LinkedIn, OnlineJobs.ph, or any job board.
 
 ## Repo layout
 
@@ -42,8 +49,9 @@ The `jobhunter` CLI entry point is registered but currently a stub (exit code 2)
 │   └── validate_canonical_cv.py
 ├── src/jobhunter/
 │   ├── __init__.py
-│   ├── cli.py                # stub for Story 1.2
+│   ├── cli.py                # argparse CLI scaffold
 │   ├── config.py             # CANONICAL_CV_PATH
+│   ├── runtime_config.py     # dotenv secrets + monthly cap loader
 │   └── canonical_cv.py       # read_canonical_cv() — FR4 single reader
 └── tests/
     ├── conftest.py
