@@ -5,6 +5,11 @@ from __future__ import annotations
 import argparse
 import sys
 
+from jobhunter.canonical_cv import (
+    CanonicalCVMissing,
+    UnsupportedCanonicalCVFormat,
+    read_canonical_cv,
+)
 from jobhunter.runtime_config import ConfigurationError, load_runtime_config
 
 
@@ -39,6 +44,12 @@ def handle_paste() -> int:
         load_runtime_config()
     except ConfigurationError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        read_canonical_cv()
+    except (UnsupportedCanonicalCVFormat, CanonicalCVMissing) as exc:
+        print(f"Canonical CV error: {exc}", file=sys.stderr)
         return 2
 
     print(

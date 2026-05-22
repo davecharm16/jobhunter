@@ -36,6 +36,8 @@ Copy `.env.example` to `.env`, then replace the placeholder `LLM_API_KEY` and `M
 
 `jobhunter paste` validates local secrets and the monthly LLM spend cap before any future pipeline work. Job Hunter only writes local files and never submits to Upwork, LinkedIn, OnlineJobs.ph, or any job board.
 
+The canonical CV must be a text format (JSON Resume v1.0.0 today; markdown or YAML if the fall-back criterion in [`DECISIONS.md`](./DECISIONS.md) §2 fires). `.pdf`, `.docx`, and `.doc` paths are rejected by extension before any read attempt — Job Hunter never parses binary CV formats.
+
 ## Repo layout
 
 ```
@@ -61,4 +63,4 @@ Copy `.env.example` to `.env`, then replace the placeholder `LLM_API_KEY` and `M
 
 ## Status
 
-Story 1.1 (walking-skeleton gate) complete. See `_bmad-output/implementation-artifacts/sprint-status.yaml` for sprint progress.
+Stories 1.1–1.3 (walking-skeleton runtime + CLI scaffold + canonical-CV reader hardening) complete. See `_bmad-output/implementation-artifacts/sprint-status.yaml` for sprint progress.

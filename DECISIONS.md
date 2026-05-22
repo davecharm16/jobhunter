@@ -33,6 +33,8 @@ The schema is **vendored** into the repo at `schemas/jsonresume-v1.0.0.json` so 
 
 **Note on extensions.** Story 1.1's sample uses pure JSON Resume v1.0.0 with **no** extensions. The `tags` and `highImpact` per-entry fields land in Story 2.1; that story is the first chance the fall-back criterion above could trigger.
 
+**Binary-format rejection (Story 1.3, FR5).** `read_canonical_cv()` rejects any path ending in `.pdf`, `.docx`, or `.doc` (case-insensitive) by raising `UnsupportedCanonicalCVFormat` **before** any read attempt. The decision is path-extension-only — no MIME detection, no `python-docx`/`pdfminer`/`pypdf` dependency — because parsing the binary formats is the opposite of what FR5 asks for. The canonical CV must stay a diffable text format (JSON today; markdown or YAML once the fall-back criterion above fires).
+
 ---
 
 ## 3. Revisit Triggers (cross-cutting)
@@ -45,4 +47,4 @@ A future story should reopen the decisions above (and prepend a new dated entry,
 
 ---
 
-*Last updated: 2026-05-23 (Story 1.1).*
+*Last updated: 2026-05-23 (Story 1.3 — binary-format rejection clause added under §2).*
