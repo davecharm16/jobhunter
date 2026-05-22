@@ -1,0 +1,109 @@
+# generated: 2026-05-19
+# last_updated: 2026-05-19
+# project: job_hunter
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: {project-root}/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-05-19
+last_updated: 2026-05-23
+# 2026-05-23: Story 1-1 moved ready-for-dev → in-progress → review (dev-story workflow)
+# 2026-05-23: Story 1-1 moved review → done (story-automator-review auto-fixed all HIGH/MEDIUM findings; 0 CRITICAL)
+project: job_hunter
+project_key: NOKEY
+tracking_system: file-system
+story_location: "{project-root}/_bmad-output/implementation-artifacts"
+
+development_status:
+  # Epic 1: Walking Skeleton (v0.1)
+  epic-1: in-progress
+  1-1-runtime-language-and-canonical-cv-schema-bootstrap: done
+  1-2-cli-scaffold-env-secrets-handling-and-cost-cap-config: backlog
+  1-3-canonical-cv-reader-with-pdf-docx-ingest-rejection: backlog
+  1-4-jobhunter-paste-jd-ingest-from-stdin-or-file-argument: backlog
+  1-5-single-tailoring-llm-call-writes-tailored-cv-cover-letter-to-out-slug: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: Paste Pipeline Hardening & Artifact System
+  epic-2: backlog
+  2-1-canonical-cv-tagging-schema-and-high-impact-flag: backlog
+  2-2-config-yaml-separation-of-tunables-from-secrets: backlog
+  2-3-structured-jd-parser: backlog
+  2-4-source-board-classifier: backlog
+  2-5-upwork-specific-signal-extraction-and-red-flags: backlog
+  2-6-onlinejobs-ph-specific-signal-extraction: backlog
+  2-7-upwork-proposal-as-a-first-class-artifact-type: backlog
+  2-8-per-board-artifact-set-selector: backlog
+  2-9-prompt-template-versioning: backlog
+  2-10-per-application-metadata-sidecar-and-per-request-cost-logging: backlog
+  2-11-internal-post-ingest-endpoint-with-shared-token-auth: backlog
+  2-12-jobhunter-stats-cli-for-cost-and-conversion-measurement: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Fabrication Drift Check
+  epic-3: backlog
+  3-1-finalize-llm-provider-and-build-atomic-claim-extractor: backlog
+  3-2-structural-matcher-with-claim-to-source-cv-traceability: backlog
+  3-3-semantic-equivalence-threshold-for-tolerated-paraphrase: backlog
+  3-4-held-package-pattern-with-hard-fail-policy-and-7-day-retention: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Content-Loss Drift Check
+  epic-4: backlog
+  4-1-high-impact-relevance-check-against-jd-must-haves-and-nice-to-haves: backlog
+  4-2-drop-detection-diff-and-structured-drift-metadata-in-package-drift-json: backlog
+  4-3-configurable-relevance-threshold-and-matcher-mode-in-config-yaml: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Keyword-Stuffing Drift Check
+  epic-5: backlog
+  5-1-keyword-density-measurement-against-per-keyword-thresholds: backlog
+  5-2-dump-paragraph-and-comma-run-placement-detection: backlog
+  5-3-drift-metadata-writes-and-per-channel-threshold-overrides: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Notifications & Held-Package Queue
+  epic-6: backlog
+  6-1-gchat-webhook-notification-on-pass: backlog
+  6-2-silent-hold-on-any-drift-check-fail: backlog
+  6-3-jobhunter-status-cli-read-only-queue-view: backlog
+  6-4-jobhunter-override-slug-cli-release-a-held-package-with-structured-metadata: backlog
+  6-5-held-package-ttl-with-auto-discard: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Automated Job Ingestion (n8n Scheduled Flows)
+  epic-7: backlog
+  7-1-endpoint-integration-and-shared-token-auth-for-n8n-flows: backlog
+  7-2-upwork-scheduled-search-flow: backlog
+  7-3-onlinejobs-ph-listings-flow: backlog
+  7-4-linkedin-job-alert-email-parser-flow: backlog
+  epic-7-retrospective: optional

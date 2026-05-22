@@ -1,0 +1,80 @@
+"""Shared test fixtures for the jobhunter test suite.
+
+Story 1.1 (walking skeleton). Fixtures focus on:
+- Isolating CANONICAL_CV_PATH per-test by writing to a tmp path and patching
+  the constant in `jobhunter.config` + `jobhunter.canonical_cv` (the module
+  imports the constant at import time, so both sites need patching).
+- Providing a minimal-but-valid JSON Resume sample so tests don't depend on
+  the committed `canonical-cv.json` evolving.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+
+MINIMAL_VALID_RESUME: dict = {
+    "basics": {
+        "name": "Test Author",
+        "label": "Engineer",
+        "email": "test@example.com",
+    },
+    "work": [
+        {
+            "name": "Acme",
+            "position": "Engineer",
+            "startDate": "2020-01-01",
+            "highlights": ["Shipped a thing"],
+        }
+    ],
+    "skills": [
+        {"name": "Python", "keywords": ["pytest", "stdlib"]},
+    ],
+    "education": [
+        {"institution": "University", "area": "CS", "studyType": "BSc"},
+    ],
+    "projects": [
+        {"name": "jobhunter", "highlights": ["Walking skeleton"]},
+    ],
+}
+
+
+@pytest.fixture
+def tmp_canonical_cv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Write a minimal valid CV to tmp and point CANONICAL_CV_PATH at it.
+
+    Patches the constant in both `jobhunter.config` and `jobhunter.canonical_cv`
+    because `canonical_cv` does `from jobhunter.config import CANONICAL_CV_PATH`
+    at import time, binding its own module-level reference.
+    """
+    cv_path = tmp_path / "canonical-cv.json"
+    cv_path.write_text(json.dumps(MINIMAL_VALID_RESUME), encoding="utf-8")
+
+    import jobhunter.canonical_cv as reader_module
+    import jobhunter.config as config_module
+
+    monkeypatch.setattr(config_module, "CANONICAL_CV_PATH", cv_path)
+    monkeypatch.setattr(reader_module, "CANONICAL_CV_PATH", cv_path)
+    return cv_path
+
+
+@pytest.fixture
+def missing_canonical_cv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Point CANONICAL_CV_PATH at a path that does NOT exist."""
+    missing = tmp_path / "does-not-exist.json"
+
+    import jobhunter.canonical_cv as reader_module
+    import jobhunter.config as config_module
+
+    monkeypatch.setattr(config_module, "CANONICAL_CV_PATH", missing)
+    monkeypatch.setattr(reader_module, "CANONICAL_CV_PATH", missing)
+    return missing
+
+
+@pytest.fixture
+def project_root() -> Path:
+    """Absolute path to the repo root (parent of tests/)."""
+    return Path(__file__).resolve().parents[1]
