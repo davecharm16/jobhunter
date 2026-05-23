@@ -89,10 +89,10 @@ development_status:
   2-2-config-yaml-separation-of-tunables-from-secrets: done
   2-3-structured-jd-parser: done
   2-4-source-board-classifier: done
-  2-5-upwork-specific-signal-extraction-and-red-flags: backlog
-  2-6-onlinejobs-ph-specific-signal-extraction: backlog
+  2-5-upwork-specific-signal-extraction-and-red-flags: done
+  2-6-onlinejobs-ph-specific-signal-extraction: done
   2-7-upwork-proposal-as-a-first-class-artifact-type: backlog
-  2-8-per-board-artifact-set-selector: backlog
+  2-8-per-board-artifact-set-selector: done
   2-9-prompt-template-versioning: done
   2-10-per-application-metadata-sidecar-and-per-request-cost-logging: done
   2-11-internal-post-paste-endpoint-with-shared-token-auth: done
