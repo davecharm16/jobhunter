@@ -353,14 +353,15 @@ def test_paste_keyword_stuffing_step_adds_no_extra_cost_calls(
     assert all("keyword_stuffing" not in p for p in purposes)
 
 
-# ---- Story 5.3 boundary: this story does NOT write drift.json keyword block
+# ---- Story 5.3 update: this story DOES write drift.json keyword block ----
 
 
-def test_story_5_1_does_not_write_keyword_stuffing_block_in_drift_json(
+def test_story_5_1_writes_keyword_stuffing_block_in_drift_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Story 5.3 owns `package.drift.json.keyword_stuffing`. Story 5.1 only
-    folds the verdict into `metadata.json.drift_verdicts`.
+    """Story 5.3: `package.drift.json.keyword_stuffing` is now written on
+    every run (pass or fail). Originally a boundary test asserting Story 5.1
+    did NOT write it; reframed when Story 5.3 landed the writer.
     """
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
@@ -381,19 +382,19 @@ def test_story_5_1_does_not_write_keyword_stuffing_block_in_drift_json(
 
     slug_dir = next(p for p in out_root.iterdir() if p.is_dir())
     drift = json.loads((slug_dir / "package.drift.json").read_text(encoding="utf-8"))
-    assert "keyword_stuffing" not in drift, (
-        "Story 5.3 owns the package.drift.json keyword_stuffing block; "
-        "Story 5.1 must not write it."
-    )
+    # Story 5.3 AC1: keyword_stuffing block coexists with fabrication_check + content_loss.
+    assert "keyword_stuffing" in drift
+    assert "fabrication_check" in drift
+    assert "content_loss" in drift
 
 
-def test_story_5_1_density_fail_does_not_produce_held_sidecar(
+def test_story_5_3_density_fail_produces_held_sidecar(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Story 5.3 will wire keyword-stuffing fails into the held-package
-    writer. For Story 5.1, a keyword-stuffing fail alone must NOT produce
-    a `package.held.json` (only fabrication or content-loss fails do so
-    today)."""
+    """Story 5.3 AC4: a keyword-stuffing-only fail now produces a
+    `package.held.json` (previously Story 5.1 explicitly did not). The
+    held sidecar carries the new `keyword_stuffing_violations[]` field.
+    """
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
     _stage_canonical_cv_dict(tmp_path, monkeypatch, _minimal_cv())
@@ -415,8 +416,10 @@ def test_story_5_1_density_fail_does_not_produce_held_sidecar(
 
     slug_dir = next(p for p in out_root.iterdir() if p.is_dir())
     metadata = json.loads((slug_dir / "metadata.json").read_text(encoding="utf-8"))
-    # Verdict reaches metadata.json (Story 5.1 deliverable).
+    # Verdict still reaches metadata.json (Story 5.1 deliverable preserved).
     assert metadata["drift_verdicts"]["keyword_stuffing"] == "fail"
-    # But no held-package sidecar (Story 5.3 boundary).
-    assert metadata.get("held", False) is False
-    assert not (slug_dir / "package.held.json").exists()
+    # Story 5.3 AC4: held sidecar now produced on keyword-stuffing-only fail.
+    assert metadata["held"] is True
+    assert (slug_dir / "package.held.json").exists()
+    held = json.loads((slug_dir / "package.held.json").read_text(encoding="utf-8"))
+    assert len(held["keyword_stuffing_violations"]) >= 1

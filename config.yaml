@@ -52,3 +52,32 @@ drift:
     presence_matcher: substring        # one of: substring | semantic. substring is strictest; semantic requires an embeddings client (v1 raises).
     presence_semantic_threshold: 0.80  # cosine similarity cutoff when presence_matcher == semantic.
     reason_codes: ["irrelevant_to_jd", "silently_lost"]  # enumerated drop reasons; future codes can be appended without code changes.
+
+# Story 5.3 — keyword-stuffing drift check tunables. Mirrors Stories 5.1/5.2's
+# conservative defaults: a 1.5% per-keyword density ceiling + 3-rep ceiling
+# (density dimension), and a 15-token dump-paragraph floor with a 30%
+# must-have-ratio ceiling + 4-item comma-run floor (placement dimension).
+# Per-channel overrides under `channels.<board>` shallow-merge over the
+# globals; the resolved set lands in package.drift.json's
+# keyword_stuffing.thresholds_applied so historical drift logs stay
+# correlatable with config changes. The shipped `channels.upwork` overrides
+# below are commented out — a fresh checkout applies identical thresholds to
+# every channel until the author explicitly opts in to looser Upwork values
+# (which legitimately repeat JD phrasing because client screening questions
+# force it).
+keyword_stuffing:
+  max_density_pct: 1.5                       # per-keyword density ceiling. lower = stricter (more flags); higher = more permissive.
+  max_repetitions_per_artifact: 3            # per-keyword occurrence ceiling per artifact. evaluated independently per file (cv.md, cover-letter.md, ...).
+  dump_paragraph_min_tokens: 15              # paragraph length floor for the dump-paragraph rule. shorter paragraphs never trigger the rule.
+  dump_paragraph_max_keyword_ratio: 0.30     # max fraction of paragraph tokens that may be JD must-haves before it's flagged as a "skills dump".
+  comma_run_min_tokens: 4                    # min length of a comma-separated run of pure JD must-haves before it's flagged.
+  channels:                                  # per-channel overrides; shallow-merged over the globals above. an empty `{}` means "use the globals as-is".
+    # Upwork: uncomment any subset below to loosen Upwork thresholds (Upwork
+    # JDs legitimately repeat keywords in screening Qs); the shipped default
+    # is `{}` so a fresh checkout applies identical thresholds to every channel.
+    upwork: {}
+      # max_repetitions_per_artifact: 5      # Upwork screening questions force keyword repetition; a higher ceiling avoids false-positive holds.
+      # dump_paragraph_max_keyword_ratio: 0.45  # Upwork proposals quote JD phrasing; a higher ratio tolerates the unavoidable echo.
+    linkedin: {}                             # no overrides for LinkedIn — defaults match the channel's natural prose density.
+    onlinejobs_ph: {}                        # no overrides for OnlineJobs.ph — defaults apply.
+    other: {}                                # no overrides for unclassified JDs — defaults apply.

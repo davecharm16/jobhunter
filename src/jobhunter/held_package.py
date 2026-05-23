@@ -39,6 +39,7 @@ from typing import Literal
 
 from jobhunter.content_loss_matcher import DroppedEntry
 from jobhunter.fabrication_matcher import UnsourcedClaim
+from jobhunter.keyword_stuffing_matcher import KeywordStuffingCheck
 from jobhunter.metadata import now_iso8601_utc
 
 
@@ -51,8 +52,10 @@ __all__ = [
     "DroppedHighImpactEntry",
     "FailedClaim",
     "HeldPackageRecord",
+    "KeywordStuffingViolation",
     "compose_held_record",
     "iter_dropped_high_impact_entries",
+    "iter_keyword_stuffing_violations",
     "sweep_expired",
     "write_held_sidecar",
 ]
@@ -103,16 +106,53 @@ class DroppedHighImpactEntry:
 
 
 @dataclass(frozen=True)
+class KeywordStuffingViolation:
+    """One keyword-stuffing violation projected onto the held sidecar (Story 5.3 AC4).
+
+    Flattens Stories 5.1's `DensityViolation` and Story 5.2's dump-paragraph /
+    comma-run location dicts into a uniform per-violation shape so a future
+    `GET /api/queue` can enumerate keyword-stuffing holds without re-parsing
+    `package.drift.json`. `kind` discriminates the three sources:
+
+    - `density_violation` — Story 5.1 per-keyword density / repetition breach.
+    - `keyword_dump_paragraph` — Story 5.2 dump-paragraph hit.
+    - `comma_run_violation` — Story 5.2 comma-run hit.
+
+    Fields that don't apply to a given kind are empty / zero (e.g. a density
+    violation has no `paragraph_index`). Mirrors `DroppedHighImpactEntry`'s
+    structural pattern: one frozen dataclass, all fields populated for every
+    record so the on-disk shape stays diff-stable.
+    """
+
+    kind: Literal[
+        "density_violation", "keyword_dump_paragraph", "comma_run_violation"
+    ]
+    artifact: str
+    keyword: str = ""
+    paragraph_index: int = -1
+    occurrences: int = 0
+    total_tokens: int = 0
+    density_pct: float = 0.0
+    keyword_ratio: float = 0.0
+    threshold_breached: str = ""
+    matched_keywords: list[str] = field(default_factory=list)
+    excerpt: str = ""
+
+
+@dataclass(frozen=True)
 class HeldPackageRecord:
     """`package.held.json` payload (AC1 field list, verbatim).
 
     Story 4.2 AC6 adds `dropped_high_impact_entries` (additive, defaults to
     `[]`) so a content-loss-only fail can write a held sidecar without a
     `failed_claims[]` entry — and a combined fabrication + content-loss fail
-    populates both lists. The `held_by_check` field stays `"fabrication"` for
-    backward compatibility with Story 3.4's tests; the on-disk presence of a
-    non-empty `dropped_high_impact_entries[]` is the structural marker that
-    the content-loss check contributed to the held verdict.
+    populates both lists. Story 5.3 AC4 adds `keyword_stuffing_violations`
+    (additive, defaults to `[]`) following the same idiom: a keyword-stuffing
+    fail flattens its density + placement violations into this list. The
+    `held_by_check` field stays `"fabrication"` for backward compatibility
+    with Story 3.4's tests; the on-disk presence of a non-empty
+    `dropped_high_impact_entries[]` or `keyword_stuffing_violations[]` is the
+    structural marker that the corresponding check contributed to the verdict.
     """
 
     held_at: str
@@ -121,6 +161,9 @@ class HeldPackageRecord:
     retention_expires_at: str = ""
     recoverable: bool = True
     dropped_high_impact_entries: list[DroppedHighImpactEntry] = field(
+        default_factory=list
+    )
+    keyword_stuffing_violations: list[KeywordStuffingViolation] = field(
         default_factory=list
     )
 
@@ -132,6 +175,7 @@ def compose_held_record(
     now: datetime,
     retention_days: int,
     dropped_entries: list[DroppedEntry] | None = None,
+    keyword_stuffing_check: KeywordStuffingCheck | None = None,
 ) -> HeldPackageRecord:
     """Build a `HeldPackageRecord` from the matcher's unsourced claims.
 
@@ -144,8 +188,14 @@ def compose_held_record(
     Story 4.2 AC6: when *dropped_entries* is supplied (the content-loss
     matcher's `silently_lost` drops), each one is projected into a
     `DroppedHighImpactEntry` and stored under `dropped_high_impact_entries`.
-    The argument is keyword-only and defaults to `None` so Story 3.4's
-    existing callers continue to work without modification.
+
+    Story 5.3 AC4: when *keyword_stuffing_check* is supplied AND its verdict
+    is `"fail"`, its density violations + placement locations are projected
+    into `KeywordStuffingViolation` records and stored under
+    `keyword_stuffing_violations`. A `pass` verdict (or `None`) leaves the
+    list empty, mirroring the additive idiom of `dropped_entries`. Both
+    arguments are keyword-only with `None` defaults so Story 3.4/4.2 callers
+    stay source-compatible.
     """
     held_at_dt = _ensure_utc(now)
     retention_dt = held_at_dt + timedelta(days=retention_days)
@@ -153,6 +203,9 @@ def compose_held_record(
         _build_failed_claim(claim, out_dir) for claim in unsourced_claims
     ]
     dropped_high_impact = list(iter_dropped_high_impact_entries(dropped_entries or []))
+    keyword_stuffing_violations = list(
+        iter_keyword_stuffing_violations(keyword_stuffing_check)
+    )
     return HeldPackageRecord(
         held_at=now_iso8601_utc(held_at_dt),
         held_by_check="fabrication",
@@ -160,6 +213,7 @@ def compose_held_record(
         retention_expires_at=now_iso8601_utc(retention_dt),
         recoverable=True,
         dropped_high_impact_entries=dropped_high_impact,
+        keyword_stuffing_violations=keyword_stuffing_violations,
     )
 
 
@@ -185,6 +239,49 @@ def iter_dropped_high_impact_entries(
         for entry in dropped_entries
         if entry.reason == "silently_lost"
     ]
+
+
+def iter_keyword_stuffing_violations(
+    check: KeywordStuffingCheck | None,
+) -> list[KeywordStuffingViolation]:
+    """Project a `KeywordStuffingCheck` into the held-sidecar shape (Story 5.3 AC4).
+
+    Only contributes records when *check* is non-None AND verdict=="fail":
+    a passing check (or `None`) leaves the field empty so a fabrication-only
+    or content-loss-only fail stays diff-stable against Story 3.4/4.2's
+    fixtures. Density violations and placement locations are flattened into
+    a single `KeywordStuffingViolation` list discriminated by `kind`.
+    """
+    if check is None or check.verdict != "fail":
+        return []
+    violations: list[KeywordStuffingViolation] = []
+    for density in check.density_violations:
+        violations.append(
+            KeywordStuffingViolation(
+                kind="density_violation",
+                artifact=density.artifact,
+                keyword=density.keyword,
+                occurrences=density.occurrences,
+                total_tokens=density.total_tokens,
+                density_pct=density.density_pct,
+                threshold_breached=density.threshold_breached,
+            )
+        )
+    for location in check.dump_paragraph_locations:
+        kind = location.get("kind", "")
+        if kind not in ("keyword_dump_paragraph", "comma_run_violation"):
+            continue
+        violations.append(
+            KeywordStuffingViolation(
+                kind=kind,  # type: ignore[arg-type]
+                artifact=str(location.get("artifact", "")),
+                paragraph_index=int(location.get("paragraph_index", -1)),
+                keyword_ratio=float(location.get("keyword_ratio", 0.0)),
+                matched_keywords=list(location.get("matched_keywords", [])),
+                excerpt=str(location.get("excerpt", "")),
+            )
+        )
+    return violations
 
 
 def write_held_sidecar(out_dir: Path, record: HeldPackageRecord) -> Path:

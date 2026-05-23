@@ -29,6 +29,8 @@ __all__ = [
     "CostConfig",
     "DriftConfig",
     "FabricationConfig",
+    "KeywordStuffingChannels",
+    "KeywordStuffingConfig",
     "OnlineJobsPhRedFlags",
     "OutputConfig",
     "ProposalConfig",
@@ -38,6 +40,7 @@ __all__ = [
     "YamlConfig",
     "YamlConfigError",
     "load_yaml_config",
+    "resolve_keyword_stuffing_thresholds",
 ]
 
 
@@ -160,6 +163,42 @@ class DriftConfig:
     content_loss: ContentLossConfig
 
 
+# Story 5.3: per-channel override sub-block under `keyword_stuffing.channels`.
+# Each board carries any subset of the five global thresholds; missing keys
+# fall back to the global default via `resolve_keyword_stuffing_thresholds`.
+# A "frozen mapping" shape (per-board dicts) keeps the config faithful to the
+# AC2 shape (`channels.<board>` is itself a mapping) without inventing one
+# dataclass per board.
+@dataclass(frozen=True)
+class KeywordStuffingChannels:
+    """Per-channel override dicts (Story 5.3 AC3); each value is a subset of the global thresholds."""
+
+    upwork: dict[str, Any]
+    linkedin: dict[str, Any]
+    onlinejobs_ph: dict[str, Any]
+    other: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class KeywordStuffingConfig:
+    """Story 5.3 tunables for the Epic-5 keyword-stuffing drift check.
+
+    The five global thresholds mirror Stories 5.1 + 5.2's hard-coded defaults
+    one-for-one; `channels` holds optional per-board overrides that
+    shallow-merge over the globals at resolution time. A board with `{}` is
+    a structural placeholder — present but with no overrides — so a
+    `keyword_stuffing.channels.upwork:` block can be uncommented field-by-field
+    without re-introducing the channels key wholesale.
+    """
+
+    max_density_pct: float
+    max_repetitions_per_artifact: int
+    dump_paragraph_min_tokens: int
+    dump_paragraph_max_keyword_ratio: float
+    comma_run_min_tokens: int
+    channels: KeywordStuffingChannels
+
+
 @dataclass(frozen=True)
 class YamlConfig:
     cost: CostConfig
@@ -169,6 +208,7 @@ class YamlConfig:
     proposal: ProposalConfig
     fabrication: FabricationConfig
     drift: DriftConfig
+    keyword_stuffing: KeywordStuffingConfig
 
 
 _DEFAULTS: dict[str, dict[str, Any]] = {
@@ -215,7 +255,47 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
             "reason_codes": ["irrelevant_to_jd", "silently_lost"],
         },
     },
+    # Story 5.3: keyword-stuffing thresholds + per-channel overrides. The
+    # globals mirror Story 5.1/5.2's hard-coded defaults one-for-one. Channels
+    # default to empty `{}` so the shipped config does not silently loosen any
+    # board's behavior — the author opts in by uncommenting overrides.
+    "keyword_stuffing": {
+        "max_density_pct": 1.5,
+        "max_repetitions_per_artifact": 3,
+        "dump_paragraph_min_tokens": 15,
+        "dump_paragraph_max_keyword_ratio": 0.30,
+        "comma_run_min_tokens": 4,
+        "channels": {
+            "upwork": {},
+            "linkedin": {},
+            "onlinejobs_ph": {},
+            "other": {},
+        },
+    },
 }
+
+# Story 5.3: the five global thresholds that can also appear inside a
+# per-channel override block. `channels` is intentionally excluded — a
+# channel-override cannot recursively declare its own channels.
+_KEYWORD_STUFFING_GLOBAL_KEYS: frozenset[str] = frozenset(
+    {
+        "max_density_pct",
+        "max_repetitions_per_artifact",
+        "dump_paragraph_min_tokens",
+        "dump_paragraph_max_keyword_ratio",
+        "comma_run_min_tokens",
+    }
+)
+
+# The fixed set of channel sub-block names. Mirrors
+# `board_classifier.ALLOWED_SOURCE_BOARDS` value-for-value so a channel name
+# in `config.yaml` is always a valid `Classification.source_board`. Note: the
+# Story 5.3 spec text uses `ojph` as shorthand; the canonical board value in
+# the codebase (and in `Classification.source_board`) is `onlinejobs_ph`, so
+# we use the canonical form here for symmetry with the classifier output.
+_KEYWORD_STUFFING_CHANNEL_NAMES: frozenset[str] = frozenset(
+    {"upwork", "linkedin", "onlinejobs_ph", "other"}
+)
 
 _ALLOWED_TOP_LEVEL_KEYS = frozenset(_DEFAULTS.keys())
 _ALLOWED_RED_FLAG_BOARDS = frozenset(_DEFAULTS["red_flags"].keys())
@@ -264,6 +344,7 @@ def load_yaml_config(path: Path | None = None) -> YamlConfig:
     proposal = _parse_proposal(parsed.get("proposal"))
     fabrication = _parse_fabrication(parsed.get("fabrication"))
     drift = _parse_drift(parsed.get("drift"))
+    keyword_stuffing = _parse_keyword_stuffing(parsed.get("keyword_stuffing"))
 
     return YamlConfig(
         cost=cost,
@@ -273,6 +354,7 @@ def load_yaml_config(path: Path | None = None) -> YamlConfig:
         proposal=proposal,
         fabrication=fabrication,
         drift=drift,
+        keyword_stuffing=keyword_stuffing,
     )
 
 
@@ -495,6 +577,194 @@ def _parse_drift(node: Any) -> DriftConfig:
             reason_codes=tuple(reason_codes_value),
         )
     )
+
+
+def _parse_keyword_stuffing(node: Any) -> KeywordStuffingConfig:
+    """Build the Story 5.3 `keyword_stuffing` section, applying defaults.
+
+    The top-level section is optional (Story 5.3 AC2 fallback): when absent,
+    Stories 5.1/5.2's hard-coded thresholds apply and every channel block is
+    empty. When present, the five global thresholds + `channels.<board>`
+    overrides are validated; unknown keys (typos) raise so the author cannot
+    silently end up with the default. Each per-channel override block is
+    itself a mapping whose keys are a strict subset of the five globals.
+    """
+    defaults = _DEFAULTS["keyword_stuffing"]
+    if node is None:
+        return _keyword_stuffing_from_defaults(defaults)
+
+    node = _require_mapping(node, "keyword_stuffing")
+    allowed_top_keys = _KEYWORD_STUFFING_GLOBAL_KEYS | {"channels"}
+    _reject_unknown_keys(node, frozenset(allowed_top_keys), "keyword_stuffing")
+
+    max_density_pct = _coerce_positive_float(
+        node.get("max_density_pct", defaults["max_density_pct"]),
+        "keyword_stuffing.max_density_pct",
+    )
+    max_repetitions_per_artifact = _coerce_positive_int(
+        node.get(
+            "max_repetitions_per_artifact",
+            defaults["max_repetitions_per_artifact"],
+        ),
+        "keyword_stuffing.max_repetitions_per_artifact",
+    )
+    dump_paragraph_min_tokens = _coerce_positive_int(
+        node.get(
+            "dump_paragraph_min_tokens",
+            defaults["dump_paragraph_min_tokens"],
+        ),
+        "keyword_stuffing.dump_paragraph_min_tokens",
+    )
+    dump_paragraph_max_keyword_ratio = _coerce_positive_float(
+        node.get(
+            "dump_paragraph_max_keyword_ratio",
+            defaults["dump_paragraph_max_keyword_ratio"],
+        ),
+        "keyword_stuffing.dump_paragraph_max_keyword_ratio",
+    )
+    comma_run_min_tokens = _coerce_positive_int(
+        node.get(
+            "comma_run_min_tokens",
+            defaults["comma_run_min_tokens"],
+        ),
+        "keyword_stuffing.comma_run_min_tokens",
+    )
+
+    channels_node = node.get("channels", defaults["channels"])
+    channels = _parse_keyword_stuffing_channels(channels_node)
+
+    return KeywordStuffingConfig(
+        max_density_pct=max_density_pct,
+        max_repetitions_per_artifact=max_repetitions_per_artifact,
+        dump_paragraph_min_tokens=dump_paragraph_min_tokens,
+        dump_paragraph_max_keyword_ratio=dump_paragraph_max_keyword_ratio,
+        comma_run_min_tokens=comma_run_min_tokens,
+        channels=channels,
+    )
+
+
+def _keyword_stuffing_from_defaults(
+    defaults: dict[str, Any],
+) -> KeywordStuffingConfig:
+    """Build a `KeywordStuffingConfig` from the bare `_DEFAULTS` mapping."""
+    return KeywordStuffingConfig(
+        max_density_pct=float(defaults["max_density_pct"]),
+        max_repetitions_per_artifact=int(defaults["max_repetitions_per_artifact"]),
+        dump_paragraph_min_tokens=int(defaults["dump_paragraph_min_tokens"]),
+        dump_paragraph_max_keyword_ratio=float(
+            defaults["dump_paragraph_max_keyword_ratio"]
+        ),
+        comma_run_min_tokens=int(defaults["comma_run_min_tokens"]),
+        channels=KeywordStuffingChannels(
+            upwork={},
+            linkedin={},
+            onlinejobs_ph={},
+            other={},
+        ),
+    )
+
+
+def _parse_keyword_stuffing_channels(node: Any) -> KeywordStuffingChannels:
+    """Build a `KeywordStuffingChannels` from the optional `channels:` mapping.
+
+    Each per-channel override block is an arbitrary subset of the five global
+    thresholds, validated key-by-key. An empty `{}` block is allowed (the
+    shipped config's default) and produces an empty override dict.
+    """
+    node = _require_mapping(node, "keyword_stuffing.channels")
+    _reject_unknown_keys(
+        node,
+        frozenset(_KEYWORD_STUFFING_CHANNEL_NAMES),
+        "keyword_stuffing.channels",
+    )
+    return KeywordStuffingChannels(
+        upwork=_parse_channel_overrides(node.get("upwork"), "upwork"),
+        linkedin=_parse_channel_overrides(node.get("linkedin"), "linkedin"),
+        onlinejobs_ph=_parse_channel_overrides(
+            node.get("onlinejobs_ph"), "onlinejobs_ph"
+        ),
+        other=_parse_channel_overrides(node.get("other"), "other"),
+    )
+
+
+def _parse_channel_overrides(node: Any, channel: str) -> dict[str, Any]:
+    """Validate + coerce per-key the optional override block for *channel*.
+
+    Returns `{}` when *node* is `None` or `{}`. Each present key must be one
+    of the five global thresholds AND must coerce to a positive number under
+    the same rules as the global parser.
+    """
+    if node is None:
+        return {}
+    node = _require_mapping(node, f"keyword_stuffing.channels.{channel}")
+    _reject_unknown_keys(
+        node,
+        frozenset(_KEYWORD_STUFFING_GLOBAL_KEYS),
+        f"keyword_stuffing.channels.{channel}",
+    )
+    result: dict[str, Any] = {}
+    if "max_density_pct" in node:
+        result["max_density_pct"] = _coerce_positive_float(
+            node["max_density_pct"],
+            f"keyword_stuffing.channels.{channel}.max_density_pct",
+        )
+    if "max_repetitions_per_artifact" in node:
+        result["max_repetitions_per_artifact"] = _coerce_positive_int(
+            node["max_repetitions_per_artifact"],
+            f"keyword_stuffing.channels.{channel}.max_repetitions_per_artifact",
+        )
+    if "dump_paragraph_min_tokens" in node:
+        result["dump_paragraph_min_tokens"] = _coerce_positive_int(
+            node["dump_paragraph_min_tokens"],
+            f"keyword_stuffing.channels.{channel}.dump_paragraph_min_tokens",
+        )
+    if "dump_paragraph_max_keyword_ratio" in node:
+        result["dump_paragraph_max_keyword_ratio"] = _coerce_positive_float(
+            node["dump_paragraph_max_keyword_ratio"],
+            f"keyword_stuffing.channels.{channel}.dump_paragraph_max_keyword_ratio",
+        )
+    if "comma_run_min_tokens" in node:
+        result["comma_run_min_tokens"] = _coerce_positive_int(
+            node["comma_run_min_tokens"],
+            f"keyword_stuffing.channels.{channel}.comma_run_min_tokens",
+        )
+    return result
+
+
+def resolve_keyword_stuffing_thresholds(
+    config: KeywordStuffingConfig, channel: str
+) -> dict[str, Any]:
+    """Shallow-merge per-channel overrides over global defaults (Story 5.3 AC3).
+
+    Returns the effective threshold dict the matcher consumes AND the snapshot
+    persisted under `package.drift.json.keyword_stuffing.thresholds_applied`
+    (AC1). Channel names outside the allowed set degrade gracefully to the
+    global defaults — the same fallback shape an unrecognised
+    `Classification.source_board` would produce — so a future board value
+    cannot block the pipeline. The output ordering is fixed so the on-disk
+    `thresholds_applied` block is diff-stable across runs.
+    """
+    globals_dict: dict[str, Any] = {
+        "max_density_pct": config.max_density_pct,
+        "max_repetitions_per_artifact": config.max_repetitions_per_artifact,
+        "dump_paragraph_min_tokens": config.dump_paragraph_min_tokens,
+        "dump_paragraph_max_keyword_ratio": config.dump_paragraph_max_keyword_ratio,
+        "comma_run_min_tokens": config.comma_run_min_tokens,
+    }
+    overrides_for_channel: dict[str, Any]
+    if channel == "upwork":
+        overrides_for_channel = dict(config.channels.upwork)
+    elif channel == "linkedin":
+        overrides_for_channel = dict(config.channels.linkedin)
+    elif channel == "onlinejobs_ph":
+        overrides_for_channel = dict(config.channels.onlinejobs_ph)
+    elif channel == "other":
+        overrides_for_channel = dict(config.channels.other)
+    else:
+        # Unknown channel -> fall back to globals (no override applied).
+        overrides_for_channel = {}
+    globals_dict.update(overrides_for_channel)
+    return globals_dict
 
 
 def _parse_fabrication(node: Any) -> FabricationConfig:

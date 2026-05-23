@@ -370,12 +370,24 @@ def test_both_checks_pass_writes_no_held_sidecar(
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
     _stage_canonical_cv_dict(tmp_path, monkeypatch, _cv_with_high_impact())
+    # Story 5.3: CV extended with ~80-token prose filler so the new
+    # keyword-stuffing density check doesn't trip on a short body where
+    # "typescript" would land above the 1.5% density threshold. The
+    # high-impact chunk-match still works (matcher does `chunk in haystack`).
+    # ~100 distinct tokens — Greek-alphabet padding sidesteps any
+    # stop-word / short-token tokenizer quirks.
+    filler = (
+        " alpha beta gamma delta epsilon zeta eta theta iota kappa lambda "
+        "mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega "
+    ) * 4
     out_root, _ = _stage(
         tmp_path,
         monkeypatch,
-        # Full highlight string must appear so the chunk-match preserves the
-        # high-impact entry (matcher does `chunk in haystack`, not vice versa).
-        cv="# CV\n\n- Shipped a TypeScript ingestion service that cut latency by 60%\n",
+        cv=(
+            "# CV\n\n"
+            "- Shipped a TypeScript ingestion service that cut latency by 60%\n\n"
+            + filler + "\n"
+        ),
         cover="hi\n",
         extractor=_zero_cost_extractor,
         parser=make_fake_parse(must_haves=["typescript"], nice_to_haves=[]),

@@ -120,11 +120,35 @@ def test_load_yaml_config_rejects_nested_secret_keys(tmp_path: Path) -> None:
 
 
 def test_committed_config_yaml_has_no_secret_shaped_keys() -> None:
-    """Repository-level guarantee that the committed template stays clean."""
-    text = CONFIG_YAML_PATH.read_text(encoding="utf-8").lower()
-    for needle in ("api_key", "_token", "_secret", "secret_"):
-        assert needle not in text, (
-            f"committed config.yaml should not contain `{needle}` (secrets belong in .env)"
+    """Repository-level guarantee that the committed template stays clean.
+
+    Story 5.3: matches the loader's actual `_SECRET_KEY_PATTERN` (end-anchored
+    on the suffix forms + start-anchored on `secret_`) so non-secret yaml keys
+    that happen to contain the substring (e.g. `dump_paragraph_min_tokens`,
+    `comma_run_min_tokens`) don't trip the hygiene check.
+    """
+    import re
+
+    text = CONFIG_YAML_PATH.read_text(encoding="utf-8")
+    # Same regex shape as _SECRET_KEY_PATTERN in yaml_config.py: anchored at
+    # the end of an identifier or at the start with `secret_`. Treat each
+    # non-comment yaml line as `<key>:` and check the key against the regex.
+    secret_pattern = re.compile(
+        r"(?:^secret_|_api_key$|_token$|_secret$)", re.IGNORECASE
+    )
+    for lineno, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if ":" not in stripped:
+            continue
+        key = stripped.split(":", 1)[0].strip().lstrip("-").strip()
+        # Bare lists / nested values without keys (e.g. `- python`) skip.
+        if not key or " " in key:
+            continue
+        assert not secret_pattern.search(key), (
+            f"committed config.yaml line {lineno} key `{key}` looks secret-shaped "
+            f"(secrets belong in .env)"
         )
 
 

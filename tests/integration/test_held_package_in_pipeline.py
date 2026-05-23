@@ -146,6 +146,9 @@ def test_held_json_carries_documented_top_level_fields(tmp_path, monkeypatch) ->
     # Story 4.2: `dropped_high_impact_entries` is additive (AC6 path b) so
     # the held sidecar can also carry the content-loss check's `silently_lost`
     # drops. Fabrication-only fails (this test) leave it empty.
+    # Story 5.3: `keyword_stuffing_violations` is additive (AC4) so the held
+    # sidecar can also carry the keyword-stuffing check's density + placement
+    # violations. Fabrication-only fails (this test) leave it empty too.
     assert set(data.keys()) == {
         "held_at",
         "held_by_check",
@@ -153,10 +156,12 @@ def test_held_json_carries_documented_top_level_fields(tmp_path, monkeypatch) ->
         "retention_expires_at",
         "recoverable",
         "dropped_high_impact_entries",
+        "keyword_stuffing_violations",
     }
     assert data["held_by_check"] == "fabrication"
     assert data["recoverable"] is True
     assert data["dropped_high_impact_entries"] == []
+    assert data["keyword_stuffing_violations"] == []
     # ISO 8601 UTC with `Z` suffix.
     assert data["held_at"].endswith("Z")
     assert data["retention_expires_at"].endswith("Z")
@@ -279,11 +284,23 @@ def test_paste_metadata_held_stays_false_on_fabrication_pass(
     tmp_path, monkeypatch,
 ) -> None:
     """When every claim is sourced, the metadata reports held=false + held_path=None."""
+    # Story 5.3: CV/cover bodies extended with ~80-token prose filler so
+    # the new keyword-stuffing density check (Stories 5.1-5.3) doesn't trip
+    # on a short body where "python" would land above the 1.5% density
+    # threshold. Adding filler keeps fabrication the only drift dimension
+    # this test cares about.
+    # ~100 distinct tokens — the keyword-stuffing matcher tokenizer is
+    # picky about identifier shape; the Greek-alphabet padding sidesteps
+    # any stop-word / short-token filtering surprises.
+    filler = (
+        " alpha beta gamma delta epsilon zeta eta theta iota kappa lambda "
+        "mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega "
+    ) * 4
     slug_dir, _ = _post_paste(
         tmp_path,
         monkeypatch,
-        cv="Python\n",
-        cover="hi\n",
+        cv="Python developer with broad experience" + filler + "\n",
+        cover="Hello there, I am writing to express interest" + filler + "\n",
         cv_claims=[
             {"claim_type": "skill", "claim_text": "Python", "line_number": 1},
         ],

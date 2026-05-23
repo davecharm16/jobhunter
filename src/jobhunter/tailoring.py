@@ -50,6 +50,7 @@ from jobhunter import (
     held_package,
     jd_parser,
     keyword_stuffing_matcher,
+    keyword_stuffing_writer,
     llm_client,
     metadata as metadata_module,
     prompts,
@@ -439,33 +440,48 @@ def run_tailoring(
     drift_verdicts = dict(drift_verdicts)
     drift_verdicts["content_loss"] = content_loss_check.verdict
 
-    # Story 5.1: keyword-stuffing density check. Pure rule-based (AC8: zero
-    # LLM calls) — tokenizes each produced markdown artifact, counts each
-    # must-have keyword's occurrences, and flags per-keyword density /
-    # repetition breaches. The verdict folds into
-    # `drift_verdicts["keyword_stuffing"]` for `metadata.json` only —
-    # Story 5.3 owns the full `package.drift.json` keyword_stuffing block
-    # and the held-package extension. Defaults are hard-coded here; Story
-    # 5.3 will read them from `config.yaml` under `keyword_stuffing.*`.
+    # Story 5.1 + 5.2: keyword-stuffing density + placement check. Pure
+    # rule-based (AC8: zero LLM calls) — tokenizes each produced markdown
+    # artifact, counts each must-have keyword's occurrences, flags per-keyword
+    # density / repetition breaches (Story 5.1), and scans paragraphs for
+    # dump-paragraph / comma-run violations (Story 5.2). Story 5.3 wires
+    # per-channel thresholds from `config.yaml` (shallow-merged over the
+    # global defaults via `yaml_config.resolve_keyword_stuffing_thresholds`)
+    # and persists the full verdict to `package.drift.json` under the
+    # top-level `keyword_stuffing` key.
+    keyword_stuffing_config = yaml_config.load_yaml_config().keyword_stuffing
+    keyword_stuffing_thresholds = yaml_config.resolve_keyword_stuffing_thresholds(
+        keyword_stuffing_config, classification.source_board
+    )
     keyword_stuffing_check = _run_keyword_stuffing_check(
         out_dir=out_dir,
         parsed_jd_dict=parsed_jd_dict,
         artifacts_produced=artifacts_produced,
+        thresholds=keyword_stuffing_thresholds,
+    )
+    keyword_stuffing_writer.write_keyword_stuffing_block(
+        out_dir,
+        keyword_stuffing_check,
+        channel=classification.source_board,
+        thresholds_applied=keyword_stuffing_thresholds,
     )
     drift_verdicts["keyword_stuffing"] = keyword_stuffing_check.verdict
 
-    # Story 3.4 AC1 + AC2 (extended by Story 4.2 AC6): on fabrication=fail
-    # OR content_loss=fail, write `package.held.json` and record `held=true`
-    # + `held_path` on the metadata sidecar. The combined sidecar carries
-    # `failed_claims[]` (fabrication side) and `dropped_high_impact_entries[]`
-    # (content-loss side) so a future `GET /api/queue` can enumerate the
-    # fail-cause without re-parsing `package.drift.json`. The held-package
-    # writer remains the ONLY post-matcher branch — there is no
-    # notification call here, structurally enforcing the no-notify contract.
+    # Story 3.4 AC1 + AC2 (extended by Story 4.2 AC6 + Story 5.3 AC4): on
+    # fabrication=fail OR content_loss=fail OR keyword_stuffing=fail, write
+    # `package.held.json` and record `held=true` + `held_path` on the
+    # metadata sidecar. The combined sidecar carries `failed_claims[]`
+    # (fabrication side), `dropped_high_impact_entries[]` (content-loss
+    # side), and `keyword_stuffing_violations[]` (keyword-stuffing side) so
+    # a future `GET /api/queue` can enumerate the fail-cause without
+    # re-parsing `package.drift.json`. The held-package writer remains the
+    # ONLY post-matcher branch — there is no notification call here,
+    # structurally enforcing the no-notify contract.
     held_path_value: str | None = None
     fabrication_failed = fabrication_check.verdict == "fail"
     content_loss_failed = content_loss_check.verdict == "fail"
-    if fabrication_failed or content_loss_failed:
+    keyword_stuffing_failed = keyword_stuffing_check.verdict == "fail"
+    if fabrication_failed or content_loss_failed or keyword_stuffing_failed:
         held_path_value = _run_held_package_writer(
             out_dir=out_dir,
             unsourced_claims=(
@@ -473,6 +489,9 @@ def run_tailoring(
             ),
             dropped_entries=(
                 content_loss_check.dropped_entries if content_loss_failed else []
+            ),
+            keyword_stuffing_check=(
+                keyword_stuffing_check if keyword_stuffing_failed else None
             ),
             now=now,
         )
@@ -767,6 +786,7 @@ def _run_held_package_writer(
     out_dir: Path,
     unsourced_claims: list[fabrication_matcher.UnsourcedClaim],
     dropped_entries: list[content_loss_matcher.DroppedEntry] | None = None,
+    keyword_stuffing_check: keyword_stuffing_matcher.KeywordStuffingCheck | None = None,
     now: datetime | None,
 ) -> str:
     """Compose + atomically write `package.held.json`; return its path string (Story 3.4 AC1).
@@ -774,8 +794,11 @@ def _run_held_package_writer(
     Story 4.2 AC6 extends the signature with *dropped_entries*: when the
     content-loss check contributes to the held verdict, its `silently_lost`
     drops are persisted under `dropped_high_impact_entries[]` on the same
-    sidecar. The argument is keyword-only and defaults to `None` so Story
-    3.4's call sites stay source-compatible.
+    sidecar. Story 5.3 AC4 extends it with *keyword_stuffing_check*: a
+    failing keyword-stuffing check projects its density + placement
+    violations into `keyword_stuffing_violations[]` on the same sidecar.
+    Both arguments are keyword-only and default to `None` so Story
+    3.4/4.2's call sites stay source-compatible.
     """
     retention_days = _resolve_held_retention_days()
     moment = now or datetime.now(timezone.utc)
@@ -785,6 +808,7 @@ def _run_held_package_writer(
         now=moment,
         retention_days=retention_days,
         dropped_entries=dropped_entries,
+        keyword_stuffing_check=keyword_stuffing_check,
     )
     held_path = held_package.write_held_sidecar(out_dir, record)
     return str(held_path)
@@ -951,6 +975,7 @@ def _run_keyword_stuffing_check(
     out_dir: Path,
     parsed_jd_dict: dict[str, Any],
     artifacts_produced: list[str],
+    thresholds: dict[str, Any],
 ) -> keyword_stuffing_matcher.KeywordStuffingCheck:
     """Run the keyword-stuffing density + placement check and return the verdict.
 
@@ -960,9 +985,9 @@ def _run_keyword_stuffing_check(
     each artifact into paragraphs to flag dump paragraphs and comma-run
     violations (Story 5.2 placement dimension). The two dimensions are
     OR-ed into the verdict: a package fails if EITHER density OR
-    placement reports a violation. Thresholds are the hard-coded
-    Story 5.1/5.2 defaults; Story 5.3 will move them to `config.yaml`
-    and add per-channel overrides.
+    placement reports a violation. Story 5.3 threads the resolved
+    per-channel thresholds in via *thresholds* — produced by
+    `yaml_config.resolve_keyword_stuffing_thresholds(config, channel)`.
     """
     must_haves = parsed_jd_dict.get("must_haves") or []
     if not isinstance(must_haves, list):
@@ -977,7 +1002,17 @@ def _run_keyword_stuffing_check(
             continue
         artifact_paths[filename] = path
     return keyword_stuffing_matcher.run_keyword_stuffing_check(
-        artifact_paths, must_haves
+        artifact_paths,
+        must_haves,
+        max_density_pct=float(thresholds["max_density_pct"]),
+        max_repetitions_per_artifact=int(
+            thresholds["max_repetitions_per_artifact"]
+        ),
+        dump_paragraph_min_tokens=int(thresholds["dump_paragraph_min_tokens"]),
+        dump_paragraph_max_keyword_ratio=float(
+            thresholds["dump_paragraph_max_keyword_ratio"]
+        ),
+        comma_run_min_tokens=int(thresholds["comma_run_min_tokens"]),
     )
 
 
