@@ -129,13 +129,19 @@ development_status:
 
   # Epic 4: Content-Loss Drift Check
   # 4-4 added on 2026-05-23 for the Drift Diagnostics surface — content-loss slice.
-  # 2026-05-23: 4-1 merged (9229616, 728 passing). 4-2 merged (db85038,
-  #   755 passing). Test-environment gotcha noted above re: .env file.
-  epic-4: in-progress
+  # 2026-05-23: Epic 4 done via layered fan-out.
+  #   L0: 4-1 (9229616; 728 passing)
+  #   L1: 4-2 (db85038; 755 passing)
+  #   L2: both subagents stalled on the watchdog after planning.
+  #     Orchestrator finished 4-3 (1bb4b4a; 765 passing) + 4-4 (2c49a5e;
+  #     769 passing) manually from full context — 4-3 was ~60% done in
+  #     the worktree's yaml_config.py; 4-4 was untouched. Sweep tests
+  #     pass once .env is parked aside.
+  epic-4: done
   4-1-high-impact-relevance-check-against-jd-must-haves-and-nice-to-haves: done
   4-2-drop-detection-diff-and-structured-drift-metadata-in-package-drift-json: done
-  4-3-configurable-relevance-threshold-and-matcher-mode-in-config-yaml: backlog
-  4-4-drift-check-diagnostics-surface-content-loss-section: backlog
+  4-3-configurable-relevance-threshold-and-matcher-mode-in-config-yaml: done
+  4-4-drift-check-diagnostics-surface-content-loss-section: done
   epic-4-retrospective: optional
 
   # Epic 5: Keyword-Stuffing Drift Check
