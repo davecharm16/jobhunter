@@ -112,6 +112,9 @@ class FabricationConfig:
     # and the upgrade path.
     semantic_method: str
     semantic_threshold: Decimal
+    # Story 3.4: how long a held package lingers on disk before the next
+    # pipeline run sweeps it (default 7 days, per the AC3 retention window).
+    held_retention_days: int = 7
 
 
 @dataclass(frozen=True)
@@ -155,6 +158,7 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         },
         "semantic_method": "rule_based",
         "semantic_threshold": Decimal("0.65"),
+        "held_retention_days": 7,
     },
 }
 
@@ -348,7 +352,7 @@ def _parse_proposal(node: Any) -> ProposalConfig:
 
 
 def _parse_fabrication(node: Any) -> FabricationConfig:
-    """Build the Story 3.1 + 3.3 `fabrication` section, applying defaults."""
+    """Build the Story 3.1 + 3.3 + 3.4 `fabrication` section, applying defaults."""
     defaults = _DEFAULTS["fabrication"]
     if node is None:
         return FabricationConfig(
@@ -357,6 +361,7 @@ def _parse_fabrication(node: Any) -> FabricationConfig:
             ),
             semantic_method=str(defaults["semantic_method"]),
             semantic_threshold=Decimal(str(defaults["semantic_threshold"])),
+            held_retention_days=int(defaults["held_retention_days"]),
         )
     node = _require_mapping(node, "fabrication")
     _reject_unknown_keys(node, frozenset(defaults.keys()), "fabrication")
@@ -387,6 +392,10 @@ def _parse_fabrication(node: Any) -> FabricationConfig:
         semantic_threshold=_coerce_positive_decimal(
             node.get("semantic_threshold", defaults["semantic_threshold"]),
             "fabrication.semantic_threshold",
+        ),
+        held_retention_days=_coerce_positive_int(
+            node.get("held_retention_days", defaults["held_retention_days"]),
+            "fabrication.held_retention_days",
         ),
     )
 

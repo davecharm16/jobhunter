@@ -263,10 +263,16 @@ def test_run_tailoring_metadata_sits_next_to_artifacts(tmp_path) -> None:
     files = {p.name for p in outcome.out_dir.iterdir()}
     # Story 3.1 adds claims.json next to the tailored artifacts.
     # Story 3.2 adds package.drift.json next to claims.json.
+    # Story 3.4: the minimal canonical CV used by this test has no
+    # `pytest` source entry, so the stub claim emitted by the autouse
+    # extractor in `tests/integration/conftest.py` is unsourced and the
+    # fabrication matcher emits a `fail` verdict — which now writes
+    # `package.held.json` next to the existing artifacts.
     assert files == {
         "cv.md",
         "cover-letter.md",
         "claims.json",
         "package.drift.json",
+        "package.held.json",
         "metadata.json",
     }

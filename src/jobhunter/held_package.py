@@ -1,0 +1,318 @@
+"""Held-package writer + retention sweep (Story 3.4).
+
+When the Story 3.2 fabrication matcher emits `verdict: "fail"`, the package
+enters the HELD state: tailored markdown stays on disk, a `package.held.json`
+sidecar is written next to the existing artifacts, and the per-application
+metadata gets `held: true` + `held_path: <path>` so a future `GET /api/queue`
+(Epic 6, FR35) can list held packages without re-parsing drift reports.
+
+Two contracts live in this module:
+
+1. `compose_held_record` + `write_held_sidecar` — pure functions the
+   orchestrator calls after `write_drift_report`. The composer pins each
+   failed claim to a precise `(artifact_path, line_number, column_start,
+   column_end)` location so the author can jump straight to it in their
+   editor (AC1).
+
+2. `sweep_expired` — invoked at the TOP of `run_tailoring` before any LLM
+   work. Walks `./out/` for `package.held.json` sidecars whose
+   `retention_expires_at` is in the past and removes the whole `<slug>/`
+   directory; appends a one-line JSON-lines audit entry per discard to
+   `./out/_held-audit.log` (AC3).
+
+The "no notify" contract (AC2) is structural — this module does not import
+or reference any notification module, and `tailoring.py`'s held branch goes
+through this module only. Notifications land in Epic 6.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import json
+import logging
+import os
+import shutil
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Literal
+
+from jobhunter.fabrication_matcher import UnsourcedClaim
+from jobhunter.metadata import now_iso8601_utc
+
+
+_log = logging.getLogger(__name__)
+
+
+__all__ = [
+    "AUDIT_LOG_NAME",
+    "HELD_SIDECAR_NAME",
+    "FailedClaim",
+    "HeldPackageRecord",
+    "compose_held_record",
+    "sweep_expired",
+    "write_held_sidecar",
+]
+
+
+HELD_SIDECAR_NAME = "package.held.json"
+AUDIT_LOG_NAME = "_held-audit.log"
+
+# Maps `source_artifact` (from `UnsourcedClaim`) to the on-disk markdown
+# filename the failed claim lives in. Mirrors the
+# `_CLAIM_EXTRACTION_SOURCES` table in `tailoring.py`.
+_SOURCE_ARTIFACT_FILENAMES: dict[str, str] = {
+    "cv": "cv.md",
+    "cover_letter": "cover-letter.md",
+    "upwork_proposal": "upwork-proposal.md",
+}
+
+
+@dataclass(frozen=True)
+class FailedClaim:
+    """One failed claim pinned to a precise location in a tailored artifact."""
+
+    claim_id: str
+    claim_text: str
+    source_artifact: str
+    line_number: int
+    reason: str
+    artifact_path: str
+    column_start: int
+    column_end: int
+
+
+@dataclass(frozen=True)
+class HeldPackageRecord:
+    """`package.held.json` payload (AC1 field list, verbatim)."""
+
+    held_at: str
+    held_by_check: Literal["fabrication"]
+    failed_claims: list[FailedClaim] = field(default_factory=list)
+    retention_expires_at: str = ""
+    recoverable: bool = True
+
+
+def compose_held_record(
+    unsourced_claims: list[UnsourcedClaim],
+    out_dir: Path,
+    *,
+    now: datetime,
+    retention_days: int,
+) -> HeldPackageRecord:
+    """Build a `HeldPackageRecord` from the matcher's unsourced claims.
+
+    Each `FailedClaim` carries the precise `column_start`/`column_end`
+    offsets of the claim text within its source-artifact markdown line, so
+    an editor integration (or the author manually) can jump straight to the
+    fabricated text. When the claim text cannot be located on the recorded
+    line a WARNING is logged and a `(0, len(claim_text))` span is used.
+    """
+    held_at_dt = _ensure_utc(now)
+    retention_dt = held_at_dt + timedelta(days=retention_days)
+    failed_claims = [
+        _build_failed_claim(claim, out_dir) for claim in unsourced_claims
+    ]
+    return HeldPackageRecord(
+        held_at=now_iso8601_utc(held_at_dt),
+        held_by_check="fabrication",
+        failed_claims=failed_claims,
+        retention_expires_at=now_iso8601_utc(retention_dt),
+        recoverable=True,
+    )
+
+
+def write_held_sidecar(out_dir: Path, record: HeldPackageRecord) -> Path:
+    """Write `package.held.json` atomically into *out_dir* and return its path."""
+    target = out_dir / HELD_SIDECAR_NAME
+    tmp_path = out_dir / ".package.held.tmp"
+    payload = asdict(record)
+    with open(tmp_path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2, sort_keys=False)
+        fh.write("\n")
+    os.replace(tmp_path, target)
+    return target
+
+
+def sweep_expired(
+    out_root: Path,
+    *,
+    now: datetime,
+    retention_days: int,
+) -> list[str]:
+    """Discard every held package under *out_root* whose retention has expired.
+
+    AC3: scans `out_root` for `<slug>/package.held.json` sidecars; for each
+    whose `retention_expires_at` is in the past relative to *now*, removes
+    the entire `<slug>/` directory and appends a one-line JSON record to
+    `out_root/_held-audit.log` so the discard is not silent. Returns the
+    list of discarded slugs.
+
+    Best-effort: any per-slug failure (unreadable sidecar, permission error
+    on rmtree) is logged at WARNING and the sweep continues with the next
+    slug — the sweep must never abort the pipeline.
+    """
+    if not out_root.is_dir():
+        return []
+
+    moment = _ensure_utc(now)
+    discarded: list[str] = []
+    for entry in sorted(out_root.iterdir()):
+        if not entry.is_dir():
+            continue
+        sidecar = entry / HELD_SIDECAR_NAME
+        if not sidecar.is_file():
+            continue
+        try:
+            payload = json.loads(sidecar.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            _log.warning(
+                "held-package sweep: could not read %s: %s", sidecar, exc
+            )
+            continue
+        expires_raw = payload.get("retention_expires_at")
+        if not isinstance(expires_raw, str):
+            _log.warning(
+                "held-package sweep: %s missing retention_expires_at", sidecar
+            )
+            continue
+        try:
+            expires_at = _parse_iso8601(expires_raw)
+        except ValueError as exc:
+            _log.warning(
+                "held-package sweep: %s has malformed retention_expires_at: %s",
+                sidecar,
+                exc,
+            )
+            continue
+        if expires_at > moment:
+            continue
+        held_at_raw = payload.get("held_at")
+        failed_claims = payload.get("failed_claims") or []
+        failed_count = len(failed_claims) if isinstance(failed_claims, list) else 0
+        slug = entry.name
+        try:
+            shutil.rmtree(entry)
+        except OSError as exc:
+            _log.warning(
+                "held-package sweep: could not remove %s: %s", entry, exc
+            )
+            continue
+        _append_audit_entry(
+            out_root,
+            slug=slug,
+            held_at=held_at_raw if isinstance(held_at_raw, str) else "",
+            discarded_at=now_iso8601_utc(moment),
+            failed_claims_count=failed_count,
+        )
+        discarded.append(slug)
+    return discarded
+
+
+def _build_failed_claim(claim: UnsourcedClaim, out_dir: Path) -> FailedClaim:
+    """Materialise one `FailedClaim` with editor-precise column offsets."""
+    filename = _SOURCE_ARTIFACT_FILENAMES.get(
+        claim.source_artifact, f"{claim.source_artifact}.md"
+    )
+    artifact_path = out_dir / filename
+    column_start, column_end = _locate_claim_columns(
+        artifact_path=artifact_path,
+        line_number=claim.line_number,
+        claim_text=claim.claim_text,
+    )
+    return FailedClaim(
+        claim_id=claim.claim_id,
+        claim_text=claim.claim_text,
+        source_artifact=claim.source_artifact,
+        line_number=claim.line_number,
+        reason=claim.reason,
+        artifact_path=str(artifact_path),
+        column_start=column_start,
+        column_end=column_end,
+    )
+
+
+def _locate_claim_columns(
+    *,
+    artifact_path: Path,
+    line_number: int,
+    claim_text: str,
+) -> tuple[int, int]:
+    """Find the first occurrence of *claim_text* on *line_number* of *artifact_path*.
+
+    Falls back to `(0, len(claim_text))` and logs a WARNING when the file
+    cannot be read, the line is out of range, or the claim text is not
+    present on that line. Line numbers are 1-indexed (matching the Story 3.1
+    `Claim.line_number` contract); column offsets are 0-indexed characters
+    within the line, exclusive of the trailing newline.
+    """
+    try:
+        text = artifact_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        _log.warning(
+            "held-package writer: could not read %s for column offsets: %s",
+            artifact_path,
+            exc,
+        )
+        return (0, len(claim_text))
+    lines = text.splitlines()
+    if line_number < 1 or line_number > len(lines):
+        _log.warning(
+            "held-package writer: line %d out of range in %s (have %d lines)",
+            line_number,
+            artifact_path,
+            len(lines),
+        )
+        return (0, len(claim_text))
+    line_text = lines[line_number - 1]
+    column_start = line_text.find(claim_text)
+    if column_start < 0:
+        _log.warning(
+            "held-package writer: claim %r not found on line %d of %s",
+            claim_text,
+            line_number,
+            artifact_path,
+        )
+        return (0, len(claim_text))
+    return (column_start, column_start + len(claim_text))
+
+
+def _append_audit_entry(
+    out_root: Path,
+    *,
+    slug: str,
+    held_at: str,
+    discarded_at: str,
+    failed_claims_count: int,
+) -> None:
+    """Append one JSON-lines record to `out_root/_held-audit.log`."""
+    entry = {
+        "slug": slug,
+        "held_at": held_at,
+        "discarded_at": discarded_at,
+        "failed_claims_count": failed_claims_count,
+    }
+    log_path = out_root / AUDIT_LOG_NAME
+    with open(log_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(entry, sort_keys=False) + "\n")
+
+
+def _ensure_utc(moment: datetime) -> datetime:
+    """Normalise a naive or aware datetime to UTC."""
+    if moment.tzinfo is None:
+        return moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(timezone.utc)
+
+
+def _parse_iso8601(value: str) -> datetime:
+    """Parse an ISO 8601 timestamp with a trailing `Z` (the `now_iso8601_utc` shape)."""
+    # `fromisoformat` accepts `+00:00` but not the literal `Z` until 3.11; the
+    # repo targets 3.13 where `Z` parses directly. Normalising here keeps the
+    # function tolerant of either form.
+    text = value
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    parsed = datetime.fromisoformat(text)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)

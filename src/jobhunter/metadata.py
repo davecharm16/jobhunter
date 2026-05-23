@@ -70,7 +70,12 @@ class CostBreakdown:
 
 @dataclass(frozen=True)
 class PackageMetadata:
-    """The full metadata sidecar payload (AC1 field list, verbatim)."""
+    """The full metadata sidecar payload (AC1 field list, verbatim).
+
+    Story 3.4 adds `held` + `held_path` so a future `GET /api/queue` (Epic 6,
+    FR35) can enumerate held packages by reading metadata only — no need to
+    re-parse `package.drift.json` to discover the held state.
+    """
 
     slug: str
     jd_source: str
@@ -88,6 +93,8 @@ class PackageMetadata:
         default_factory=lambda: {"applied": False, "reason": None}
     )
     error: str | None = None
+    held: bool = False
+    held_path: str | None = None
 
 
 def format_cost(value: Decimal) -> str:
@@ -118,6 +125,8 @@ def build_metadata(
     override: dict | None = None,
     per_app_target_usd: Decimal = PER_APP_COST_TARGET_USD,
     error: str | None = None,
+    held: bool = False,
+    held_path: str | None = None,
 ) -> PackageMetadata:
     """Assemble a `PackageMetadata` with the cost totals computed from *calls*.
 
@@ -156,6 +165,8 @@ def build_metadata(
             else {"applied": False, "reason": None}
         ),
         error=error,
+        held=held,
+        held_path=held_path,
     )
 
 

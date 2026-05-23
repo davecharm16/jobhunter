@@ -24,13 +24,16 @@ red_flags:
 proposal:
   max_words: 250
 
-# Story 3.1 (claim extraction) + Story 3.3 (semantic threshold).
-# `semantic_method` defaults to `rule_based` in v1 because the locked-in LLM
-# provider (Anthropic) does not currently expose an embeddings endpoint;
-# `embedding_cosine` is the documented upgrade path
-# (see `_bmad-output/decisions/llm-provider.md` "Story 3.3").
+# Story 3.1 (claim extraction) + Story 3.3 (semantic threshold) + Story 3.4
+# (held-package retention). `semantic_method` defaults to `rule_based` in v1
+# because the locked-in LLM provider (Anthropic) does not currently expose
+# an embeddings endpoint; `embedding_cosine` is the documented upgrade path
+# (see `_bmad-output/decisions/llm-provider.md` "Story 3.3"). The matcher
+# itself lives in `semantic_matcher.py`. `held_retention_days` is the window
+# before the next pipeline run sweeps expired held packages off disk.
 fabrication:
   claim_extraction:
     timeout_seconds: 60.0
   semantic_method: rule_based
   semantic_threshold: 0.65
+  held_retention_days: 7

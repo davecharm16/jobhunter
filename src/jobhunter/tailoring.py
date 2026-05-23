@@ -28,7 +28,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable
@@ -38,6 +38,7 @@ from jobhunter import (
     board_classifier,
     claim_extractor,
     fabrication_matcher,
+    held_package,
     jd_parser,
     llm_client,
     metadata as metadata_module,
@@ -152,6 +153,10 @@ def run_tailoring(
     parse = llm_parse or jd_parser.parse_jd
     classifier = classify or board_classifier.classify_board
     root = out_root or (PROJECT_ROOT / "out")
+
+    # Story 3.4 AC3: sweep expired held packages BEFORE any LLM work. The
+    # sweep is best-effort — any failure is logged and the pipeline continues.
+    _run_held_sweep(root, now=now)
 
     jd_parse_template = prompts.load_prompt("jd_parse")
     try:
@@ -371,12 +376,27 @@ def run_tailoring(
     # written above), walks the canonical-CV universe, and emits
     # package.drift.json with the fabrication verdict. The package stays
     # "passed" from the pipeline's perspective regardless of verdict (no
-    # exception raised) — Story 3.4 will turn fabrication=fail into a true
-    # HELD state. Held vs passed is a metadata distinction, not a control-flow
-    # branch: there is exactly one code path through run_tailoring.
-    drift_verdicts = _run_fabrication_matcher(
+    # exception raised). Story 3.4 turns fabrication=fail into a true HELD
+    # state below — a `package.held.json` sidecar plus `held=true` on the
+    # metadata sidecar. Held vs passed is a metadata distinction, not a
+    # control-flow branch: there is exactly one code path through
+    # run_tailoring.
+    drift_verdicts, fabrication_check = _run_fabrication_matcher(
         out_dir=out_dir, canonical_cv=canonical_cv, config=config
     )
+
+    # Story 3.4 AC1 + AC2: on fabrication=fail, write `package.held.json` and
+    # record `held=true` + `held_path` on the metadata sidecar. The held-
+    # package writer is the ONLY post-matcher branch — there is no
+    # notification call here, structurally enforcing the no-notify contract
+    # (AC2). Notifications land in Epic 6.
+    held_path_value: str | None = None
+    if fabrication_check.verdict == "fail":
+        held_path_value = _run_held_package_writer(
+            out_dir=out_dir,
+            unsourced_claims=fabrication_check.unsourced_claims,
+            now=now,
+        )
 
     package_metadata = build_metadata(
         slug=slug,
@@ -388,6 +408,8 @@ def run_tailoring(
         source_board=classification.source_board,
         drift_verdicts=drift_verdicts,
         now=now,
+        held=held_path_value is not None,
+        held_path=held_path_value,
     )
     write_sidecar(out_dir, package_metadata)
 
@@ -612,13 +634,15 @@ def _run_fabrication_matcher(
     out_dir: Path,
     canonical_cv: dict[str, Any],
     config: RuntimeConfig,
-) -> dict[str, str]:
+) -> tuple[dict[str, str], fabrication_matcher.FabricationCheck]:
     """Run the Story 3.2 structural matcher and write `package.drift.json`.
 
     Reads `claims.json` from disk (already written by the Story 3.1 step),
     rebuilds typed `Claim` dataclasses, hands them to `run_matcher` (with
     Story 3.3's semantic step injected), writes the drift report, and
-    returns the `drift_verdicts` dict the metadata sidecar consumes.
+    returns the `drift_verdicts` dict the metadata sidecar consumes
+    alongside the raw `FabricationCheck` so the Story 3.4 held-package
+    writer can compose `package.held.json` from the same matcher output.
     `content_loss` and `keyword_stuffing` stay "pending" until Epics 4
     and 5 land their checks.
     """
@@ -651,11 +675,63 @@ def _run_fabrication_matcher(
     )
     check = _upgrade_unsourced_reasons(check, rejection_reasons)
     fabrication_matcher.write_drift_report(out_dir, check)
-    return {
+    verdicts = {
         "fabrication": check.verdict,
         "content_loss": "pending",
         "keyword_stuffing": "pending",
     }
+    return verdicts, check
+
+
+def _run_held_package_writer(
+    *,
+    out_dir: Path,
+    unsourced_claims: list[fabrication_matcher.UnsourcedClaim],
+    now: datetime | None,
+) -> str:
+    """Compose + atomically write `package.held.json`; return its path string (Story 3.4 AC1)."""
+    retention_days = _resolve_held_retention_days()
+    moment = now or datetime.now(timezone.utc)
+    record = held_package.compose_held_record(
+        unsourced_claims,
+        out_dir,
+        now=moment,
+        retention_days=retention_days,
+    )
+    held_path = held_package.write_held_sidecar(out_dir, record)
+    return str(held_path)
+
+
+def _run_held_sweep(root: Path, *, now: datetime | None) -> None:
+    """Sweep expired held packages off disk; best-effort (Story 3.4 AC3).
+
+    Invoked at the top of `run_tailoring` before any LLM work. Any failure
+    is logged at WARNING and swallowed — the sweep must never abort the
+    pipeline that just started running.
+    """
+    try:
+        retention_days = _resolve_held_retention_days()
+        moment = now or datetime.now(timezone.utc)
+        discarded = held_package.sweep_expired(
+            root, now=moment, retention_days=retention_days
+        )
+        if discarded:
+            _log.info(
+                "held-package sweep discarded %d expired package(s): %s",
+                len(discarded),
+                ", ".join(discarded),
+            )
+    except Exception as exc:
+        _log.warning("held-package sweep failed: %s", exc)
+
+
+def _resolve_held_retention_days() -> int:
+    """Pull `fabrication.held_retention_days` from `config.yaml` (default 7)."""
+    try:
+        yaml = yaml_config.load_yaml_config()
+    except yaml_config.YamlConfigError:
+        return 7
+    return int(yaml.fabrication.held_retention_days)
 
 
 def _upgrade_unsourced_reasons(
