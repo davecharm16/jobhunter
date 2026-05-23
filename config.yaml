@@ -1,6 +1,16 @@
 # Tunable configuration for jobhunter (Story 2.2).
 # Secrets do NOT live here — put API keys and the like in `.env`.
 # Edit values below; defaults match the committed template.
+#
+# Notification contract (Story 6.1 + Story 6.2). Pass -> the pipeline POSTs
+# one Google Chat message to `GCHAT_WEBHOOK_URL` (read from `.env`, never
+# committed). Fail on any drift check (fabrication, content-loss, or
+# keyword-stuffing) -> the package is held quietly at `./out/<slug>/` with
+# `metadata.held = true` plus `package.held.json` + `drift-report.md`
+# sidecars, and ZERO POSTs hit the webhook. Story 6.2 pins the no-notify-
+# on-fail contract structurally — see `src/jobhunter/notifier.py` and
+# `src/jobhunter/tailoring.py`'s notification gate
+# (`held_path_value is None and _all_drift_pass(drift_verdicts)`).
 
 cost:
   monthly_cap_usd: 25

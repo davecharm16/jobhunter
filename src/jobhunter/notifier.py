@@ -1,10 +1,24 @@
 """Google Chat webhook notification on pass (Story 6.1).
 
-Contract: `pass -> notify on GChat; fail -> hold quietly under
-./out/_held/<slug>/, no notification`. The notification is fire-and-forget
-from the pipeline's perspective: any delivery failure is logged and the
-metadata sidecar's `notification` field captures the outcome, but the
-pipeline still exits cleanly because the package itself succeeded.
+Contract (Story 6.2 pins this structurally): pass -> notify on GChat; fail
+-> hold quietly under ./out/<slug>/ (identified by metadata.held=true +
+package.held.json + drift-report.md sidecars), no notification. Story 6.2
+locks the contract via tests + the call-graph gate in `tailoring.py`, which
+checks `held_path_value is None AND _all_drift_pass(drift_verdicts)` before
+any call into this module — a failing drift verdict structurally cannot
+reach the webhook.
+
+Architectural deviation from the original Story 6.2 spec wording: held
+packages are co-located at `./out/<slug>/` rather than under a separate
+`./out/_held/<slug>/` tree. Stories 3.4 / 4.2 / 5.3 shipped that working
+architecture; the `held=true` flag on `metadata.json` plus the
+`package.held.json` and `drift-report.md` sidecars are the structural
+markers for the HELD state. Story 6.2 keeps that contract intact.
+
+The notification is fire-and-forget from the pipeline's perspective: any
+delivery failure is logged and the metadata sidecar's `notification` field
+captures the outcome, but the pipeline still exits cleanly because the
+package itself succeeded.
 
 Transport: synchronous `httpx.Client` POST with explicit timeout. httpx is
 already available transitively via `fastapi[all]` (Story 1.6) so this

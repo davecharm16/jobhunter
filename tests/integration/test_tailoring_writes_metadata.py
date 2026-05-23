@@ -276,6 +276,10 @@ def test_run_tailoring_metadata_sits_next_to_artifacts(tmp_path) -> None:
     # Story 4.1: `tailoring.trace.json` lands next to the existing artifacts
     # as the (initially empty) explicit-omission rationale log consumed by
     # the content-loss check.
+    # Story 6.2 AC2: a human-readable `drift-report.md` is written whenever
+    # any drift check fails (the same condition that produces `package.held.json`).
+    # The minimal CV used by this test still triggers a fabrication fail so
+    # the report sidecar also lands here.
     assert files == {
         "cv.md",
         "cover-letter.md",
@@ -284,4 +288,5 @@ def test_run_tailoring_metadata_sits_next_to_artifacts(tmp_path) -> None:
         "package.held.json",
         "tailoring.trace.json",
         "metadata.json",
+        "drift-report.md",
     }

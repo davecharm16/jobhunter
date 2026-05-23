@@ -46,6 +46,7 @@ from jobhunter import (
     claim_extractor,
     content_loss_matcher,
     content_loss_writer,
+    drift_report,
     fabrication_matcher,
     held_package,
     jd_parser,
@@ -496,6 +497,11 @@ def run_tailoring(
             ),
             now=now,
         )
+        # Story 6.2 AC2: a human-readable drift-report.md sidecar so the
+        # author can read at a glance which check failed and why. Sourced
+        # from the machine-readable `package.drift.json` just written by
+        # the matchers above; deterministic + zero LLM calls.
+        _write_drift_report_markdown(out_dir)
 
     package_metadata = build_metadata(
         slug=slug,
@@ -1094,6 +1100,34 @@ def _write_extraction_timeout_sidecar(
         error="extraction_timeout",
     )
     write_sidecar(out_dir, failure_metadata)
+
+
+# Story 6.2: drift-report Markdown sidecar -------------------------------
+
+
+def _write_drift_report_markdown(out_dir: Path) -> None:
+    """Render `drift-report.md` from `package.drift.json` (Story 6.2 AC2).
+
+    The matchers above already wrote the machine-readable drift JSON; this
+    step re-reads it and renders a human Markdown sidecar. Any failure
+    (missing / malformed JSON) is logged at WARNING and swallowed — the
+    held package itself is already on disk, and a missing Markdown sidecar
+    must never break the pipeline.
+    """
+    drift_path = out_dir / "package.drift.json"
+    try:
+        drift_doc = json.loads(drift_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        _log.warning(
+            "drift-report writer: could not read %s: %s", drift_path, exc
+        )
+        return
+    if not isinstance(drift_doc, dict):
+        _log.warning(
+            "drift-report writer: %s is not a JSON object", drift_path
+        )
+        return
+    drift_report.write_drift_report(out_dir, drift_doc)
 
 
 # Story 6.1: drift-verdict gate + post-notification sidecar rewrite -------
