@@ -13,6 +13,7 @@ this module just returns the yaml defaults.
 from __future__ import annotations
 
 import re
+import warnings
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -209,6 +210,10 @@ class YamlConfig:
     fabrication: FabricationConfig
     drift: DriftConfig
     keyword_stuffing: KeywordStuffingConfig
+    # Story 6.5 AC1: top-level held-package TTL (days). When present this key
+    # wins over the legacy `fabrication.held_retention_days`. A value of `0`
+    # disables the auto-discard sweep entirely.
+    held_package_ttl_days: int = 7
 
 
 _DEFAULTS: dict[str, dict[str, Any]] = {
@@ -297,7 +302,12 @@ _KEYWORD_STUFFING_CHANNEL_NAMES: frozenset[str] = frozenset(
     {"upwork", "linkedin", "onlinejobs_ph", "other"}
 )
 
-_ALLOWED_TOP_LEVEL_KEYS = frozenset(_DEFAULTS.keys())
+# Story 6.5 AC1: `held_package_ttl_days` is a top-level scalar (not a section),
+# so it lives outside `_DEFAULTS` (which only holds section-shaped defaults)
+# and gets its own constant for the value default.
+_HELD_PACKAGE_TTL_DAYS_DEFAULT: int = 7
+
+_ALLOWED_TOP_LEVEL_KEYS = frozenset(_DEFAULTS.keys()) | {"held_package_ttl_days"}
 _ALLOWED_RED_FLAG_BOARDS = frozenset(_DEFAULTS["red_flags"].keys())
 
 
@@ -345,6 +355,7 @@ def load_yaml_config(path: Path | None = None) -> YamlConfig:
     fabrication = _parse_fabrication(parsed.get("fabrication"))
     drift = _parse_drift(parsed.get("drift"))
     keyword_stuffing = _parse_keyword_stuffing(parsed.get("keyword_stuffing"))
+    held_package_ttl_days = _resolve_held_package_ttl_days(parsed, fabrication)
 
     return YamlConfig(
         cost=cost,
@@ -355,7 +366,44 @@ def load_yaml_config(path: Path | None = None) -> YamlConfig:
         fabrication=fabrication,
         drift=drift,
         keyword_stuffing=keyword_stuffing,
+        held_package_ttl_days=held_package_ttl_days,
     )
+
+
+def _resolve_held_package_ttl_days(
+    parsed: dict[str, Any], fabrication: FabricationConfig
+) -> int:
+    """Resolve the held-package TTL with new-key precedence + back-compat (Story 6.5 AC1).
+
+    Precedence:
+    1. Top-level `held_package_ttl_days` if present (wins, no warning).
+    2. Legacy `fabrication.held_retention_days` if present in yaml (used, with
+       a `DeprecationWarning` so the author migrates the key).
+    3. Default `7`.
+
+    Allows `0` (disables the sweep). The legacy key still rejects `0` via
+    `_coerce_positive_int` because Story 3.4's contract is unchanged; if the
+    author wants to disable the sweep they must adopt the new key.
+    """
+    if "held_package_ttl_days" in parsed:
+        return _coerce_nonnegative_int(
+            parsed["held_package_ttl_days"], "held_package_ttl_days"
+        )
+    # Fall back to the legacy key only when it was *explicitly* present in
+    # yaml. `FabricationConfig.held_retention_days` always carries an int
+    # (default 7), so we re-inspect the raw parsed mapping to distinguish
+    # "author wrote 7" from "author wrote nothing".
+    fab_raw = parsed.get("fabrication")
+    if isinstance(fab_raw, dict) and "held_retention_days" in fab_raw:
+        warnings.warn(
+            "config.yaml key `fabrication.held_retention_days` is deprecated; "
+            "use top-level `held_package_ttl_days` instead "
+            "(set to 0 to disable the held-package auto-discard sweep).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return int(fabrication.held_retention_days)
+    return _HELD_PACKAGE_TTL_DAYS_DEFAULT
 
 
 def _reject_secret_keys(node: Any, *, path_prefix: str) -> None:
@@ -869,6 +917,17 @@ def _coerce_positive_int(value: Any, key_path: str) -> int:
         )
     if value <= 0:
         raise YamlConfigError(f"{key_path} must be a positive integer")
+    return value
+
+
+def _coerce_nonnegative_int(value: Any, key_path: str) -> int:
+    """Story 6.5 AC1: accept `0` (disables the sweep) but reject negatives / non-ints."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise YamlConfigError(
+            f"{key_path} must be a non-negative integer, got {type(value).__name__}"
+        )
+    if value < 0:
+        raise YamlConfigError(f"{key_path} must be a non-negative integer")
     return value
 
 

@@ -12,6 +12,11 @@
 # `src/jobhunter/tailoring.py`'s notification gate
 # (`held_path_value is None and _all_drift_pass(drift_verdicts)`).
 
+# Story 6.5 — top-level held-package TTL. When present this wins over the
+# legacy `fabrication.held_retention_days` key (which stays in place below
+# for backward compatibility). Set to 0 to disable auto-discard entirely.
+held_package_ttl_days: 7  # 7 = sweep held packages older than 7 days. 0 = disable auto-discard.
+
 cost:
   monthly_cap_usd: 25
   per_app_max_usd: 0.25
@@ -46,7 +51,7 @@ fabrication:
     timeout_seconds: 60.0
   semantic_method: rule_based
   semantic_threshold: 0.65
-  held_retention_days: 7
+  held_retention_days: 7  # DEPRECATED (Story 6.5): use top-level `held_package_ttl_days` instead. Kept for backward compatibility.
 
 # Story 4.3 — content-loss drift check tunables. Defaults skew conservative
 # (high recall, more flags); the author tightens after 20+ apps if overrides

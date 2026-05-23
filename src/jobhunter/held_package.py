@@ -18,7 +18,11 @@ Two contracts live in this module:
    work. Walks `./out/` for `package.held.json` sidecars whose
    `retention_expires_at` is in the past and removes the whole `<slug>/`
    directory; appends a one-line JSON-lines audit entry per discard to
-   `./out/_held-audit.log` (AC3).
+   `./out/_discarded.log` (Story 3.4 AC3, file renamed by Story 6.5 AC3).
+   Story 6.5 AC3 also extends the per-discard entry shape with
+   `source_board`, `drift_fail_reason`, and `created_at` read from the
+   slug's `metadata.json` sibling. A `retention_days=0` call short-circuits
+   to a no-op (Story 6.5 AC1: `0` disables auto-discard).
 
 The "no notify" contract (AC2) is structural — this module does not import
 or reference any notification module, and `tailoring.py`'s held branch goes
@@ -62,7 +66,9 @@ __all__ = [
 
 
 HELD_SIDECAR_NAME = "package.held.json"
-AUDIT_LOG_NAME = "_held-audit.log"
+# Story 6.5 AC3: rename the per-discard audit log from `_held-audit.log`
+# (Story 3.4's name) to `_discarded.log` (the spec's literal name).
+AUDIT_LOG_NAME = "_discarded.log"
 
 # Maps `source_artifact` (from `UnsourcedClaim`) to the on-disk markdown
 # filename the failed claim lives in. Mirrors the
@@ -304,16 +310,33 @@ def sweep_expired(
 ) -> list[str]:
     """Discard every held package under *out_root* whose retention has expired.
 
-    AC3: scans `out_root` for `<slug>/package.held.json` sidecars; for each
-    whose `retention_expires_at` is in the past relative to *now*, removes
-    the entire `<slug>/` directory and appends a one-line JSON record to
-    `out_root/_held-audit.log` so the discard is not silent. Returns the
+    Scans `out_root` for `<slug>/package.held.json` sidecars; for each whose
+    `retention_expires_at` is in the past relative to *now*, removes the
+    entire `<slug>/` directory and appends a one-line JSON record to
+    `out_root/_discarded.log` so the discard is not silent. Returns the
     list of discarded slugs.
+
+    Story 6.5 AC1: `retention_days == 0` short-circuits to a no-op (auto-
+    discard disabled). The check sits AT THE TOP — before `out_root.is_dir`
+    even — because the contract is "the sweep does nothing", regardless of
+    whether the queue directory exists.
+
+    Story 6.5 AC3: the audit entry is extended with `source_board`,
+    `drift_fail_reason`, and `created_at` read from the slug's
+    `metadata.json` (best-effort; absent/malformed metadata yields empty
+    strings rather than aborting the discard).
+
+    Story 6.5 AC4: only directories with a `package.held.json` sidecar are
+    eligible — passed packages (no sidecar) and overridden packages (under
+    `out_root/_overridden/<slug>/`, never iterated because we walk
+    `out_root` non-recursively) are structurally excluded.
 
     Best-effort: any per-slug failure (unreadable sidecar, permission error
     on rmtree) is logged at WARNING and the sweep continues with the next
     slug — the sweep must never abort the pipeline.
     """
+    if retention_days == 0:
+        return []
     if not out_root.is_dir():
         return []
 
@@ -352,6 +375,11 @@ def sweep_expired(
         held_at_raw = payload.get("held_at")
         failed_claims = payload.get("failed_claims") or []
         failed_count = len(failed_claims) if isinstance(failed_claims, list) else 0
+        # Story 6.5 AC3: pull the new audit fields from `metadata.json` BEFORE
+        # the rmtree wipes the directory. Best-effort: a missing or malformed
+        # metadata.json yields empty-string fields so the discard still
+        # proceeds and the audit entry still lands.
+        metadata_fields = _read_metadata_audit_fields(entry)
         slug = entry.name
         try:
             shutil.rmtree(entry)
@@ -366,9 +394,56 @@ def sweep_expired(
             held_at=held_at_raw if isinstance(held_at_raw, str) else "",
             discarded_at=now_iso8601_utc(moment),
             failed_claims_count=failed_count,
+            source_board=metadata_fields["source_board"],
+            drift_fail_reason=metadata_fields["drift_fail_reason"],
+            created_at=metadata_fields["created_at"],
         )
         discarded.append(slug)
     return discarded
+
+
+def _read_metadata_audit_fields(slug_dir: Path) -> dict[str, str]:
+    """Read `metadata.json` and project Story 6.5 AC3's audit fields.
+
+    Returns a dict with three string keys: `source_board`,
+    `drift_fail_reason`, `created_at`. Missing / malformed metadata.json or
+    missing individual fields yield empty strings — the sweep never aborts
+    on a metadata read failure.
+
+    `drift_fail_reason` is derived from `metadata.drift_verdicts`: the
+    sorted, comma-joined list of check names whose verdict is `"fail"`
+    (e.g. `"fabrication"`, `"content_loss,fabrication"`). When no check
+    failed (unexpected for a held package, but possible if the sidecar was
+    written without updating metadata) the field is the empty string.
+    """
+    empty = {"source_board": "", "drift_fail_reason": "", "created_at": ""}
+    metadata_path = slug_dir / "metadata.json"
+    if not metadata_path.is_file():
+        return empty
+    try:
+        doc = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        _log.warning(
+            "held-package sweep: could not read %s: %s", metadata_path, exc
+        )
+        return empty
+    if not isinstance(doc, dict):
+        return empty
+    source_board = doc.get("source_board", "")
+    created_at = doc.get("created_at", "")
+    drift_verdicts = doc.get("drift_verdicts") or {}
+    failing: list[str] = []
+    if isinstance(drift_verdicts, dict):
+        failing = sorted(
+            check
+            for check, verdict in drift_verdicts.items()
+            if isinstance(check, str) and verdict == "fail"
+        )
+    return {
+        "source_board": source_board if isinstance(source_board, str) else "",
+        "drift_fail_reason": ",".join(failing),
+        "created_at": created_at if isinstance(created_at, str) else "",
+    }
 
 
 def _build_failed_claim(claim: UnsourcedClaim, out_dir: Path) -> FailedClaim:
@@ -446,13 +521,26 @@ def _append_audit_entry(
     held_at: str,
     discarded_at: str,
     failed_claims_count: int,
+    source_board: str = "",
+    drift_fail_reason: str = "",
+    created_at: str = "",
 ) -> None:
-    """Append one JSON-lines record to `out_root/_held-audit.log`."""
+    """Append one JSON-lines record to `out_root/_discarded.log`.
+
+    Story 6.5 AC3 extends the entry shape with three fields read from the
+    discarded slug's `metadata.json`: `source_board`, `drift_fail_reason`
+    (sorted comma-joined check names whose drift verdict was `"fail"`), and
+    `created_at`. All three default to empty strings so callers that supply
+    no metadata still produce a structurally-stable record.
+    """
     entry = {
         "slug": slug,
         "held_at": held_at,
         "discarded_at": discarded_at,
         "failed_claims_count": failed_claims_count,
+        "source_board": source_board,
+        "drift_fail_reason": drift_fail_reason,
+        "created_at": created_at,
     }
     log_path = out_root / AUDIT_LOG_NAME
     with open(log_path, "a", encoding="utf-8") as fh:

@@ -844,14 +844,22 @@ def _run_held_package_writer(
 
 
 def _run_held_sweep(root: Path, *, now: datetime | None) -> None:
-    """Sweep expired held packages off disk; best-effort (Story 3.4 AC3).
+    """Sweep expired held packages off disk; best-effort (Story 3.4 AC3, Story 6.5 AC2).
 
     Invoked at the top of `run_tailoring` before any LLM work. Any failure
     is logged at WARNING and swallowed — the sweep must never abort the
     pipeline that just started running.
+
+    Story 6.5 AC1: when the resolved TTL is `0` the sweep is skipped
+    entirely (the queue is kept forever). The early-return is paired with
+    `held_package.sweep_expired`'s own `retention_days == 0` guard so
+    direct callers of the sweep function get the same disabled behavior.
     """
     try:
         retention_days = _resolve_held_retention_days()
+        if retention_days == 0:
+            _log.debug("held-package sweep disabled (held_package_ttl_days=0)")
+            return
         moment = now or datetime.now(timezone.utc)
         discarded = held_package.sweep_expired(
             root, now=moment, retention_days=retention_days
@@ -867,12 +875,18 @@ def _run_held_sweep(root: Path, *, now: datetime | None) -> None:
 
 
 def _resolve_held_retention_days() -> int:
-    """Pull `fabrication.held_retention_days` from `config.yaml` (default 7)."""
+    """Pull the held-package TTL from `config.yaml` (Story 6.5 AC1 precedence).
+
+    Reads the top-level `held_package_ttl_days` key first; falls back to the
+    deprecated `fabrication.held_retention_days` when the new key is absent
+    (the loader emits a `DeprecationWarning` on the legacy path). Default is
+    7. A value of `0` means "disable the sweep" — caller short-circuits.
+    """
     try:
         yaml = yaml_config.load_yaml_config()
     except yaml_config.YamlConfigError:
         return 7
-    return int(yaml.fabrication.held_retention_days)
+    return int(yaml.held_package_ttl_days)
 
 
 def _upgrade_unsourced_reasons(
