@@ -77,19 +77,21 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2: Paste Pipeline Hardening & Artifact System
-  # 2-12 reframed from CLI to GET /api/stats + Dashboard stats card on 2026-05-23.
-  # 2-13 and 2-14 added on 2026-05-23 for the Settings/CV editor and JD Pipeline surfaces.
-  epic-2: backlog
-  2-1-canonical-cv-tagging-schema-and-high-impact-flag: backlog
-  2-2-config-yaml-separation-of-tunables-from-secrets: backlog
+  # 2026-05-23: 4 stories merged in parallel via story-automator fan-out (L0):
+  #   2-1 (62c0181 + 4ae6bf2), 2-2 (62c0181), 2-9 (7dd9eed), 2-10 (38c8dc1).
+  #   Follow-up commit 3145051 wired prompt_versions into metadata.prompt_templates.
+  #   269 tests passing on main.
+  epic-2: in-progress
+  2-1-canonical-cv-tagging-schema-and-high-impact-flag: done
+  2-2-config-yaml-separation-of-tunables-from-secrets: done
   2-3-structured-jd-parser: backlog
   2-4-source-board-classifier: backlog
   2-5-upwork-specific-signal-extraction-and-red-flags: backlog
   2-6-onlinejobs-ph-specific-signal-extraction: backlog
   2-7-upwork-proposal-as-a-first-class-artifact-type: backlog
   2-8-per-board-artifact-set-selector: backlog
-  2-9-prompt-template-versioning: backlog
-  2-10-per-application-metadata-sidecar-and-per-request-cost-logging: backlog
+  2-9-prompt-template-versioning: done
+  2-10-per-application-metadata-sidecar-and-per-request-cost-logging: done
   2-11-internal-post-paste-endpoint-with-shared-token-auth: backlog
   2-12-stats-api-and-dashboard-stats-card: backlog
   2-13-settings-and-canonical-cv-editor-surface: backlog
