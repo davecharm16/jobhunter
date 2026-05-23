@@ -19,6 +19,10 @@ dependencies = [
 dev = [
     "pytest>=8.0",
 ]
+web = [
+    "fastapi[all]>=0.110",
+    "uvicorn[standard]>=0.27",
+]
 
 [project.scripts]
 jobhunter = "jobhunter.cli:main"

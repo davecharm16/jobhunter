@@ -16,3 +16,7 @@ build/
 # Story 1.5: per-application tailored output + cumulative spend ledger
 out/
 .cost-ledger.json
+
+# Story 1.6: frontend node deps (build artifacts already covered by `dist/`)
+node_modules/
+tsconfig.tsbuildinfo
