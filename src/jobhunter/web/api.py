@@ -121,12 +121,17 @@ def create_app() -> FastAPI:
         except CanonicalCVMissing as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+        artifacts_override = (
+            payload.metadata.get("artifacts_override") if payload.metadata else None
+        )
+
         try:
             outcome = run_tailoring(
                 canonical_cv,
                 payload.jd_text,
                 config=config,
                 source_board=payload.source_board,
+                artifacts_override=artifacts_override,
             )
         except SpendCapExceeded as exc:
             raise HTTPException(

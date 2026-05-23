@@ -147,6 +147,7 @@ def stage_tailoring(
         llm_parse=None,
         classify=None,
         source_board=None,
+        artifacts_override=None,
         out_root=None,
         ledger_path=None,
     ):
@@ -159,6 +160,7 @@ def stage_tailoring(
             llm_parse=parser,
             classify=classify or classifier,
             source_board=source_board,
+            artifacts_override=artifacts_override,
             out_root=out_root or (tmp_path / "out"),
             ledger_path=ledger_path or (tmp_path / ".cost-ledger.json"),
         )

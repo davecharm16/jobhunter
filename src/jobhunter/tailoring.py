@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from jobhunter import (
+    artifact_selector,
     board_classifier,
     jd_parser,
     llm_client,
@@ -74,6 +75,7 @@ def run_tailoring(
     llm_parse: ParseCallable | None = None,
     classify: ClassifyCallable | None = None,
     source_board: str | None = None,
+    artifacts_override: list[str] | None = None,
     out_root: Path | None = None,
     ledger_path: Path | None = None,
 ) -> TailoringOutcome:
@@ -143,6 +145,11 @@ def run_tailoring(
     if tmp_dir.exists():
         raise FileExistsError(tmp_dir)
 
+    # Story 2.8 seam: cv.md + cover-letter.md are still written unconditionally
+    # here (Stories 1.5/1.6); the selector below decides what `artifacts_produced`
+    # records. When source_board="upwork" the list will say "upwork_proposal"
+    # even though that file is not written yet — Story 2.7 closes this gap by
+    # gating each artifact write on the selector's output.
     tmp_dir.mkdir(parents=True, exist_ok=False)
     try:
         (tmp_dir / "cv.md").write_text(result.cv_markdown, encoding="utf-8")
@@ -161,10 +168,14 @@ def run_tailoring(
         usd_cost=metadata_module.format_cost(result.cost_usd),
         purpose="tailor_cv_and_cover_letter",
     )
+    artifacts_produced = artifact_selector.select(
+        classification.source_board,
+        explicit_override=artifacts_override,
+    )
     package_metadata = build_metadata(
         slug=slug,
         jd_source="paste",
-        artifacts_produced=["cv", "cover_letter"],
+        artifacts_produced=artifacts_produced,
         calls=[call_log],
         prompt_templates=prompt_versions,
         parsed_jd=parsed_jd_dict,
