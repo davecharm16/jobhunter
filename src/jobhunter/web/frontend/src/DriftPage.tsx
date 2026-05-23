@@ -4,6 +4,10 @@ import {
   DriftSection,
   type DriftVerdict,
 } from "./components/DriftSection";
+import {
+  ContentLossSection,
+  type ContentLossBlock,
+} from "./components/ContentLossSection";
 
 // The drift.json shape mirrors `jobhunter.fabrication_matcher.FabricationCheck`
 // at the wire. Stories 4.4 + 5.4 will add sibling keys (`content_loss`,
@@ -35,7 +39,7 @@ type FabricationCheck = {
 
 type DriftDocument = {
   fabrication_check?: FabricationCheck;
-  content_loss?: unknown;
+  content_loss?: ContentLossBlock;
   keyword_stuffing?: unknown;
 };
 
@@ -48,6 +52,23 @@ function fabricationVerdict(doc: DriftDocument): DriftVerdict {
   const fab = doc.fabrication_check;
   if (!fab) return "unknown";
   return fab.verdict;
+}
+
+function contentLossVerdict(doc: DriftDocument): DriftVerdict {
+  const cl = doc.content_loss;
+  if (!cl) return "pending";
+  return cl.verdict;
+}
+
+function contentLossSubtitle(doc: DriftDocument): string | undefined {
+  const cl = doc.content_loss;
+  if (!cl) return undefined;
+  const preserved = cl.preserved_entries.length;
+  const dropped = cl.dropped_entries.length;
+  if (preserved === 0 && dropped === 0) {
+    return "No high-impact entries to verify";
+  }
+  return `${preserved} preserved · ${dropped} dropped`;
 }
 
 function FabricationContent({ check }: { check: FabricationCheck }) {
@@ -294,8 +315,16 @@ export function DriftPage() {
           )}
         </DriftSection>
 
-        <DriftSection title="Content Loss" verdict="pending">
-          <PlaceholderContent label="Content-loss diagnostics (Story 4.4)" />
+        <DriftSection
+          title="Content Loss"
+          verdict={contentLossVerdict(payload)}
+          subtitle={contentLossSubtitle(payload)}
+        >
+          {payload.content_loss ? (
+            <ContentLossSection block={payload.content_loss} />
+          ) : (
+            <PlaceholderContent label="Content-loss block not present in this drift report." />
+          )}
         </DriftSection>
 
         <DriftSection title="Keyword Stuffing" verdict="pending">
