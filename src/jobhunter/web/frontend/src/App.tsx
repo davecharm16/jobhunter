@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { PastePanel } from "./PastePanel";
 import { SettingsPage } from "./SettingsPage";
+import { StatsCard } from "./StatsCard";
 
 function DashboardPage() {
   const [jdText, setJdText] = useState("");
@@ -17,6 +18,7 @@ function DashboardPage() {
           canonical CV.
         </p>
       </div>
+      <StatsCard />
       <PastePanel jdText={jdText} setJdText={setJdText} />
     </div>
   );
