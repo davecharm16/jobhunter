@@ -24,15 +24,17 @@ from jobhunter.config import CONFIG_YAML_PATH
 
 
 __all__ = [
-    "YamlConfigError",
-    "YamlConfig",
+    "ClaimExtractionConfig",
     "CostConfig",
+    "FabricationConfig",
+    "OnlineJobsPhRedFlags",
     "OutputConfig",
     "ProposalConfig",
     "PromptsConfig",
     "RedFlagsConfig",
     "UpworkRedFlags",
-    "OnlineJobsPhRedFlags",
+    "YamlConfig",
+    "YamlConfigError",
     "load_yaml_config",
 ]
 
@@ -92,12 +94,32 @@ class ProposalConfig:
 
 
 @dataclass(frozen=True)
+class ClaimExtractionConfig:
+    """Per-call timeout for the Story 3.1 atomic-claim extractor."""
+
+    timeout_seconds: float
+
+
+@dataclass(frozen=True)
+class FabricationConfig:
+    """Story 3.1 owns `claim_extraction`; Story 3.3 will populate `semantic_*` keys."""
+
+    claim_extraction: ClaimExtractionConfig
+    # TODO(Story 3.3): wire `semantic_method` (`embedding_cosine` | `rule_based`)
+    # and `semantic_threshold` (default 0.82 / 0.65) once the semantic matcher
+    # lands. Stubbed strings for now so the yaml schema is forward-compatible.
+    semantic_method: str
+    semantic_threshold: Decimal
+
+
+@dataclass(frozen=True)
 class YamlConfig:
     cost: CostConfig
     output: OutputConfig
     prompts: PromptsConfig
     red_flags: RedFlagsConfig
     proposal: ProposalConfig
+    fabrication: FabricationConfig
 
 
 _DEFAULTS: dict[str, dict[str, Any]] = {
@@ -124,6 +146,13 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
     },
     "proposal": {
         "max_words": 250,
+    },
+    "fabrication": {
+        "claim_extraction": {
+            "timeout_seconds": Decimal("60.0"),
+        },
+        "semantic_method": "embedding_cosine",
+        "semantic_threshold": Decimal("0.82"),
     },
 }
 
@@ -172,6 +201,7 @@ def load_yaml_config(path: Path | None = None) -> YamlConfig:
     prompts = _parse_prompts(parsed["prompts"])
     red_flags = _parse_red_flags(parsed["red_flags"])
     proposal = _parse_proposal(parsed.get("proposal"))
+    fabrication = _parse_fabrication(parsed.get("fabrication"))
 
     return YamlConfig(
         cost=cost,
@@ -179,6 +209,7 @@ def load_yaml_config(path: Path | None = None) -> YamlConfig:
         prompts=prompts,
         red_flags=red_flags,
         proposal=proposal,
+        fabrication=fabrication,
     )
 
 
@@ -312,6 +343,75 @@ def _parse_proposal(node: Any) -> ProposalConfig:
             "proposal.max_words",
         ),
     )
+
+
+def _parse_fabrication(node: Any) -> FabricationConfig:
+    """Build the Story 3.1 + 3.3 `fabrication` section, applying defaults."""
+    defaults = _DEFAULTS["fabrication"]
+    if node is None:
+        return FabricationConfig(
+            claim_extraction=ClaimExtractionConfig(
+                timeout_seconds=float(defaults["claim_extraction"]["timeout_seconds"]),
+            ),
+            semantic_method=str(defaults["semantic_method"]),
+            semantic_threshold=Decimal(str(defaults["semantic_threshold"])),
+        )
+    node = _require_mapping(node, "fabrication")
+    _reject_unknown_keys(node, frozenset(defaults.keys()), "fabrication")
+
+    extraction_defaults = defaults["claim_extraction"]
+    extraction_node = node.get("claim_extraction", extraction_defaults)
+    extraction_node = _require_mapping(
+        extraction_node, "fabrication.claim_extraction"
+    )
+    _reject_unknown_keys(
+        extraction_node,
+        frozenset(extraction_defaults.keys()),
+        "fabrication.claim_extraction",
+    )
+    timeout_seconds = _coerce_positive_float(
+        extraction_node.get(
+            "timeout_seconds", extraction_defaults["timeout_seconds"]
+        ),
+        "fabrication.claim_extraction.timeout_seconds",
+    )
+
+    return FabricationConfig(
+        claim_extraction=ClaimExtractionConfig(timeout_seconds=timeout_seconds),
+        semantic_method=_coerce_non_empty_str(
+            node.get("semantic_method", defaults["semantic_method"]),
+            "fabrication.semantic_method",
+        ),
+        semantic_threshold=_coerce_positive_decimal(
+            node.get("semantic_threshold", defaults["semantic_threshold"]),
+            "fabrication.semantic_threshold",
+        ),
+    )
+
+
+def _coerce_positive_float(value: Any, key_path: str) -> float:
+    if isinstance(value, bool):
+        raise YamlConfigError(f"{key_path} must be a positive number")
+    if isinstance(value, Decimal):
+        result = float(value)
+    elif isinstance(value, (int, float)):
+        result = float(value)
+    elif isinstance(value, str):
+        try:
+            result = float(value)
+        except ValueError as exc:
+            raise YamlConfigError(
+                f"{key_path} must be a positive number"
+            ) from exc
+    else:
+        raise YamlConfigError(
+            f"{key_path} must be a positive number, got {type(value).__name__}"
+        )
+    import math as _math
+
+    if not _math.isfinite(result) or result <= 0:
+        raise YamlConfigError(f"{key_path} must be a positive number")
+    return result
 
 
 def _coerce_positive_decimal(value: Any, key_path: str) -> Decimal:

@@ -124,7 +124,10 @@ def test_run_tailoring_surfaces_prompt_versions_on_outcome(
         ledger_path=tmp_path / ".cost-ledger.json",
     )
     assert isinstance(outcome, TailoringOutcome)
-    assert outcome.prompt_versions == {"cv": "v3", "cover_letter": "v2"}
+    # Story 3.1: `claims_extract` joins the prompt-version surface.
+    assert outcome.prompt_versions == {
+        "cv": "v3", "cover_letter": "v2", "claims_extract": "v1",
+    }
 
 
 def test_run_tailoring_picks_highest_version_per_artifact(
@@ -196,7 +199,10 @@ def test_real_tailor_uses_prompt_template_content_as_system_prompt(
         out_root=tmp_path / "out",
         ledger_path=tmp_path / ".cost-ledger.json",
     )
-    assert outcome.prompt_versions == {"cv": "v2", "cover_letter": "v2"}
+    # Story 3.1: `claims_extract` joins the prompt-version surface.
+    assert outcome.prompt_versions == {
+        "cv": "v2", "cover_letter": "v2", "claims_extract": "v1",
+    }
     assert captured["create_kwargs"]["system"] == "CUSTOM CV SYSTEM PROMPT v2\n"
 
 

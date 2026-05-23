@@ -57,6 +57,23 @@ def _fake_tailor_factory(
     return fake_tailor
 
 
+def _zero_cost_extractor(
+    markdown_text, source_artifact, *, api_key, timeout_seconds, prompt,
+):
+    """Story 3.1: zero-cost extractor for tests that pin pre-Story-3.1 cost totals.
+
+    The integration-conftest autouse stub charges $0.000050 per call, which
+    would push these AC3 totals off the pre-Story-3.1 snapshot. Tests that
+    specifically assert the tailor-only cost inject this stub to neutralize
+    the extraction calls.
+    """
+    from jobhunter.claim_extractor import ClaimExtractionResult
+
+    return ClaimExtractionResult(
+        claims=[], cost_usd=Decimal("0"), input_tokens=0, output_tokens=0,
+    )
+
+
 # --- AC1: metadata.json with full structured payload ---------------------
 
 
@@ -87,7 +104,12 @@ def test_run_tailoring_writes_metadata_json_with_full_ac1_payload(tmp_path) -> N
     assert "must_haves" in data["parsed_jd"]
     assert data["red_flags"] == []
     assert data["artifacts_produced"] == ["cv", "cover_letter"]
-    assert data["prompt_templates"] == {"cv": "v1", "cover_letter": "v1"}
+    # Story 3.1 adds `claims_extract` to the prompt-versions surface.
+    assert data["prompt_templates"] == {
+        "cv": "v1",
+        "cover_letter": "v1",
+        "claims_extract": "v1",
+    }
     assert data["drift_verdicts"] == {
         "fabrication": "pending",
         "content_loss": "pending",
@@ -118,15 +140,18 @@ def test_run_tailoring_appends_tailoring_call_to_cost_calls(tmp_path) -> None:
     data = json.loads(
         (outcome.out_dir / "metadata.json").read_text(encoding="utf-8")
     )
-    assert data["cost"]["calls"] == [
-        {
-            "model": MODEL_NAME,
-            "input_tokens": 1234,
-            "output_tokens": 567,
-            "usd_cost": "0.004200",
-            "purpose": "tailor_cv_and_cover_letter",
-        }
-    ]
+    # Story 3.1: the tailoring call is followed by per-artifact extract_claims
+    # calls (one per produced artifact); the test pins the tailoring entry
+    # specifically and asserts the extract_claims tail separately.
+    tail_purposes = [c["purpose"] for c in data["cost"]["calls"][1:]]
+    assert data["cost"]["calls"][0] == {
+        "model": MODEL_NAME,
+        "input_tokens": 1234,
+        "output_tokens": 567,
+        "usd_cost": "0.004200",
+        "purpose": "tailor_cv_and_cover_letter",
+    }
+    assert tail_purposes == ["extract_claims", "extract_claims"]
 
 
 # --- AC3: total + per-app target visible ----------------------------------
@@ -139,12 +164,14 @@ def test_run_tailoring_writes_total_and_target_below_cap(tmp_path) -> None:
         config=_config(),
         now=FIXED_NOW,
         llm_tailor=_fake_tailor_factory(cost=Decimal("0.020000")),
+        llm_extract_claims=_zero_cost_extractor,
         out_root=tmp_path / "out",
         ledger_path=tmp_path / ".cost-ledger.json",
     )
     data = json.loads(
         (outcome.out_dir / "metadata.json").read_text(encoding="utf-8")
     )
+    # Story 3.1: injected extractor returns $0 so the total still pins.
     assert data["cost"]["total_usd"] == "0.020000"
     assert data["cost"]["per_app_target_usd"] == "0.250000"
     assert data["cost"]["exceeded_per_app_target"] is False
@@ -157,6 +184,7 @@ def test_run_tailoring_flags_exceeded_per_app_target(tmp_path) -> None:
         config=_config(),
         now=FIXED_NOW,
         llm_tailor=_fake_tailor_factory(cost=Decimal("0.500000")),
+        llm_extract_claims=_zero_cost_extractor,
         out_root=tmp_path / "out",
         ledger_path=tmp_path / ".cost-ledger.json",
     )
@@ -227,4 +255,5 @@ def test_run_tailoring_metadata_sits_next_to_artifacts(tmp_path) -> None:
         ledger_path=tmp_path / ".cost-ledger.json",
     )
     files = {p.name for p in outcome.out_dir.iterdir()}
-    assert files == {"cv.md", "cover-letter.md", "metadata.json"}
+    # Story 3.1 adds claims.json next to the tailored artifacts.
+    assert files == {"cv.md", "cover-letter.md", "claims.json", "metadata.json"}

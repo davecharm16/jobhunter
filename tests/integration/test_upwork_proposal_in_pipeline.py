@@ -421,7 +421,14 @@ def test_metadata_records_two_call_logs_with_distinct_purposes(
 
     metadata = _read_metadata(out_root)
     purposes = [c["purpose"] for c in metadata["cost"]["calls"]]
-    assert purposes == ["tailor_cv_and_cover_letter", "tailor_upwork_proposal"]
+    # Story 3.1: extract_claims runs per artifact in `artifacts_produced`
+    # (upwork board ships {cv, upwork_proposal}, so two extraction calls).
+    assert purposes == [
+        "tailor_cv_and_cover_letter",
+        "tailor_upwork_proposal",
+        "extract_claims",
+        "extract_claims",
+    ]
 
 
 def test_total_cost_sums_both_calls(tmp_path, monkeypatch) -> None:

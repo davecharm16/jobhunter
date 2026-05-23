@@ -60,22 +60,28 @@ def _stub_llm_parse_jd(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _autoresolve_jd_parse_template(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Synthesize a `jd_parse` PromptTemplate so test-staged dirs do not need one."""
+    """Synthesize the `jd_parse` and `claims_extract` PromptTemplates."""
     import jobhunter.prompts as prompts_module
     from jobhunter.prompts import PromptTemplate
 
     original_load = prompts_module.load_prompt
+    _SYNTHETIC = {
+        "jd_parse": "parse the JD into structured fields\n",
+        # Story 3.1: tests that stage minimal prompt dirs (Story 2.9 family)
+        # should not need to know about the claim-extraction prompt either.
+        "claims_extract": "extract atomic claims from the source markdown\n",
+    }
 
     def patched_load(artifact: str, *, prompts_dir: Path | None = None) -> PromptTemplate:
-        if artifact == "jd_parse":
+        if artifact in _SYNTHETIC:
             try:
                 return original_load(artifact, prompts_dir=prompts_dir)
             except prompts_module.PromptTemplateMissing:
                 return PromptTemplate(
-                    name="jd_parse",
+                    name=artifact,
                     version="v1",
-                    content="parse the JD into structured fields\n",
-                    path=Path("<synthetic jd_parse.v1.md for tests>"),
+                    content=_SYNTHETIC[artifact],
+                    path=Path(f"<synthetic {artifact}.v1.md for tests>"),
                 )
         return original_load(artifact, prompts_dir=prompts_dir)
 
@@ -83,3 +89,52 @@ def _autoresolve_jd_parse_template(monkeypatch: pytest.MonkeyPatch) -> None:
     import jobhunter.tailoring as tailoring_module
 
     monkeypatch.setattr(tailoring_module.prompts, "load_prompt", patched_load)
+
+
+@pytest.fixture(autouse=True)
+def _stub_llm_extract_claims(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Replace the Anthropic-touching claim extractor with a deterministic stub.
+
+    Story 3.1 introduces a third LLM call (after `parse_jd` and `tailor`).
+    Mirrors the `_stub_llm_parse_jd` pattern: any integration test that does
+    not explicitly inject `llm_extract_claims` gets a zero-cost, deterministic
+    result. Tests that need to assert extraction behavior (timeout, malformed
+    response) override this with their own `monkeypatch.setattr`.
+    """
+    from jobhunter.claim_extractor import Claim, ClaimExtractionResult
+
+    def fake_extract(
+        markdown_text: str,
+        source_artifact: str,
+        *,
+        api_key: str,
+        timeout_seconds: float,
+        prompt,
+        llm_extract=None,
+    ) -> ClaimExtractionResult:
+        # Emit one trivial claim per artifact so claims.json is non-empty
+        # but deterministic — integration tests assert shape, not content.
+        return ClaimExtractionResult(
+            claims=[
+                Claim(
+                    claim_id=f"{source_artifact}:1:stubstub",
+                    claim_type="skill",
+                    claim_text="pytest",
+                    source_artifact=source_artifact,
+                    line_number=1,
+                )
+            ],
+            cost_usd=Decimal("0.000050"),
+            input_tokens=5,
+            output_tokens=3,
+        )
+
+    import jobhunter.claim_extractor as extractor_module
+    import jobhunter.tailoring as tailoring_module
+
+    monkeypatch.setattr(extractor_module, "extract_claims_from_markdown", fake_extract)
+    monkeypatch.setattr(
+        tailoring_module.claim_extractor,
+        "extract_claims_from_markdown",
+        fake_extract,
+    )

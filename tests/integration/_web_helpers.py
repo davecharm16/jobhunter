@@ -176,6 +176,7 @@ def stage_tailoring(
         llm_tailor=None,
         llm_tailor_upwork_proposal=None,
         llm_parse=None,
+        llm_extract_claims=None,
         classify=None,
         source_board=None,
         artifacts_override=None,
@@ -190,6 +191,10 @@ def stage_tailoring(
             llm_tailor=tailor,
             llm_tailor_upwork_proposal=proposal_tailor,
             llm_parse=parser,
+            # Story 3.1: pass through caller-supplied extractor; integration
+            # conftest's autouse `_stub_llm_extract_claims` is the fallback
+            # when no override is supplied.
+            llm_extract_claims=llm_extract_claims,
             classify=classify or classifier,
             source_board=source_board,
             artifacts_override=artifacts_override,

@@ -23,3 +23,12 @@ red_flags:
 
 proposal:
   max_words: 250
+
+# Story 3.1 (claim extraction) + Story 3.3 (semantic threshold).
+# `semantic_method` and `semantic_threshold` are stubbed here for forward
+# compatibility; the semantic matcher itself lands in Story 3.3.
+fabrication:
+  claim_extraction:
+    timeout_seconds: 60.0
+  semantic_method: embedding_cosine
+  semantic_threshold: 0.82

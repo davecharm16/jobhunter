@@ -24,7 +24,10 @@ from jobhunter.prompts import PromptTemplate
 
 
 __all__ = [
+    "CLAIMS_EXTRACT_SYSTEM_PROMPT",
+    "CLAIMS_EXTRACT_TOOL",
     "DEFAULT_TIMEOUT_SECONDS",
+    "ExtractClaimsResult",
     "INPUT_PRICE_PER_MTOK",
     "JD_PARSE_SYSTEM_PROMPT",
     "JD_PARSE_TOOL",
@@ -42,6 +45,7 @@ __all__ = [
     "UpworkProposalOverLength",
     "UpworkProposalResult",
     "count_words",
+    "extract_claims",
     "parse_jd",
     "tailor",
     "tailor_upwork_proposal",
@@ -136,6 +140,51 @@ JD_PARSE_SYSTEM_PROMPT = (
 )
 
 
+CLAIMS_EXTRACT_SYSTEM_PROMPT = (
+    "You are an assistant that decomposes a tailored job-application artifact "
+    "(CV, cover letter, or Upwork proposal) into a flat list of atomic claims "
+    "for downstream fabrication-drift checking. Emit one entry per role, "
+    "metric, named skill, named tool, responsibility, or accomplishment. Skip "
+    "greetings, closings, JD restatements, and opinion phrases. Call the "
+    "emit_claims tool. No other output."
+)
+
+
+CLAIMS_EXTRACT_TOOL: dict[str, Any] = {
+    "name": "emit_claims",
+    "description": "Emit the atomic claims extracted from a tailored artifact.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "claims": {
+                "type": "array",
+                "description": "One entry per atomic claim found in the source.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "claim_type": {
+                            "type": "string",
+                            "enum": [
+                                "role",
+                                "metric",
+                                "skill",
+                                "tool",
+                                "responsibility",
+                                "accomplishment",
+                            ],
+                        },
+                        "claim_text": {"type": "string"},
+                        "line_number": {"type": "integer"},
+                    },
+                    "required": ["claim_type", "claim_text", "line_number"],
+                },
+            },
+        },
+        "required": ["claims"],
+    },
+}
+
+
 JD_PARSE_TOOL: dict[str, Any] = {
     "name": "emit_parsed_jd",
     "description": "Emit the structured JD fields for downstream tailoring and drift checks.",
@@ -224,6 +273,16 @@ class ParseResult:
     tone: str
     seniority: str
     red_flags: list[str]
+    cost_usd: Decimal
+    input_tokens: int
+    output_tokens: int
+
+
+@dataclass(frozen=True)
+class ExtractClaimsResult:
+    """Atomic-claim extraction result for one source artifact (Story 3.1)."""
+
+    claims: list[dict[str, Any]]
     cost_usd: Decimal
     input_tokens: int
     output_tokens: int
@@ -550,6 +609,98 @@ def tailor_upwork_proposal(
 
     return UpworkProposalResult(
         proposal_markdown=proposal_markdown,
+        cost_usd=cost,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
+
+
+def _build_claims_user_prompt(markdown_text: str, source_artifact: str) -> str:
+    return (
+        f"## Source artifact\n{source_artifact}\n\n"
+        "## Markdown source (with 1-indexed line numbers in left column)\n"
+        f"{_with_line_numbers(markdown_text)}\n\n"
+        "Extract every atomic claim. Skip greetings, closings, JD "
+        "restatements, and opinion phrases."
+    )
+
+
+def _with_line_numbers(markdown_text: str) -> str:
+    lines = markdown_text.splitlines() or [""]
+    width = len(str(len(lines)))
+    return "\n".join(
+        f"{str(idx).rjust(width)} | {line}"
+        for idx, line in enumerate(lines, start=1)
+    )
+
+
+def extract_claims(
+    markdown_text: str,
+    source_artifact: str,
+    *,
+    api_key: str,
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    client_factory: Any = None,
+    prompt: PromptTemplate | None = None,
+) -> ExtractClaimsResult:
+    """Call the LLM once and return atomic claims for *markdown_text* (Story 3.1).
+
+    Mirrors `tailor()` and `parse_jd()`: same Anthropic tool-use shape, same
+    Decimal cost handling, same `Usage(input_tokens, output_tokens)`
+    accounting. A per-call timeout raises `LLMCallTimedOut` so the caller
+    (`claim_extractor.extract_claims_from_markdown`) can translate it into a
+    Story-3.1-specific `ClaimExtractionTimedOut`. `prompt`, when provided,
+    is a `PromptTemplate` whose content replaces the baked-in
+    `CLAIMS_EXTRACT_SYSTEM_PROMPT`.
+    """
+    factory = client_factory or anthropic.Anthropic
+    client = factory(api_key=api_key, timeout=timeout_seconds)
+
+    system_prompt = (
+        prompt.content if prompt is not None else CLAIMS_EXTRACT_SYSTEM_PROMPT
+    )
+    user_prompt = _build_claims_user_prompt(markdown_text, source_artifact)
+
+    try:
+        response = client.messages.create(
+            model=MODEL_NAME,
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+            tools=[CLAIMS_EXTRACT_TOOL],
+            tool_choice={"type": "tool", "name": "emit_claims"},
+        )
+    except anthropic.APITimeoutError as exc:
+        raise LLMCallTimedOut(f"timeout after {timeout_seconds}s") from exc
+    except anthropic.APIConnectionError as exc:
+        raise LLMCallFailed(f"network error: {exc}") from exc
+    except anthropic.APIStatusError as exc:
+        status_code = getattr(exc, "status_code", "unknown")
+        raise LLMCallFailed(f"provider returned {status_code}") from exc
+    except Exception as exc:  # noqa: BLE001 — wrap unexpected SDK errors
+        raise LLMCallFailed(f"unexpected error: {exc}") from exc
+
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        raise LLMResponseInvalid("usage missing from LLM response")
+    raw_input_tokens = getattr(usage, "input_tokens", None)
+    raw_output_tokens = getattr(usage, "output_tokens", None)
+    if raw_input_tokens is None or raw_output_tokens is None:
+        raise LLMResponseInvalid(
+            "usage missing input_tokens or output_tokens — cost cannot be "
+            "computed (this would silently zero-out the cap accounting)"
+        )
+    input_tokens = int(raw_input_tokens)
+    output_tokens = int(raw_output_tokens)
+    cost = _compute_cost(input_tokens, output_tokens)
+
+    payload = _extract_tool_input(response)
+    raw_claims = payload.get("claims")
+    if not isinstance(raw_claims, list):
+        raise LLMResponseInvalid("claims missing or not a list in tool_use payload")
+
+    return ExtractClaimsResult(
+        claims=raw_claims,
         cost_usd=cost,
         input_tokens=input_tokens,
         output_tokens=output_tokens,

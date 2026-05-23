@@ -23,6 +23,7 @@ final `./out/<slug>/` directory is never created.
 from __future__ import annotations
 
 import dataclasses
+import json
 import logging
 import os
 import re
@@ -35,6 +36,7 @@ from typing import Any, Callable
 from jobhunter import (
     artifact_selector,
     board_classifier,
+    claim_extractor,
     jd_parser,
     llm_client,
     metadata as metadata_module,
@@ -45,6 +47,10 @@ from jobhunter import (
     yaml_config,
 )
 from jobhunter.board_classifier import Classification
+from jobhunter.claim_extractor import (
+    ClaimExtractionResult,
+    ClaimExtractionTimedOut,
+)
 from jobhunter.config import PROJECT_ROOT
 from jobhunter.jd_parser import ParseTimedOut, ParsedJD
 from jobhunter.llm_client import (
@@ -75,6 +81,16 @@ TailorCallable = Callable[..., TailoringResult]
 TailorUpworkProposalCallable = Callable[..., UpworkProposalResult]
 ParseCallable = Callable[..., ParsedJD]
 ClassifyCallable = Callable[..., Classification]
+ExtractClaimsCallable = Callable[..., ClaimExtractionResult]
+
+
+# Story 3.1: artifact-name -> on-disk filename mapping used by the
+# claim-extraction step. Keys match `artifact_selector.select()` outputs.
+_CLAIM_EXTRACTION_SOURCES: dict[str, tuple[str, str]] = {
+    "cv": ("cv.md", "cv"),
+    "cover_letter": ("cover-letter.md", "cover_letter"),
+    "upwork_proposal": ("upwork-proposal.md", "upwork_proposal"),
+}
 
 
 # Heuristic keyword extractor for the screening-question smoke check (AC3).
@@ -113,13 +129,14 @@ def run_tailoring(
     llm_tailor: TailorCallable | None = None,
     llm_tailor_upwork_proposal: TailorUpworkProposalCallable | None = None,
     llm_parse: ParseCallable | None = None,
+    llm_extract_claims: ExtractClaimsCallable | None = None,
     classify: ClassifyCallable | None = None,
     source_board: str | None = None,
     artifacts_override: list[str] | None = None,
     out_root: Path | None = None,
     ledger_path: Path | None = None,
 ) -> TailoringOutcome:
-    """Orchestrate parse → classify → cap check → tailor → atomic artifact write."""
+    """Orchestrate parse → classify → cap check → tailor → extract claims → atomic artifact write."""
     using_real_tailor = llm_tailor is None
     # Back-compat shim: when the caller injected `llm_tailor` (test mode) but
     # did not inject `llm_tailor_upwork_proposal`, default the proposal call
@@ -198,6 +215,13 @@ def run_tailoring(
         # Story 2.9 fail-fast contract: missing template raises before any LLM call.
         upwork_proposal_template = prompts.load_prompt("upwork_proposal")
         prompt_versions["upwork_proposal"] = upwork_proposal_template.version
+
+    # Story 3.1: load the claim-extraction prompt up-front so a missing
+    # template raises before any LLM call (fail-fast, parallel to the
+    # Story 2.9 contract above). The extractor itself runs after the
+    # artifacts land on disk in the post-rename block below.
+    claims_extract_template = prompts.load_prompt("claims_extract")
+    prompt_versions["claims_extract"] = claims_extract_template.version
 
     spend_before = spend_tracker.check_cap_or_raise(
         config.monthly_spend_cap_usd, now=now, ledger_path=ledger_path
@@ -314,6 +338,32 @@ def run_tailoring(
     upwork_proposal_path: str | None = None
     if needs_upwork_proposal and proposal_result is not None:
         upwork_proposal_path = str(out_dir / "upwork-proposal.md")
+
+    # Story 3.1: extract atomic claims from every produced markdown artifact
+    # and write `claims.json`. Each call appends a CallLog entry (AC4 cost
+    # logging). On `ClaimExtractionTimedOut`, write a minimal failure sidecar
+    # with `error="extraction_timeout"` and re-raise so the route returns 502.
+    try:
+        _run_claim_extraction(
+            out_dir=out_dir,
+            artifacts_produced=artifacts_produced,
+            calls=calls,
+            api_key=config.llm_api_key,
+            timeout_seconds=_resolve_extraction_timeout(config),
+            prompt=claims_extract_template,
+            llm_extract_claims=llm_extract_claims,
+        )
+    except ClaimExtractionTimedOut:
+        _write_extraction_timeout_sidecar(
+            out_dir=out_dir,
+            slug=slug,
+            parsed_jd=parsed_jd_dict,
+            source_board=classification.source_board,
+            prompt_versions=prompt_versions,
+            calls=calls,
+            now=now,
+        )
+        raise
 
     package_metadata = build_metadata(
         slug=slug,
@@ -476,3 +526,101 @@ def _cleanup_tmp(tmp_dir: Path) -> None:
         tmp_dir.rmdir()
     except OSError:
         pass
+
+
+def _resolve_extraction_timeout(config: RuntimeConfig) -> float:
+    """Per-call timeout for the claim-extractor; reads `config.yaml` (Story 3.1 AC4)."""
+    try:
+        yaml = yaml_config.load_yaml_config()
+    except yaml_config.YamlConfigError:
+        return float(config.llm_call_timeout_seconds)
+    return float(yaml.fabrication.claim_extraction.timeout_seconds)
+
+
+def _run_claim_extraction(
+    *,
+    out_dir: Path,
+    artifacts_produced: list[str],
+    calls: list[CallLog],
+    api_key: str,
+    timeout_seconds: float,
+    prompt: prompts.PromptTemplate,
+    llm_extract_claims: ExtractClaimsCallable | None,
+) -> None:
+    """Extract atomic claims per artifact and write `claims.json` (Story 3.1 AC2-AC4).
+
+    Mutates *calls* in place — each extraction call appends one `CallLog`
+    entry with `purpose="extract_claims"` so the deferred `write_sidecar`
+    captures the full cost breakdown in a single atomic write.
+    """
+    extractor = llm_extract_claims or claim_extractor.extract_claims_from_markdown
+    all_claims: list[dict[str, Any]] = []
+    for artifact_name in artifacts_produced:
+        source = _CLAIM_EXTRACTION_SOURCES.get(artifact_name)
+        if source is None:
+            continue
+        filename, source_label = source
+        artifact_path = out_dir / filename
+        if not artifact_path.is_file():
+            continue
+        markdown_text = artifact_path.read_text(encoding="utf-8")
+        extract_result = extractor(
+            markdown_text,
+            source_label,
+            api_key=api_key,
+            timeout_seconds=timeout_seconds,
+            prompt=prompt,
+        )
+        calls.append(
+            CallLog(
+                model=MODEL_NAME,
+                input_tokens=extract_result.input_tokens,
+                output_tokens=extract_result.output_tokens,
+                usd_cost=metadata_module.format_cost(extract_result.cost_usd),
+                purpose="extract_claims",
+            )
+        )
+        all_claims.extend(
+            dataclasses.asdict(claim) for claim in extract_result.claims
+        )
+
+    # AC2: claims.json is a single JSON array of Claim objects (downstream
+    # Story 3.2 consumes this shape). Atomic write via tmp + os.replace so
+    # a crash mid-write cannot leave a half-written file on disk.
+    target = out_dir / "claims.json"
+    tmp_path = out_dir / ".claims.tmp"
+    tmp_path.write_text(json.dumps(all_claims, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp_path, target)
+
+
+def _write_extraction_timeout_sidecar(
+    *,
+    out_dir: Path,
+    slug: str,
+    parsed_jd: dict,
+    source_board: str,
+    prompt_versions: dict[str, str],
+    calls: list[CallLog],
+    now: datetime | None,
+) -> None:
+    """Write a minimal metadata sidecar after a claim-extraction timeout (AC4).
+
+    No `claims.json` is written — AC4 explicitly forbids partial extraction
+    data on disk. The package artifacts (`cv.md`, `cover-letter.md`, ...)
+    are left in place so the held-package pattern (Story 3.4) can pick them
+    up; the `error: "extraction_timeout"` field signals the verdict.
+    """
+    if not out_dir.exists():
+        return
+    failure_metadata = build_metadata(
+        slug=slug,
+        jd_source="paste",
+        artifacts_produced=[],
+        calls=list(calls),
+        prompt_templates=prompt_versions,
+        parsed_jd=parsed_jd,
+        source_board=source_board,
+        now=now,
+        error="extraction_timeout",
+    )
+    write_sidecar(out_dir, failure_metadata)
