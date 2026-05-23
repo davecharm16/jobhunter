@@ -103,13 +103,18 @@ development_status:
 
   # Epic 3: Fabrication Drift Check
   # 3-5 added on 2026-05-23 for the Drift Diagnostics surface — fabrication slice.
-  # 2026-05-23: 3-1 merged (bcbc1dd); 566 tests passing.
-  epic-3: in-progress
+  # 2026-05-23: Epic 3 complete via layered fan-out.
+  #   L0: 3-1 (bcbc1dd; 566 passing)
+  #   L1: 3-2 (be0e1fc; 607 passing)
+  #   L2 (3 parallel): 3-3 (d365fcc; semantic+quantifier guard), 3-4
+  #     (2da572c; held-package writer+sweep), 3-5 (d7eef69; diagnostics UI).
+  #   685 tests passing on main.
+  epic-3: done
   3-1-finalize-llm-provider-and-build-atomic-claim-extractor: done
-  3-2-structural-matcher-with-claim-to-source-cv-traceability: backlog
-  3-3-semantic-equivalence-threshold-for-tolerated-paraphrase: backlog
-  3-4-held-package-pattern-with-hard-fail-policy-and-7-day-retention: backlog
-  3-5-drift-check-diagnostics-surface-fabrication-section: backlog
+  3-2-structural-matcher-with-claim-to-source-cv-traceability: done
+  3-3-semantic-equivalence-threshold-for-tolerated-paraphrase: done
+  3-4-held-package-pattern-with-hard-fail-policy-and-7-day-retention: done
+  3-5-drift-check-diagnostics-surface-fabrication-section: done
   epic-3-retrospective: optional
 
   # Epic 4: Content-Loss Drift Check
