@@ -80,7 +80,7 @@ def test_run_tailoring_writes_metadata_json_with_full_ac1_payload(tmp_path) -> N
     assert data["parsed_jd"] == {}
     assert data["red_flags"] == []
     assert data["artifacts_produced"] == ["cv", "cover_letter"]
-    assert data["prompt_templates"] == {}
+    assert data["prompt_templates"] == {"cv": "v1", "cover_letter": "v1"}
     assert data["drift_verdicts"] == {
         "fabrication": "pending",
         "content_loss": "pending",

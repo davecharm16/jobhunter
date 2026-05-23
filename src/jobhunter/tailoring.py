@@ -110,6 +110,7 @@ def run_tailoring(
         jd_source="paste",
         artifacts_produced=["cv", "cover_letter"],
         calls=[call_log],
+        prompt_templates=prompt_versions,
         now=now,
     )
     write_sidecar(out_dir, package_metadata)
