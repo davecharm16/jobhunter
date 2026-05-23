@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from jobhunter.config import PROJECT_ROOT
+from jobhunter.jd_parser import ParsedJD
 from jobhunter.llm_client import TailoringResult
 
 
@@ -24,6 +25,33 @@ FAKE_COVER_LETTER_MARKDOWN = (
 FAKE_COST_USD = Decimal("0.004200")
 FAKE_INPUT_TOKENS = 1234
 FAKE_OUTPUT_TOKENS = 567
+
+
+def make_fake_parse(
+    *,
+    must_haves: list[str] | None = None,
+    nice_to_haves: list[str] | None = None,
+    tone: str = "neutral",
+    seniority: str = "senior",
+    red_flags: list[str] | None = None,
+) -> Callable[..., ParsedJD]:
+    def fake_parse(
+        jd_text: str,
+        *,
+        api_key: str,
+        timeout_seconds: float,
+        prompt: Any,
+    ) -> ParsedJD:
+        return ParsedJD(
+            must_haves=list(must_haves or ["Python", "FastAPI"]),
+            nice_to_haves=list(nice_to_haves or ["Docker"]),
+            tone=tone,
+            seniority=seniority,
+            red_flags=list(red_flags or []),
+            raw_text_length=len(jd_text),
+        )
+
+    return fake_parse
 
 
 def make_fake_tailor(
@@ -62,7 +90,7 @@ def stage_canonical_cv(tmp_path: Path, monkeypatch) -> Path:
     return cv_path
 
 
-def stage_tailoring(tmp_path: Path, monkeypatch, fake_tailor=None):
+def stage_tailoring(tmp_path: Path, monkeypatch, fake_tailor=None, fake_parse=None):
     """Wire the FastAPI route's `run_tailoring` to write into tmp_path.
 
     Returns the chosen out_root / ledger_path so tests can assert on disk
@@ -74,6 +102,7 @@ def stage_tailoring(tmp_path: Path, monkeypatch, fake_tailor=None):
     out_root = tmp_path / "out"
     ledger_path = tmp_path / ".cost-ledger.json"
     tailor = fake_tailor or make_fake_tailor()
+    parser = fake_parse or make_fake_parse()
     original_run = tailoring_module.run_tailoring
 
     def patched_run(
@@ -83,6 +112,7 @@ def stage_tailoring(tmp_path: Path, monkeypatch, fake_tailor=None):
         config,
         now=None,
         llm_tailor=None,
+        llm_parse=None,
         out_root=None,
         ledger_path=None,
     ):
@@ -92,6 +122,7 @@ def stage_tailoring(tmp_path: Path, monkeypatch, fake_tailor=None):
             config=config,
             now=now,
             llm_tailor=tailor,
+            llm_parse=parser,
             out_root=out_root or (tmp_path / "out"),
             ledger_path=ledger_path or (tmp_path / ".cost-ledger.json"),
         )

@@ -77,7 +77,11 @@ def test_run_tailoring_writes_metadata_json_with_full_ac1_payload(tmp_path) -> N
     assert data["slug"] == outcome.out_dir.name
     assert data["source_board"] == "unknown"
     assert data["jd_source"] == "paste"
-    assert data["parsed_jd"] == {}
+    # Story 2.3 populates parsed_jd; the test asserts the shape exists rather
+    # than the exact contents (the autouse parse stub supplies deterministic
+    # values; see tests/integration/conftest.py).
+    assert isinstance(data["parsed_jd"], dict)
+    assert "must_haves" in data["parsed_jd"]
     assert data["red_flags"] == []
     assert data["artifacts_produced"] == ["cv", "cover_letter"]
     assert data["prompt_templates"] == {"cv": "v1", "cover_letter": "v1"}

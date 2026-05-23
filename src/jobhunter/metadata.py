@@ -87,6 +87,7 @@ class PackageMetadata:
     override: dict = field(
         default_factory=lambda: {"applied": False, "reason": None}
     )
+    error: str | None = None
 
 
 def format_cost(value: Decimal) -> str:
@@ -116,6 +117,7 @@ def build_metadata(
     drift_verdicts: dict[str, str] | None = None,
     override: dict | None = None,
     per_app_target_usd: Decimal = PER_APP_COST_TARGET_USD,
+    error: str | None = None,
 ) -> PackageMetadata:
     """Assemble a `PackageMetadata` with the cost totals computed from *calls*.
 
@@ -153,6 +155,7 @@ def build_metadata(
             if override is not None
             else {"applied": False, "reason": None}
         ),
+        error=error,
     )
 
 

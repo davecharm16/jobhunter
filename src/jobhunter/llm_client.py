@@ -26,13 +26,18 @@ from jobhunter.prompts import PromptTemplate
 __all__ = [
     "DEFAULT_TIMEOUT_SECONDS",
     "INPUT_PRICE_PER_MTOK",
+    "JD_PARSE_SYSTEM_PROMPT",
+    "JD_PARSE_TOOL",
     "LLMCallFailed",
+    "LLMCallTimedOut",
     "LLMResponseInvalid",
     "MODEL_NAME",
     "OUTPUT_PRICE_PER_MTOK",
+    "ParseResult",
     "SYSTEM_PROMPT",
     "TAILORING_TOOL",
     "TailoringResult",
+    "parse_jd",
     "tailor",
 ]
 
@@ -93,8 +98,60 @@ TAILORING_TOOL: dict[str, Any] = {
 }
 
 
+JD_PARSE_SYSTEM_PROMPT = (
+    "You are an assistant that parses a job description (JD) into a structured "
+    "object. Extract must-haves, nice-to-haves, tone, seniority, and red_flags "
+    "from the JD. Call the emit_parsed_jd tool. No other output."
+)
+
+
+JD_PARSE_TOOL: dict[str, Any] = {
+    "name": "emit_parsed_jd",
+    "description": "Emit the structured JD fields for downstream tailoring and drift checks.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "must_haves": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Required skills, technologies, or qualifications.",
+            },
+            "nice_to_haves": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Preferred or bonus skills.",
+            },
+            "tone": {
+                "type": "string",
+                "description": "Overall JD tone in one or two words.",
+            },
+            "seniority": {
+                "type": "string",
+                "description": "Role seniority in one word.",
+            },
+            "red_flags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Concerning aspects warranting human review.",
+            },
+        },
+        "required": [
+            "must_haves",
+            "nice_to_haves",
+            "tone",
+            "seniority",
+            "red_flags",
+        ],
+    },
+}
+
+
 class LLMCallFailed(RuntimeError):
     """Network/transport/timeout/HTTP failure during the LLM call."""
+
+
+class LLMCallTimedOut(LLMCallFailed):
+    """The LLM call exceeded the per-call timeout."""
 
 
 class LLMResponseInvalid(RuntimeError):
@@ -105,6 +162,18 @@ class LLMResponseInvalid(RuntimeError):
 class TailoringResult:
     cv_markdown: str
     cover_letter_markdown: str
+    cost_usd: Decimal
+    input_tokens: int
+    output_tokens: int
+
+
+@dataclass(frozen=True)
+class ParseResult:
+    must_haves: list[str]
+    nice_to_haves: list[str]
+    tone: str
+    seniority: str
+    red_flags: list[str]
     cost_usd: Decimal
     input_tokens: int
     output_tokens: int
@@ -225,6 +294,105 @@ def tailor(
     return TailoringResult(
         cv_markdown=cv_markdown,
         cover_letter_markdown=cover_letter_markdown,
+        cost_usd=cost,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
+
+
+def _validate_string_field(payload: dict[str, Any], field: str) -> str:
+    value = payload.get(field)
+    if value is None:
+        raise LLMResponseInvalid(f"{field} missing from tool_use payload")
+    if not isinstance(value, str):
+        raise LLMResponseInvalid(f"{field} is not a string")
+    if not value.strip():
+        raise LLMResponseInvalid(f"{field} is empty or whitespace-only")
+    return value.strip()
+
+
+def _validate_string_list_field(payload: dict[str, Any], field: str) -> list[str]:
+    value = payload.get(field)
+    if value is None:
+        raise LLMResponseInvalid(f"{field} missing from tool_use payload")
+    if not isinstance(value, list):
+        raise LLMResponseInvalid(f"{field} is not a list")
+    for item in value:
+        if not isinstance(item, str):
+            raise LLMResponseInvalid(f"{field} contains a non-string item")
+    return [item.strip() for item in value if item.strip()]
+
+
+def parse_jd(
+    jd_text: str,
+    *,
+    api_key: str,
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    client_factory: Any = None,
+    prompt: PromptTemplate | None = None,
+) -> ParseResult:
+    """Call the LLM once and return a validated `ParseResult` for the JD.
+
+    Mirrors `tailor()`: same Anthropic tool-use shape, same Decimal cost
+    handling, same `Usage(input_tokens, output_tokens)` accounting. A per-call
+    timeout raises `LLMCallTimedOut` (a subclass of `LLMCallFailed`) so the
+    orchestrator can distinguish parse-stage timeouts from generic LLM failures.
+
+    `prompt`, when provided, is a `PromptTemplate` whose content replaces the
+    baked-in `JD_PARSE_SYSTEM_PROMPT` (Story 2.9 versioning).
+    """
+    factory = client_factory or anthropic.Anthropic
+    client = factory(api_key=api_key, timeout=timeout_seconds)
+
+    system_prompt = prompt.content if prompt is not None else JD_PARSE_SYSTEM_PROMPT
+    user_prompt = f"## Job Description\n{jd_text}\n\nParse the JD into the structured fields."
+
+    try:
+        response = client.messages.create(
+            model=MODEL_NAME,
+            max_tokens=2048,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+            tools=[JD_PARSE_TOOL],
+            tool_choice={"type": "tool", "name": "emit_parsed_jd"},
+        )
+    except anthropic.APITimeoutError as exc:
+        raise LLMCallTimedOut(f"timeout after {timeout_seconds}s") from exc
+    except anthropic.APIConnectionError as exc:
+        raise LLMCallFailed(f"network error: {exc}") from exc
+    except anthropic.APIStatusError as exc:
+        status_code = getattr(exc, "status_code", "unknown")
+        raise LLMCallFailed(f"provider returned {status_code}") from exc
+    except Exception as exc:  # noqa: BLE001 — wrap unexpected SDK errors
+        raise LLMCallFailed(f"unexpected error: {exc}") from exc
+
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        raise LLMResponseInvalid("usage missing from LLM response")
+    raw_input_tokens = getattr(usage, "input_tokens", None)
+    raw_output_tokens = getattr(usage, "output_tokens", None)
+    if raw_input_tokens is None or raw_output_tokens is None:
+        raise LLMResponseInvalid(
+            "usage missing input_tokens or output_tokens — cost cannot be "
+            "computed (this would silently zero-out the cap accounting)"
+        )
+    input_tokens = int(raw_input_tokens)
+    output_tokens = int(raw_output_tokens)
+    cost = _compute_cost(input_tokens, output_tokens)
+
+    payload = _extract_tool_input(response)
+    must_haves = _validate_string_list_field(payload, "must_haves")
+    nice_to_haves = _validate_string_list_field(payload, "nice_to_haves")
+    tone = _validate_string_field(payload, "tone")
+    seniority = _validate_string_field(payload, "seniority")
+    red_flags = _validate_string_list_field(payload, "red_flags")
+
+    return ParseResult(
+        must_haves=must_haves,
+        nice_to_haves=nice_to_haves,
+        tone=tone,
+        seniority=seniority,
+        red_flags=red_flags,
         cost_usd=cost,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
