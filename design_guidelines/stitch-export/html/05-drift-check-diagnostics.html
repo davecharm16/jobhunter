@@ -1,0 +1,397 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Drift Checks - Cv. Builder</title>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-container": "#dae2fd",
+                        "on-secondary": "#ffffff",
+                        "surface-dim": "#d8dadc",
+                        "surface-container-lowest": "#ffffff",
+                        "surface": "#f7f9fb",
+                        "on-tertiary-container": "#ffd2be",
+                        "inverse-primary": "#c3c0ff",
+                        "surface-container": "#eceef0",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "inverse-surface": "#2d3133",
+                        "tertiary": "#7e3000",
+                        "on-primary": "#ffffff",
+                        "background": "#f7f9fb",
+                        "on-tertiary-fixed": "#351000",
+                        "on-primary-fixed-variant": "#3323cc",
+                        "secondary": "#565e74",
+                        "on-surface-variant": "#464555",
+                        "on-surface": "#191c1e",
+                        "surface-container-low": "#f2f4f6",
+                        "tertiary-fixed": "#ffdbcc",
+                        "on-tertiary": "#ffffff",
+                        "surface-tint": "#4d44e3",
+                        "on-primary-container": "#dad7ff",
+                        "on-error-container": "#93000a",
+                        "outline": "#777587",
+                        "surface-bright": "#f7f9fb",
+                        "primary": "#3525cd",
+                        "on-secondary-container": "#5c647a",
+                        "tertiary-fixed-dim": "#ffb695",
+                        "surface-container-highest": "#e0e3e5",
+                        "on-error": "#ffffff",
+                        "outline-variant": "#c7c4d8",
+                        "on-secondary-fixed": "#131b2e",
+                        "on-background": "#191c1e",
+                        "surface-container-high": "#e6e8ea",
+                        "on-tertiary-fixed-variant": "#7b2f00",
+                        "surface-variant": "#e0e3e5",
+                        "error": "#ba1a1a",
+                        "tertiary-container": "#a44100",
+                        "error-container": "#ffdad6",
+                        "primary-container": "#4f46e5",
+                        "inverse-on-surface": "#eff1f3",
+                        "primary-fixed": "#e2dfff",
+                        "secondary-fixed": "#dae2fd",
+                        "on-primary-fixed": "#0f0069",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "on-secondary-fixed-variant": "#3f465c"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-max": "1440px",
+                        "margin-mobile": "16px",
+                        "sidebar-width": "260px",
+                        "stack-sm": "8px",
+                        "stack-xs": "4px",
+                        "margin-desktop": "40px",
+                        "stack-lg": "24px",
+                        "stack-md": "16px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "display": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "headline-lg-mobile": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "display": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased min-h-screen flex">
+<!-- SideNavBar (Shared Component) -->
+<nav class="hidden md:flex flex-col w-[260px] h-screen sticky left-0 top-0 py-6 bg-surface-container-low dark:bg-inverse-surface border-r border-outline-variant dark:border-outline shrink-0">
+<div class="px-gutter mb-8">
+<span class="text-headline-lg font-headline-lg text-on-surface font-bold tracking-tight">Job Hunter</span>
+</div>
+<div class="px-4 mb-4">
+<span class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider pl-4">MENU</span>
+</div>
+<ul class="flex flex-col gap-1 px-4 flex-grow">
+<!-- Dashboard (Inactive) -->
+<li class="">
+<a class="flex items-center px-4 py-3 rounded-lg text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors" href="#">
+<span class="material-symbols-outlined mr-3 text-secondary" data-icon="dashboard">dashboard</span>
+<span class="text-body-md font-body-md">Dashboard</span>
+</a>
+</li>
+<!-- JD Pipeline (Inactive) -->
+<li class="">
+<a class="flex items-center px-4 py-3 rounded-lg text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors" href="#">
+<span class="material-symbols-outlined mr-3 text-secondary" data-icon="pipeline">timeline</span>
+<span class="text-body-md font-body-md">JD Pipeline</span>
+</a>
+</li>
+<!-- CV Tailoring (Inactive) -->
+<li class="">
+<a class="flex items-center px-4 py-3 rounded-lg text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors" href="#">
+<span class="material-symbols-outlined mr-3 text-secondary" data-icon="edit_document">edit_document</span>
+<span class="text-body-md font-body-md">CV Tailoring</span>
+</a>
+</li>
+<!-- Drift Checks (Active) -->
+<li class="">
+<a class="flex items-center px-4 py-3 rounded-lg text-primary dark:text-inverse-primary font-bold border-l-4 border-primary bg-secondary-container dark:bg-secondary-fixed-dim/10 transition-colors" href="#">
+<span class="material-symbols-outlined fill mr-3" data-icon="check_circle">check_circle</span>
+<span class="text-body-md font-body-md">Drift Checks</span>
+</a>
+</li>
+<!-- Job Alerts (Inactive) -->
+<li class="">
+<a class="flex items-center px-4 py-3 rounded-lg text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors" href="#">
+<span class="material-symbols-outlined mr-3 text-secondary" data-icon="notifications">notifications</span>
+<span class="text-body-md font-body-md">Job Alerts</span>
+</a>
+</li>
+</ul>
+<!-- Profile Completion Widget -->
+<div class="mt-auto px-6">
+<div class="bg-surface p-4 rounded-xl border border-outline-variant flex flex-col gap-3">
+<div class="flex items-center gap-3">
+<img alt="User profile" class="w-10 h-10 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCN1M1yzXTARN9ZNIjT7pdcwV5mmAD12Rebu-N4AlPO-4yMR6iwzqR3zqjNm1J85Nbo_oryjPxjwmBXPOAFMQwi8YU2Qn5C1LUwpQOKdBhdWxGqhFwCk9KoTkgTTXHPQhTxMoyuZnzVfHSM2T-7RaTJdRJ3Z6zPRcwaacaLuG06Btp9vfBVLoSiHzy_-w2MU7fR-TMknJE8Mrme7z3Q3mo1jc6vSbOMsKjPCEduQpRuTXT3cMEdk68tau7tVcMfN3sUqKC_vW93I5Ag">
+<div class="flex flex-col">
+<span class="text-body-md font-body-md font-bold">Tom!</span>
+<span class="text-label-md font-label-md text-on-surface-variant">62% Complete</span>
+</div>
+</div>
+<button class="bg-primary hover:bg-primary/90 text-on-primary w-full py-2 rounded-lg text-body-md font-body-md font-medium transition-colors flex justify-center items-center gap-1">
+                    Complete Now
+                    <span class="material-symbols-outlined text-[18px]">arrow_outward</span>
+</button>
+</div>
+</div>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col min-w-0">
+<!-- TopAppBar (Shared Component adapted for Desktop) -->
+<header class="flex justify-between items-center h-16 px-gutter w-full sticky top-0 z-40 bg-surface dark:bg-inverse-surface border-b border-outline-variant dark:border-outline">
+<div class="flex-1 max-w-xl">
+<div class="relative flex items-center w-full h-10 rounded-lg bg-surface-container-low border border-outline-variant focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
+<span class="material-symbols-outlined absolute left-3 text-secondary" data-icon="search">search</span>
+<input class="w-full h-full bg-transparent border-none pl-10 pr-4 text-body-md focus:ring-0 text-on-surface placeholder-on-surface-variant" placeholder="Search or type a command" type="text">
+</div>
+</div>
+<div class="flex items-center gap-4 ml-4">
+<button class="bg-primary hover:bg-primary/90 text-on-primary px-4 py-2 rounded-lg text-body-md font-body-md font-medium transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add_box</span>
+                    Create New CV
+                </button>
+<button class="text-on-surface-variant hover:bg-surface-container-low p-2 rounded-full transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<img alt="User profile" class="w-8 h-8 rounded-full object-cover border border-outline-variant cursor-pointer" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbVwawl03OJaBir4FPmYy6JDgbjZr0Z-Uuo640MIMQNHR1r36tTuATOdmT2R3bd-rN7txMjeVk8Qt5XKo37sFbFw77vQPycMP0Y1Q2_1MBMMnxc1cq93RzhjJlYtVQAgObO82GGSiLbwkVEQnU6QSBmN8P6XStPPDzJVUWUJrRfg-ehJeI4_UXajTVLImaPn8xmgqj58A2IPko-24h7eUawfx5FdInzJABs9Ms_lRnnWNJypS7S3WiCySsLbixHbej7xrMbFaQt_8T">
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-1 p-gutter overflow-y-auto">
+<!-- Page Header -->
+<div class="mb-8">
+<h1 class="text-display font-display text-on-surface mb-2">Drift Checks History</h1>
+<p class="text-body-lg font-body-lg text-on-surface-variant max-w-2xl">
+                    Review automated quality assessments for all tailored documents. Trace exact deviations between your canonical CV and the tailored output to ensure zero content hallucination.
+                </p>
+</div>
+<!-- Bento Grid Layout for Dashboard Metrics -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-stack-lg">
+<div class="bg-surface border border-outline-variant rounded-xl p-4 flex flex-col gap-2">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">fact_check</span>
+<span class="text-label-md font-label-md uppercase tracking-wide">Total Checks</span>
+</div>
+<span class="text-display font-display">142</span>
+</div>
+<div class="bg-surface border border-outline-variant rounded-xl p-4 flex flex-col gap-2 relative overflow-hidden">
+<div class="flex items-center gap-2 text-on-surface-variant z-10">
+<span class="material-symbols-outlined text-[20px]">verified</span>
+<span class="text-label-md font-label-md uppercase tracking-wide">Avg Content Loss</span>
+</div>
+<div class="flex items-end gap-2 z-10">
+<span class="text-display font-display text-primary">0.02%</span>
+</div>
+<!-- Subtle green gradient background to indicate good health -->
+<div class="absolute inset-0 bg-gradient-to-tr from-green-50 to-transparent opacity-50 z-0"></div>
+</div>
+<div class="bg-surface border border-outline-variant rounded-xl p-4 flex flex-col gap-2">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">warning</span>
+<span class="text-label-md font-label-md uppercase tracking-wide">Fabrication Alerts</span>
+</div>
+<div class="flex items-end gap-2">
+<span class="text-display font-display text-error">3</span>
+<span class="text-label-md text-on-surface-variant mb-1">requires review</span>
+</div>
+</div>
+<div class="bg-surface border border-outline-variant rounded-xl p-4 flex flex-col gap-2">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">target</span>
+<span class="text-label-md font-label-md uppercase tracking-wide">Avg Keyword Match</span>
+</div>
+<span class="text-display font-display">87%</span>
+</div>
+</div>
+<!-- Main Content Area: Master/Detail Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[700px]">
+<!-- Left Panel: History List (Master) -->
+<div class="lg:col-span-4 flex flex-col bg-surface border border-outline-variant rounded-xl overflow-hidden">
+<div class="p-4 border-b border-outline-variant bg-surface-container-lowest flex justify-between items-center">
+<h2 class="text-headline-md font-headline-md text-on-surface">Recent Checks</h2>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+<div class="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
+<!-- List Item 1 (Active) -->
+<div class="p-3 rounded-lg cursor-pointer bg-secondary-container/50 border border-primary/20 transition-all flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<span class="text-body-md font-body-md font-semibold text-on-surface line-clamp-1">Senior Product Designer - Stripe</span>
+<span class="text-label-md text-on-surface-variant shrink-0">10 mins ago</span>
+</div>
+<div class="flex gap-2 text-label-md">
+<span class="px-2 py-0.5 rounded-full bg-green-100 text-green-800 flex items-center gap-1 border border-green-200">
+<span class="material-symbols-outlined text-[14px]">check</span> Loss: 0%
+                                </span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant">
+                                    Match: 92%
+                                </span>
+</div>
+</div>
+<!-- List Item 2 -->
+<div class="p-3 rounded-lg cursor-pointer hover:bg-surface-container-low border border-transparent transition-all flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<span class="text-body-md font-body-md font-semibold text-on-surface line-clamp-1">UX Lead - Spotify</span>
+<span class="text-label-md text-on-surface-variant shrink-0">2 hrs ago</span>
+</div>
+<div class="flex gap-2 text-label-md">
+<span class="px-2 py-0.5 rounded-full bg-red-100 text-red-800 flex items-center gap-1 border border-red-200">
+<span class="material-symbols-outlined text-[14px]">warning</span> Fab: High
+                                </span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant">
+                                    Match: 85%
+                                </span>
+</div>
+</div>
+<!-- List Item 3 -->
+<div class="p-3 rounded-lg cursor-pointer hover:bg-surface-container-low border border-transparent transition-all flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<span class="text-body-md font-body-md font-semibold text-on-surface line-clamp-1">Principal Designer - Vercel</span>
+<span class="text-label-md text-on-surface-variant shrink-0">Yesterday</span>
+</div>
+<div class="flex gap-2 text-label-md">
+<span class="px-2 py-0.5 rounded-full bg-green-100 text-green-800 flex items-center gap-1 border border-green-200">
+<span class="material-symbols-outlined text-[14px]">check</span> Loss: 1%
+                                </span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant">
+                                    Match: 88%
+                                </span>
+</div>
+</div>
+<!-- List Item 4 -->
+<div class="p-3 rounded-lg cursor-pointer hover:bg-surface-container-low border border-transparent transition-all flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<span class="text-body-md font-body-md font-semibold text-on-surface line-clamp-1">Staff Designer - Linear</span>
+<span class="text-label-md text-on-surface-variant shrink-0">Yesterday</span>
+</div>
+<div class="flex gap-2 text-label-md">
+<span class="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 flex items-center gap-1 border border-yellow-200">
+<span class="material-symbols-outlined text-[14px]">info</span> Loss: 5%
+                                </span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant">
+                                    Match: 95%
+                                </span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Panel: Deep Dive / Diff View (Detail) -->
+<div class="lg:col-span-8 flex flex-col bg-surface border border-outline-variant rounded-xl overflow-hidden shadow-[0_4px_6px_-1px_rgb(0,0,0,0.05)]">
+<!-- Detail Header -->
+<div class="p-6 border-b border-outline-variant bg-surface-container-lowest">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h3 class="text-headline-md font-headline-md text-on-surface mb-1">Senior Product Designer - Stripe</h3>
+<p class="text-body-md text-on-surface-variant">Check ID: #DC-84920 • Run: Oct 24, 2023, 14:32 PST</p>
+</div>
+<button class="px-4 py-2 border border-outline-variant rounded-lg text-body-md font-medium hover:bg-surface-container-low transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">download</span> Export Report
+                            </button>
+</div>
+<div class="flex gap-6 mt-4">
+<div class="flex flex-col">
+<span class="text-label-md text-on-surface-variant uppercase tracking-wider mb-1">Fabrication Score</span>
+<span class="text-body-lg font-semibold text-green-600">0.0 (Perfect)</span>
+</div>
+<div class="w-px h-8 bg-outline-variant"></div>
+<div class="flex flex-col">
+<span class="text-label-md text-on-surface-variant uppercase tracking-wider mb-1">Content Loss</span>
+<span class="text-body-lg font-semibold text-green-600">0%</span>
+</div>
+<div class="w-px h-8 bg-outline-variant"></div>
+<div class="flex flex-col">
+<span class="text-label-md text-on-surface-variant uppercase tracking-wider mb-1">Keyword Density</span>
+<span class="text-body-lg font-semibold text-primary">92% Match</span>
+</div>
+</div>
+</div>
+<!-- Diff Viewer Header -->
+<div class="bg-surface-container-low px-4 py-2 border-b border-outline-variant flex justify-between items-center">
+<span class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">Semantic Trace Diff</span>
+<div class="flex gap-4 text-label-md">
+<span class="flex items-center gap-1"><div class="w-3 h-3 bg-red-100 border border-red-300 rounded-sm"></div> Canonical Removal</span>
+<span class="flex items-center gap-1"><div class="w-3 h-3 bg-green-100 border border-green-300 rounded-sm"></div> Tailored Addition</span>
+</div>
+</div>
+<!-- Diff Viewer Content (Split Panes) -->
+<div class="flex-1 grid grid-cols-2 overflow-hidden bg-white">
+<!-- Left Pane: Canonical Source -->
+<div class="p-6 overflow-y-auto border-r border-outline-variant font-mono text-sm leading-relaxed text-on-surface-variant">
+<div class="mb-4">
+<span class="bg-surface-container-highest px-2 py-1 rounded text-xs text-on-surface font-sans uppercase tracking-wider mb-2 inline-block">Source: master_cv.yaml</span>
+</div>
+<p class="mb-4">
+                                Led the redesign of the core billing dashboard, resulting in a 15% reduction in support tickets related to invoice confusion.
+                            </p>
+<p class="mb-4 bg-red-50 text-red-900 px-2 py-1 -mx-2 border-l-2 border-red-400">
+<span class="line-through opacity-70">Managed a team of 3 junior designers and conducted weekly design critiques to ensure consistency across the product suite.</span>
+</p>
+<p class="mb-4">
+                                Established comprehensive design system components that accelerated frontend development cycles by approximately 20%.
+                            </p>
+<p class="mb-4">
+                                Collaborated closely with product managers and engineering leads to define quarterly roadmaps and OKRs.
+                            </p>
+</div>
+<!-- Right Pane: Tailored Output -->
+<div class="p-6 overflow-y-auto font-mono text-sm leading-relaxed text-on-surface-variant">
+<div class="mb-4">
+<span class="bg-secondary-container px-2 py-1 rounded text-xs text-on-surface font-sans uppercase tracking-wider mb-2 inline-block">Output: stripe_tailored.md</span>
+</div>
+<p class="mb-4">
+                                Led the redesign of the core billing dashboard, resulting in a 15% reduction in support tickets related to invoice confusion.
+                            </p>
+<p class="mb-4 bg-green-50 text-green-900 px-2 py-1 -mx-2 border-l-2 border-green-400">
+<strong>Spearheaded cross-functional alignment on payment flow optimizations,</strong> collaborating closely with product managers and engineering leads to define quarterly roadmaps and OKRs.
+                            </p>
+<p class="mb-4">
+                                Established comprehensive design system components that accelerated frontend development cycles by approximately 20%.
+                            </p>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+
+</body></html>

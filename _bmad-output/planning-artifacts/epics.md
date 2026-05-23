@@ -34,8 +34,8 @@ There is no Architecture document and no UX Design Specification for this projec
 
 **JD Ingest**
 
-- FR6: Author can paste a JD into the pipeline via the CLI (stdin or file argument) and trigger the full tailoring + drift-check + notification pipeline.
-- FR7: System exposes a single internal endpoint that both the human CLI and scheduled flows POST JDs to.
+- FR6: Author can paste a JD into the pipeline via the browser textarea (which POSTs to `POST /api/paste`) and trigger the full tailoring + drift-check + notification pipeline.
+- FR7: System exposes a single internal endpoint (`POST /api/paste`) that both the web UI and scheduled flows POST JDs to.
 - FR8: Scheduled flows (n8n / Make / equivalent) can post JDs from Upwork search results into the pipeline endpoint.
 - FR9: Scheduled flows can post JDs from OnlineJobs.ph listings into the pipeline endpoint.
 - FR10: Scheduled flows can post JDs from parsed LinkedIn Job Alert emails into the pipeline endpoint.
@@ -81,15 +81,15 @@ There is no Architecture document and no UX Design Specification for this projec
 - FR32: The GChat notification includes a one-line fit summary, the source board, and the path to the staged markdown package.
 - FR33: System holds packages that fail any drift check without sending a notification.
 - FR34: System writes the staged markdown artifacts to disk even when a package is held, so the user can read them.
-- FR35: Author can list held packages and their failure reasons via a CLI subcommand.
-- FR36: Author can override a held package via a CLI subcommand, and the override is logged in per-application metadata.
+- FR35: Author can list held packages and their failure reasons via the Dashboard surface, backed by `GET /api/queue`.
+- FR36: Author can override a held package via the Approve action on the Dashboard, backed by `POST /api/override/<slug>`; the override is logged in per-application metadata.
 
 **Output, Metadata, and Cost Observability**
 
 - FR37: System writes each generated package to `./out/<slug>/` as markdown artifacts (one file per artifact type).
 - FR38: System writes a per-application metadata file (JSON or YAML) capturing JD source, parsed fields, drift verdicts, override flag if any, prompt-template versions, and total cost-to-produce.
 - FR39: System logs per-request LLM token usage (model, input tokens, output tokens, dollar cost) from the first call onward.
-- FR40: Author can view aggregated cost-per-application, drift-catch rate, and override rate via a CLI `stats` subcommand.
+- FR40: Author can view aggregated cost-per-application, drift-catch rate, and override rate on the Dashboard surface, backed by `GET /api/stats`.
 
 **Configuration and Safety**
 
@@ -111,7 +111,7 @@ There is no Architecture document and no UX Design Specification for this projec
 - NFR4: Per-application LLM cost target is under $0.25 end-to-end, including JD parse, tailoring, all three drift checks, and any single retry.
 - NFR5: Hard monthly spend cap on the LLM API key, enforced both at the provider portal (defense-in-depth) and in `config.yaml`. System refuses to run pipeline calls when the cap is breached.
 - NFR6: Per-request token logging from the first call onward; no call is unaccounted for.
-- NFR7: Aggregated cost-per-application is reported via `jobhunter stats` so the KPI is always visible.
+- NFR7: Aggregated cost-per-application is reported on the Dashboard surface (`GET /api/stats`) so the KPI is always visible.
 
 **Security and Privacy**
 
@@ -131,14 +131,14 @@ There is no Architecture document and no UX Design Specification for this projec
 
 - NFR16: One LLM provider at a time in v1 (provider choice deferred to build time). Switching providers must be a config change — model name, base URL, and API key all configurable.
 - NFR17: One outbound Google Chat incoming webhook URL, configurable.
-- NFR18: A single internal inbound JD endpoint accepts payloads from both the human CLI and scheduled flows, authenticated by a shared token from `.env`.
+- NFR18: A single internal inbound JD endpoint (`POST /api/paste`) accepts payloads from both the web UI's browser textarea and scheduled flows; non-loopback callers (n8n) must present a shared token from `.env`, browser-origin requests from `127.0.0.1` are accepted without the token header.
 - NFR19: n8n / workflow tool is self-hosted or cloud at author's choice. Flows live in n8n's own state, not in the core repo. The only contract between n8n and the core is the inbound JD endpoint.
 
 **Maintainability**
 
 - NFR20: Drift-check thresholds, prompt templates, and red-flag floors are configuration, not code. Behavior is tunable without redeploying.
 - NFR21: Prompt templates are versioned files with version strings recorded in per-application metadata so output quality correlates with template revisions.
-- NFR22: Per-application metadata is structured (JSON or YAML) so `jobhunter stats` can aggregate without re-parsing markdown.
+- NFR22: Per-application metadata is structured (JSON or YAML) so `GET /api/stats` can aggregate without re-parsing markdown.
 
 ### Additional Requirements
 
@@ -149,38 +149,59 @@ No Architecture document exists for this project. Technical-architecture-shape r
 - Canonical CV schema is JSON Resume schema as the working assumption, with the explicit option to fall back to a minimal custom YAML if JSON Resume does not fit. Decision finalized in Epic 1.
 - n8n hosting (self-hosted vs cloud) is deferred to the author at build time within Epic 7. Epic 7 is hosting-agnostic.
 - Filesystem-based persistence (no database in v1). Canonical CV in markdown in version control; per-application outputs as markdown files under `./out/<slug>/` with JSON/YAML metadata sidecars.
-- Single internal `POST /ingest`-style endpoint as the contract between CLI and scheduled flows; shared-token authentication from `.env`.
+- Single internal `POST /api/paste`-style endpoint as the contract between the web UI and scheduled flows; shared-token authentication from `.env` for non-loopback callers.
 
 ### UX Design Requirements
 
-N/A. No UX Design Specification exists for this project. The user-facing surface in v1 is:
+The user-facing surface in v1 is a **local single-user web app bound to `127.0.0.1`** plus an external workflow-automation surface (n8n / Make / equivalent). On the user side:
 
-- A CLI (commands: `jobhunter paste`, `jobhunter status`, `jobhunter override`, `jobhunter stats` per the PRD).
-- Markdown files opened in the user's own editor.
-- A Google Chat space receiving webhook pings.
+- The `jobhunter` command boots a FastAPI server on `127.0.0.1:8765` (no subcommands) and best-effort opens the default browser.
+- The browser is the canonical surface; surfaces are: Dashboard (`/`), Settings & Canonical CV (`/settings`), JD Pipeline & Tailoring (`/packages/<slug>`), Drift Check Diagnostics (`/packages/<slug>/drift`), Job Alerts & Automated Scans (`/scans`).
+- The canonical CV file on disk remains markdown/YAML and is also editable through the Settings surface.
+- A Google Chat space receives webhook pings on pass.
 
-There is no web UI, no mobile UI, no design tokens, no component library, no accessibility surface, and no responsive-design surface to extract. CLI ergonomics (subcommand names, flag conventions, exit codes, error message clarity) are owned story-by-story as part of each epic's CLI-touching stories.
+**Design source of truth.** Stitch project `14722049854544467629` ("Drift-Checked Job Hunter"), exported into `design_guidelines/stitch-export/`:
+
+- `design.md` — design tokens (Inter typography, deep navy + vibrant blue palette, 8px base grid, soft 0.25rem corners) plus component guidance.
+- `html/*.html` — five screen mockups, source of truth for layout + Tailwind classes (dashboard, settings & canonical CV, job alerts, JD pipeline, drift diagnostics).
+- `screenshots/*.png` — pixel reference per screen.
+- `INDEX.md` — screen-to-epic mapping + dev-story usage rules.
+
+Re-export with the Stitch MCP and overwrite that directory if the Stitch source changes. Do not hand-edit files inside `stitch-export/`.
+
+**Web surfaces are scattered across the feature epics** (per `DECISIONS.md` §6 — supersedes the prior "Epic 8 owns the UI" framing from §5). Each feature epic ships its own end-to-end vertical slice (backend route + frontend surface) as one shipping unit:
+
+- Epic 1 / Story 1.6 — FastAPI port + frontend scaffold + design tokens wired (the architectural pivot story; replaces the argparse CLI surface).
+- Epic 2 / Stories 2.13, 2.14 — Settings & Canonical CV editor (Stitch screen 02), JD Pipeline & Tailoring (Stitch screen 04).
+- Epic 3 / Story 3.5 — Drift Check Diagnostics: fabrication section (Stitch screen 05, fabrication slice).
+- Epic 4 / Story 4.4 — Drift Check Diagnostics: content-loss section (extends 3.5).
+- Epic 5 / Story 5.4 — Drift Check Diagnostics: keyword-stuffing section (completes 3.5/4.4).
+- Epic 6 / Stories 6.3, 6.4 — Dashboard surface (Stitch screen 01) + Override Approve action.
+- Epic 7 / Story 7.5 — Job Alerts & Automated Scans surface (Stitch screen 03).
+
+Every web story references its corresponding Stitch HTML file as the design source of truth and consumes design tokens from `design.md` (no ad-hoc hex / pixel values in component source).
 
 ### FR Coverage Map
 
-**Epic 1 — Walking Skeleton (v0.1)**
+**Epic 1 — Walking Skeleton (v0.1) + FastAPI pivot**
 
 - FR1: Canonical CV as a single markdown/YAML file in version control (first read happens here).
 - FR4: System reads canonical CV fresh on every run (no re-import ceremony).
 - FR5: System rejects PDF/docx canonical-CV ingest (markdown-only enforcement).
-- FR6: `jobhunter paste` accepts a JD via stdin or file argument and triggers the pipeline.
+- FR6: `POST /api/paste` accepts a JD via JSON body and triggers the pipeline (replaces CLI stdin/file ingest from Stories 1.2/1.4 — see Story 1.6 + `DECISIONS.md` §6).
 - FR17: System generates a tailored markdown CV against the canonical CV.
 - FR18: System generates a tailored markdown cover letter against the canonical CV.
 - FR37: System writes each generated package to `./out/<slug>/` as markdown artifacts.
 - FR41: Secrets live in `.env`; `.env` is `.gitignore`'d (foundational, in place before first LLM call).
 - FR43: Hard monthly LLM spend cap enforced; pipeline refuses to run when exceeded (must exist before first LLM call — cost runaway risk).
 - FR44: System never auto-submits an application (foundational stance; baked in from day one — the tool stops at writing files to disk).
+- FR45: `jobhunter` command boots a FastAPI server bound to `127.0.0.1:8765` (no CLI subcommands; lands in Story 1.6).
 
 **Epic 2 — Paste Pipeline Hardening & Artifact System**
 
 - FR2: Author can tag canonical-CV entries.
 - FR3: Author can mark canonical-CV entries as "high-impact" (schema support; drift check that uses it ships in Epic 4).
-- FR7: Single internal endpoint that both CLI and scheduled flows POST to.
+- FR7: Single internal endpoint (`POST /api/paste`) that both the browser textarea and scheduled flows POST to.
 - FR11: System never logs into user platform accounts (cross-cutting; codified here because this is where ingest abstractions land).
 - FR12: Structured JD parsing (must-haves, nice-to-haves, tone, seniority, red flags).
 - FR13: Source-board classification + board-specific signal extraction.
@@ -192,26 +213,31 @@ There is no web UI, no mobile UI, no design tokens, no component library, no acc
 - FR21: Prompt templates are versioned files; version recorded in per-application metadata.
 - FR38: Per-application metadata file (JD source, parsed fields, drift verdicts placeholder, prompt-template versions, cost).
 - FR39: Per-request LLM token usage logging.
-- FR40: `jobhunter stats` aggregates cost-per-application, drift-catch rate, override rate.
+- FR40: `GET /api/stats` aggregates cost-per-application, drift-catch rate, override rate; surfaced on the Dashboard stats card (Story 2.12).
 - FR42: Tunables live in `config.yaml` separate from secrets.
+- FR47: Settings & Canonical CV editor surface (Story 2.13 / Stitch screen 02) — full CV editor preserving tags + high-impact flag.
+- FR48: JD Pipeline & Tailoring surface (Story 2.14 / Stitch screen 04) — per-package staged-artifact viewer.
 
 **Epic 3 — Fabrication Drift Check**
 
 - FR22: Every claim in tailored CV traces to a canonical-CV entry via structural matching.
 - FR23: System fails the fabrication check on any untraceable claim.
 - FR24: Per-application metadata captures each failed claim, location, and reason.
+- FR49 (fabrication slice): Drift Check Diagnostics surface — fabrication section (Story 3.5 / Stitch screen 05).
 
 **Epic 4 — Content-Loss Drift Check**
 
 - FR25: System verifies high-impact canonical-CV entries appear in tailored output when relevant.
 - FR26: System fails the content-loss check if a high-impact relevant entry was dropped.
 - FR27: Per-application metadata records each dropped entry and the JD requirements it would have addressed.
+- FR49 (content-loss slice): Drift Check Diagnostics surface — content-loss section (Story 4.4 / extends 3.5).
 
 **Epic 5 — Keyword-Stuffing Drift Check**
 
 - FR28: System measures density and placement of JD-derived keywords against configurable thresholds.
 - FR29: System fails the check when density or placement breaches the thresholds.
 - FR30: Per-application metadata records offending keywords, densities, and locations.
+- FR49 (keyword-stuffing slice): Drift Check Diagnostics surface — keyword-stuffing section (Story 5.4 / completes the surface).
 
 **Epic 6 — Notifications & Held-Package Queue**
 
@@ -219,46 +245,51 @@ There is no web UI, no mobile UI, no design tokens, no component library, no acc
 - FR32: Notification includes one-line fit summary, source board, and staged-package path.
 - FR33: Packages that fail any drift check are held with no notification.
 - FR34: Staged markdown artifacts are written to disk even when held.
-- FR35: `jobhunter status` lists held packages and failure reasons.
-- FR36: `jobhunter override` releases a held package; override is logged in per-application metadata.
+- FR35: `GET /api/queue` lists held packages and failure reasons; surfaced on the Dashboard (Story 6.3 / Stitch screen 01).
+- FR36: `POST /api/override/<slug>` releases a held package via the Approve action; override is logged in per-application metadata (Story 6.4).
+- FR46: Dashboard surface (Story 6.3 / Stitch screen 01) — composes held queue, stats card, recent verdicts.
+- FR51: Approve action invokes the same override code path; never POSTs externally (Story 6.4 — FR44 stance structurally enforced).
 
 **Epic 7 — Automated Job Ingestion (n8n Scheduled Flows)**
 
 - FR8: n8n flows POST JDs from Upwork search results into the internal endpoint.
 - FR9: n8n flows POST JDs from OnlineJobs.ph listings into the internal endpoint.
 - FR10: n8n flows POST JDs from parsed LinkedIn Job Alert emails into the internal endpoint.
+- FR50: Job Alerts & Automated Scans surface (Story 7.5 / Stitch screen 03) — per-flow status without exposing credentials.
 
-**Coverage stats:** 44 / 44 FRs mapped to exactly one epic. 100% coverage. No unmapped FRs.
+**Coverage stats:** 51 / 51 FRs mapped. FR45 → Epic 1 (Story 1.6). FR46 → Epic 6 (Story 6.3). FR47, FR48 → Epic 2 (Stories 2.13, 2.14). FR49 → split across Epics 3/4/5 (one slice per drift dimension, Stories 3.5/4.4/5.4). FR50 → Epic 7 (Story 7.5). FR51 → Epic 6 (Story 6.4). Epic 8 dissolved on 2026-05-23 — see `DECISIONS.md` §6.
 
 ## Epic List
 
-### Epic 1: Walking Skeleton (v0.1)
-End-to-end smoke path proving the concept on a real application within week 1: paste a JD, tailor a markdown CV + cover letter against the canonical CV, write to `./out/<slug>/`. No drift check, no notifications, no UI. Locks in the canonical-CV markdown stance, the cost cap, and the no-auto-submit stance from the first LLM call onward.
-**FRs covered:** FR1, FR4, FR5, FR6, FR17, FR18, FR37, FR41, FR43, FR44.
+### Epic 1: Walking Skeleton (v0.1) + FastAPI pivot
+End-to-end smoke path proving the concept on a real application within week 1: paste a JD, tailor a markdown CV + cover letter against the canonical CV, write to `./out/<slug>/`. Stories 1.1–1.5 shipped as a CLI. Story 1.6 (added 2026-05-23) ports the surface to FastAPI + a minimal React/Vite/Tailwind scaffold and removes the argparse subcommand layer entirely (`DECISIONS.md` §6). Locks in the canonical-CV markdown stance, the cost cap, the no-auto-submit stance, and now the web-only architectural baseline that every later epic builds on.
+**FRs covered:** FR1, FR4, FR5, FR6, FR17, FR18, FR37, FR41, FR43, FR44, FR45.
 
 ### Epic 2: Paste Pipeline Hardening & Artifact System
-Turns the v0.1 spike into a real v1 pipeline: structured JD parsing with board classification and red flags, the canonical-CV tagging schema, the Upwork proposal as a first-class artifact (separate prompt template), prompt-template versioning, per-application metadata + cost-per-request logging, and the single internal `POST /ingest` endpoint that both the CLI and (later) the scheduled flows call. This is the foundation every drift check and notification rests on.
-**FRs covered:** FR2, FR3, FR7, FR11, FR12, FR13, FR14, FR15, FR16, FR19, FR20, FR21, FR38, FR39, FR40, FR42.
+Turns the v0.1 spike into a real v1 pipeline: structured JD parsing with board classification and red flags, the canonical-CV tagging schema, the Upwork proposal as a first-class artifact (separate prompt template), prompt-template versioning, per-application metadata + cost-per-request logging, and the single internal `POST /api/paste` endpoint that both the browser textarea and the scheduled flows call. Also lands the first two production-quality web surfaces: Settings & Canonical CV editor (Story 2.13 / Stitch screen 02) and JD Pipeline & Tailoring viewer (Story 2.14 / Stitch screen 04). This is the foundation every drift check and notification rests on.
+**FRs covered:** FR2, FR3, FR7, FR11, FR12, FR13, FR14, FR15, FR16, FR19, FR20, FR21, FR38, FR39, FR40, FR42, FR47, FR48.
 
 ### Epic 3: Fabrication Drift Check
-The headline moat. Structural claim-to-source-CV traceability: every skill or claim in the tailored CV must trace to a real entry in the canonical CV via string match plus semantic-equivalence threshold. Not LLM-as-judge. This is the only check that makes output unsendable, and it ships first among the drift checks per the non-negotiable build order. Also establishes the package-held-on-fail pattern (artifacts still written to disk) that epics 4–6 build on.
-**FRs covered:** FR22, FR23, FR24.
+The headline moat. Structural claim-to-source-CV traceability: every skill or claim in the tailored CV must trace to a real entry in the canonical CV via string match plus semantic-equivalence threshold. Not LLM-as-judge. This is the only check that makes output unsendable, and it ships first among the drift checks per the non-negotiable build order. Also establishes the package-held-on-fail pattern (artifacts still written to disk) that epics 4–6 build on, and lands the first slice of the Drift Check Diagnostics surface (Story 3.5 / Stitch screen 05, fabrication section).
+**FRs covered:** FR22, FR23, FR24, FR49 (fabrication slice).
 
 ### Epic 4: Content-Loss Drift Check
-Catches "the AI cut your best line." Verifies that canonical-CV entries marked as "high-impact" (schema support landed in Epic 2 via FR3) appear in the tailored output when the JD's parsed requirements call for them. Drops are recorded with the JD requirement they would have addressed, so the author can see exactly what was lost and why.
-**FRs covered:** FR25, FR26, FR27.
+Catches "the AI cut your best line." Verifies that canonical-CV entries marked as "high-impact" (schema support landed in Epic 2 via FR3) appear in the tailored output when the JD's parsed requirements call for them. Drops are recorded with the JD requirement they would have addressed, so the author can see exactly what was lost and why. Extends the Drift Check Diagnostics surface from Epic 3 with the content-loss section (Story 4.4).
+**FRs covered:** FR25, FR26, FR27, FR49 (content-loss slice).
 
 ### Epic 5: Keyword-Stuffing Drift Check
-ATS-passable but not ATS-tell. Measures density and placement of JD-derived keywords against configurable thresholds; flags dump-paragraphs and over-stuffing per section. Closes the third recruiter-side failure mode (after fabrication and content-loss) that the brief calls out as the moat dimension.
-**FRs covered:** FR28, FR29, FR30.
+ATS-passable but not ATS-tell. Measures density and placement of JD-derived keywords against configurable thresholds; flags dump-paragraphs and over-stuffing per section. Closes the third recruiter-side failure mode (after fabrication and content-loss) that the brief calls out as the moat dimension. Completes the Drift Check Diagnostics surface with the keyword-stuffing section (Story 5.4) — `05-drift-check-diagnostics.html` is fully realized after this epic.
+**FRs covered:** FR28, FR29, FR30, FR49 (keyword-stuffing slice).
 
 ### Epic 6: Notifications & Held-Package Queue
-The user's daily-driver surface. GChat webhook ping with one-line fit summary on pass; silent hold on fail with the package readable on disk; CLI subcommands to list held packages and override (with override logged as structured metadata, not a free-text comment, per PRD PO Assumptions). Single notification channel — email/push are explicitly v2.
-**FRs covered:** FR31, FR32, FR33, FR34, FR35, FR36.
+The user's daily-driver surface. GChat webhook ping with one-line fit summary on pass; silent hold on fail with the package readable on disk; Dashboard surface (Stitch screen 01) listing the held queue + recent verdicts; Approve action (`POST /api/override/<slug>`) releasing held packages with structured metadata (not a free-text comment, per PRD PO Assumptions). Single notification channel — email/push are explicitly v2.
+**FRs covered:** FR31, FR32, FR33, FR34, FR35, FR36, FR46, FR51.
 
 ### Epic 7: Automated Job Ingestion (n8n Scheduled Flows)
-The second front door to the pipeline. Hosting-agnostic n8n (or Make / equivalent) flows poll Upwork search results, OnlineJobs.ph listings, and the user's LinkedIn Job Alert email inbox, then POST each JD to the same internal endpoint the human CLI uses. LinkedIn is email parsing only — no site crawling. Sequenced last in v1 so a brittle ingest layer never blocks the rest of the system; paste mode remains the always-available path.
-**FRs covered:** FR8, FR9, FR10.
+The second front door to the pipeline. Hosting-agnostic n8n (or Make / equivalent) flows poll Upwork search results, OnlineJobs.ph listings, and the user's LinkedIn Job Alert email inbox, then POST each JD to the same `POST /api/paste` endpoint the browser textarea uses. LinkedIn is email parsing only — no site crawling. Also ships the Job Alerts & Automated Scans surface (Story 7.5 / Stitch screen 03) so flow health is visible without SSHing into the n8n host. Sequenced last in v1 so a brittle ingest layer never blocks the rest of the system; the browser paste textarea remains the always-available path.
+**FRs covered:** FR8, FR9, FR10, FR50.
+
+*(Epic 8 was dissolved on 2026-05-23 — the web UI is now scattered across the feature epics above, one surface per epic. See `DECISIONS.md` §6 for the supersession rationale.)*
 
 ## Epic 1: Walking Skeleton (v0.1)
 
@@ -409,9 +440,65 @@ So that I can open the staged files in my editor, make 1–3 manual edits, and s
 **Then** the CLI exits with a non-zero exit code and prints an error message identifying the failure,
 **And** no partial or empty artifact files are written to `./out/<slug>/`.
 
+### Story 1.6: FastAPI port + frontend scaffold + `jobhunter` launcher (web-only pivot)
+
+As a solo developer (the author),
+I want to replace the argparse CLI surface from Stories 1.2–1.5 with a FastAPI app and a minimal React + Vite + Tailwind frontend scaffold, all booted by a bare `jobhunter` command,
+So that every subsequent epic builds on the web-only architecture (`DECISIONS.md` §6) instead of a CLI that we'd have to rewrite later, while the load-bearing Epic 1 core modules (canonical-CV reader, LLM client, spend tracker, package writer) survive untouched.
+
+**Context.** Added 2026-05-23 in response to the web-only pivot (`DECISIONS.md` §6). Epic 1 had previously shipped as a CLI walking skeleton; this story carries the architectural pivot. The core modules from Stories 1.1–1.5 remain authoritative — only the entrypoint changes from `argparse` to FastAPI route handlers. The 189 tests for those core modules survive; only the CLI-entry tests need replacement with route-handler tests.
+
+**Acceptance Criteria:**
+
+**Given** the Epic 1 core modules from Stories 1.1–1.5 (canonical-CV reader, LLM client + spend tracker, package writer) exist in `src/jobhunter/`,
+**When** I run `jobhunter` with no arguments,
+**Then** a FastAPI server starts and binds to `127.0.0.1:8765` (port overridable via `JOBHUNTER_WEB_PORT` env),
+**And** a startup check refuses to bind to `0.0.0.0` or any non-loopback host (raises and exits non-zero before the socket opens),
+**And** the URL `http://127.0.0.1:8765/` is logged to stderr,
+**And** the system best-effort opens the user's default browser via `webbrowser.open` (best-effort — failure to open the browser does not crash the server),
+**And** the process exits cleanly on `SIGINT` (FR45).
+
+**Given** the FastAPI app is running,
+**When** an HTTP request hits `GET /healthz`,
+**Then** the server returns `200 OK` with a JSON body `{"status": "ok", "version": "<package version>"}`,
+**And** no route requires authentication (single-user, localhost only — `DECISIONS.md` §6).
+
+**Given** the FastAPI app is running and `LLM_API_KEY` is configured,
+**When** an HTTP request hits `POST /api/paste` with JSON body `{"jd_text": "<JD text>", "source": "browser"}`,
+**Then** the handler invokes the **same** tailoring + package-write code path as Story 1.5 (no duplicated business logic — the route imports and calls the existing module),
+**And** the response body contains the staged `slug`, the relative paths of `cv.md` and `cover-letter.md`, and the per-request cost (FR6, FR7, FR17, FR18, FR37),
+**And** the cost-cap pre-check from Story 1.2/1.5 fires before any LLM call is made (FR43); when the cap is reached, the response is `402 Payment Required` with a JSON body naming current spend and cap, and no LLM call is attempted,
+**And** no outbound HTTP request is made to Upwork, LinkedIn, OnlineJobs.ph, or any job board during the run (FR44).
+
+**Given** the frontend scaffold,
+**When** I inspect `src/jobhunter/web/frontend/`,
+**Then** the directory contains a Vite + React + Tailwind project with `package.json`, `vite.config.ts`, and a `tailwind.config.ts` that consumes design tokens from `design_guidelines/stitch-export/design.md` (colors, typography scale, spacing scale, border-radius scale) via a shared TS module or a build-time codegen step,
+**And** no hard-coded hex colors or pixel values appear in component source files (a grep-based lint check enforces this in CI),
+**And** `npm run build` produces a static bundle under `src/jobhunter/web/frontend/dist/` that the FastAPI app serves at `/`,
+**And** the bundle renders a minimal landing page with the Stitch sidebar shell + main content area applied, sized and themed according to `design.md` (260px sidebar, Inter typography, 8px base spacing, 0.25rem default radius).
+
+**Given** the landing page is loaded,
+**When** I look at the main content area,
+**Then** a single JD-paste textarea is rendered with a "Tailor this JD" button,
+**And** clicking the button POSTs the textarea contents to `POST /api/paste`,
+**And** the response is displayed in a basic results panel showing the staged slug + file paths + per-request cost (no styling beyond the design tokens — production-quality screens land in Epic 2.14 and later).
+
+**Given** the argparse CLI surface from Stories 1.2/1.4 is no longer the user entrypoint,
+**When** I inspect the codebase,
+**Then** `jobhunter` is the only console_script entry registered in `pyproject.toml`,
+**And** there is no `jobhunter paste`, `jobhunter status`, `jobhunter override`, or `jobhunter stats` subcommand — these names are not parsed, not aliased, not present (`DECISIONS.md` §6),
+**And** the existing test suite from Stories 1.1, 1.3, and 1.5 (canonical-CV reader, schema validation, tailoring logic, spend tracker) still passes unchanged,
+**And** the test suite from Stories 1.2 and 1.4 (which exercised the argparse entry surface) has been replaced by route-handler tests against `POST /api/paste` and `GET /healthz` (use FastAPI's `TestClient`).
+
+**Given** the launcher exists,
+**When** I inspect `pyproject.toml`,
+**Then** an optional dependency group `[project.optional-dependencies] web = ["fastapi", "uvicorn[standard]"]` exists with pinned versions,
+**And** the frontend `package.json` pins React, Vite, and Tailwind versions,
+**And** `jobhunter --help` shows only launcher flags (`--port`, `--no-browser`); no subcommand syntax is documented.
+
 ## Epic 2: Paste Pipeline Hardening & Artifact System
 
-This epic turns the v0.1 spike into the real v1 pipeline that all drift checks plug into. It introduces the structured JD parser (must-haves, nice-to-haves, tone, seniority, red flags — FR12), source-board classification with board-specific signal extractors for Upwork (budget band, hourly vs fixed, screening questions — FR14) and OnlineJobs.ph (rate range, role type — FR15), and JD red-flag surfacing on the staged-package summary (FR16). It promotes the Upwork proposal to a first-class artifact type with its own prompt template — separate from the cover letter, not a variant — and wires per-board artifact-set selection (FR19, FR20). It introduces the canonical-CV tagging schema (FR2) and the "high-impact" flag (FR3) — the drift check that uses high-impact ships in Epic 4, but the schema lands here so the source-of-truth file is stable before the checks attach. It stands up the single internal `POST /ingest` endpoint (FR7), authenticated by a shared token from `.env`, as the contract the n8n flows (Epic 7) will later call. It introduces prompt-template versioning (FR21), the per-application metadata sidecar file (FR38) capturing JD source, parsed fields, prompt-template versions, and cost-to-produce, per-request LLM token logging (FR39), the `jobhunter stats` aggregation command (FR40), and the `config.yaml` separation of tunables from secrets (FR42). Cross-cutting "never logs into user platform accounts" stance (FR11) is codified here because this is the epic that defines what ingest is allowed to do.
+This epic turns the v0.1 spike into the real v1 pipeline that all drift checks plug into. It introduces the structured JD parser (must-haves, nice-to-haves, tone, seniority, red flags — FR12), source-board classification with board-specific signal extractors for Upwork (budget band, hourly vs fixed, screening questions — FR14) and OnlineJobs.ph (rate range, role type — FR15), and JD red-flag surfacing on the staged-package summary (FR16). It promotes the Upwork proposal to a first-class artifact type with its own prompt template — separate from the cover letter, not a variant — and wires per-board artifact-set selection (FR19, FR20). It introduces the canonical-CV tagging schema (FR2) and the "high-impact" flag (FR3) — the drift check that uses high-impact ships in Epic 4, but the schema lands here so the source-of-truth file is stable before the checks attach. It stands up the single internal `POST /api/paste` endpoint (FR7), authenticated by a shared token from `.env` for non-loopback callers, as the contract the n8n flows (Epic 7) will later call. It introduces prompt-template versioning (FR21), the per-application metadata sidecar file (FR38) capturing JD source, parsed fields, prompt-template versions, and cost-to-produce, per-request LLM token logging (FR39), the `GET /api/stats` aggregation endpoint surfaced on the Dashboard (FR40, Story 2.12), and the `config.yaml` separation of tunables from secrets (FR42). It also ships the first two production-quality web surfaces: the Settings & Canonical CV editor (Story 2.13 / FR47) and the JD Pipeline & Tailoring viewer (Story 2.14 / FR48). Cross-cutting "never logs into user platform accounts" stance (FR11) is codified here because this is the epic that defines what ingest is allowed to do.
 
 ### Story 2.1: Canonical CV tagging schema and high-impact flag
 
@@ -451,7 +538,7 @@ I want the system to parse each pasted JD into structured fields — must-haves,
 So that tailoring and drift checks operate on stable, inspectable data rather than re-prompting the LLM with raw text every step.
 
 **Acceptance Criteria:**
-**Given** I paste a JD via `jobhunter paste` **When** the parser runs **Then** it emits a structured JSON object containing at minimum `must_haves[]`, `nice_to_haves[]`, `tone`, `seniority`, and `red_flags[]`, and this object is persisted to the per-application metadata sidecar.
+**Given** I paste a JD via the browser textarea (which POSTs to `POST /api/paste`) **When** the parser runs **Then** it emits a structured JSON object containing at minimum `must_haves[]`, `nice_to_haves[]`, `tone`, `seniority`, and `red_flags[]`, and this object is persisted to the per-application metadata sidecar.
 **And** the parse completes within the paste-mode 90-second end-to-end SLO budget (NFR1) — the parse step itself is bounded so it does not starve the tailoring step.
 
 **Given** the parse JSON is produced **When** any downstream step (tailoring, drift checks, red-flag surfacing) needs JD data **Then** it reads from the parsed object, not from the raw JD text.
@@ -554,7 +641,7 @@ So that I can A/B prompt revisions safely and correlate output quality with temp
 
 As a solo developer,
 I want every generated package to write a structured JSON metadata sidecar capturing the JD source, parsed fields, drift-verdict placeholders, prompt-template versions, and total cost-to-produce, with per-request LLM token usage logged from the first call onward,
-So that `jobhunter stats` can aggregate without re-parsing markdown and so no LLM call is ever unaccounted for.
+So that `GET /api/stats` can aggregate without re-parsing markdown and so no LLM call is ever unaccounted for.
 
 **Acceptance Criteria:**
 **Given** a pipeline run completes (pass or fail) **When** the metadata writer runs **Then** `./out/<slug>/metadata.json` exists and contains at minimum: `slug`, `source_board`, `jd_source` (e.g. `paste` | `n8n_upwork`), `parsed_jd` (the structured object from Story 2.3), `red_flags[]`, `artifacts_produced[]`, `prompt_templates{}`, `drift_verdicts{}` (placeholders `pending` in this epic; populated by Epics 3–5), `override` (boolean + reason, default `false`), and `cost{}` (total USD + per-call breakdown).
@@ -580,27 +667,111 @@ So that both the human CLI and the future n8n scheduled flows (Epic 7) call the 
 
 **Given** the request body fails JSON schema validation (e.g. `jd_text` missing or empty) **When** validation runs **Then** the endpoint returns HTTP 400 with a structured error and the request never reaches the LLM.
 
-**Given** the `jobhunter paste` CLI subcommand is invoked **When** the CLI runs **Then** internally it POSTs to the same `/ingest` endpoint (or invokes the same handler function) — there is exactly one code path that runs the pipeline, not two.
+**Given** the browser JD-paste textarea (Story 1.6 / FR48) submits a JD **When** the frontend POSTs to the FastAPI app **Then** it hits the same `POST /api/paste` endpoint this story defines — there is exactly one code path that runs the pipeline, not two; n8n callers (Epic 7) and the browser frontend share the same handler. The shared-token check applies to non-loopback origins; browser-origin requests from `127.0.0.1` are accepted without the token header (`DECISIONS.md` §6 — no auth in v1).
 **And** the endpoint never logs into any third-party platform account on behalf of the user (FR11); it accepts pre-fetched JD text only.
 
 **Given** the endpoint receives a valid request **When** the pipeline runs **Then** the paste-mode 90-second end-to-end latency target (NFR1) is respected for the synchronous response path on the chosen LLM provider's standard tier.
 
-### Story 2.12: jobhunter stats CLI for cost and conversion measurement
+### Story 2.12: Stats API + Dashboard stats card
 
 As a solo developer,
-I want a `jobhunter stats` CLI subcommand that aggregates per-application metadata into rolling cost-per-application, drift-catch rate, override rate, and a 30-application interview-conversion window,
-So that the project's defining KPIs are always one command away and I never have to grep markdown to know how the tool is doing.
+I want a `GET /api/stats` endpoint that aggregates per-application metadata into rolling cost-per-application, drift-catch rate, override rate, and a 30-application interview-conversion window, plus a Dashboard stats card on the home surface that renders it,
+So that the project's defining KPIs are always visible in the browser and I never have to grep markdown to know how the tool is doing.
+
+**Context.** Reframed 2026-05-23 from `jobhunter stats` CLI to web-only (`DECISIONS.md` §6). Aggregation logic stays the same — it just moves behind an HTTP endpoint, and the rendering moves into the Dashboard surface from Epic 6 (this story ships the card; Epic 6 owns the broader Dashboard composition).
 
 **Acceptance Criteria:**
-**Given** at least one application's metadata sidecar exists in `./out/` **When** I run `jobhunter stats` **Then** the command prints aggregated values: `applications_total`, `cost_per_app_avg_usd`, `cost_per_app_p95_usd`, `monthly_spend_usd`, `drift_catch_rate` (`packages_held / packages_total`), `override_rate` (`overrides / packages_held`), and `interview_conversion_rate_30app` (rolling-30-application window when ≥ 30 applications exist; otherwise reports current `n` and `insufficient_data`).
 
-**Given** I want a subset view **When** I run `jobhunter stats --since 2026-04-01` or `jobhunter stats --board upwork` **Then** the aggregation is filtered to the matching applications.
+**Given** at least one application's metadata sidecar exists in `./out/`,
+**When** the frontend requests `GET /api/stats`,
+**Then** the backend returns JSON with `applications_total`, `cost_per_app_avg_usd`, `cost_per_app_p95_usd`, `monthly_spend_usd`, `drift_catch_rate` (`packages_held / packages_total`), `override_rate` (`overrides / packages_held`), and `interview_conversion_rate_30app` (rolling-30-application window when ≥ 30 applications exist; otherwise the response includes the current `n` and `"insufficient_data": true`).
 
-**Given** the per-app cost target is `$0.25` (NFR4) **When** stats are printed **Then** the output highlights any rolling window where `cost_per_app_avg_usd > 0.25` so the cost regression is immediately visible.
+**Given** the request includes query params,
+**When** the frontend issues `GET /api/stats?since=2026-04-01` or `GET /api/stats?board=upwork`,
+**Then** the aggregation is filtered to the matching applications.
 
-**Given** application metadata records `interview_reached: true|false` (a user-settable field the author updates when a screen happens) **When** stats are computed **Then** `interview_conversion_rate_30app` reflects the rolling-30 window and is the single number that maps to the brief's primary success metric.
+**Given** the per-app cost target is `$0.25` (NFR4),
+**When** the endpoint returns,
+**Then** the response includes a `"cost_regression_window": true|false` flag set true if `cost_per_app_avg_usd > 0.25` so the frontend can highlight the regression without re-computing it.
 
-**Given** the stats command runs **When** it reads metadata sidecars **Then** it never re-parses markdown artifacts (per NFR22) — all aggregation reads from the structured metadata sidecars only.
+**Given** application metadata records `interview_reached: true|false` (a user-settable field the author updates when a screen happens),
+**When** stats are computed,
+**Then** `interview_conversion_rate_30app` reflects the rolling-30 window and is the single number that maps to the brief's primary success metric.
+
+**Given** the endpoint runs,
+**When** it reads metadata sidecars,
+**Then** it never re-parses markdown artifacts (per NFR22) — all aggregation reads from the structured metadata sidecars only,
+**And** no database or other persistence layer is introduced (`DECISIONS.md` §6).
+
+**Given** the Dashboard surface owned by Epic 6 mounts,
+**When** the user opens `/` in the browser,
+**Then** a stats card renders the four primary KPIs (avg cost-per-app, monthly spend, drift-catch rate, interview-conversion rate),
+**And** the card uses design tokens from `design.md` (no ad-hoc hex/pixel values),
+**And** the regression flag visibly colors the cost card when set (FR40).
+
+### Story 2.13: Settings & Canonical CV editor surface
+
+As a solo developer (the author),
+I want a browser editor for the canonical CV that preserves the JSON Resume schema, the `tags` field, and the `highImpact` flag, and that writes changes back to the canonical-CV file on disk,
+So that I can adjust canonical-CV entries from the browser instead of hand-editing JSON when I notice a missing skill mid-review — and Epic 2's tagging + high-impact-flag work has a surface from day one.
+
+**Context.** Was Epic 8.3 under the old hybrid architecture. Folded into Epic 2 by the 2026-05-23 pivot (`DECISIONS.md` §6) because this surface uses Story 2.1's tagging schema + high-impact flag directly — shipping them as one vertical slice is cleaner than carrying a UI epic to the end.
+
+**Acceptance Criteria:**
+
+**Given** Story 2.1 (canonical-CV tagging schema + high-impact flag) is done and Story 1.6 (FastAPI scaffold) is in place,
+**When** the frontend requests `GET /api/canonical-cv`,
+**Then** the backend invokes `jobhunter.canonical_cv.read_canonical_cv()` (the only reader contract — `DECISIONS.md` §2) and returns the parsed JSON Resume document,
+**And** the document round-trips losslessly: tags, high-impact flags, and JSON Resume v1.0.0 fields are all preserved.
+
+**Given** the editor surface is loaded at `/settings`,
+**When** the page renders,
+**Then** it matches the layout of `design_guidelines/stitch-export/html/02-settings-canonical-cv.html`,
+**And** all sections of the canonical CV (basics, work, education, skills, projects) are editable inline with per-entry tag and high-impact-flag controls (FR2, FR3),
+**And** all design tokens come from the Tailwind config built off `design.md` (FR47).
+
+**Given** edits are made,
+**When** the user clicks Save,
+**Then** the frontend POSTs the full document to `PUT /api/canonical-cv`,
+**And** the backend validates the payload against the vendored `schemas/jsonresume-v1.0.0.json` schema before writing,
+**And** on validation failure the backend returns `422` with the failing JSON Pointer path(s) and the file on disk is unchanged,
+**And** on success the backend writes the new document atomically (write-to-temp + rename) and returns `200`.
+
+**Given** the canonical-CV file is modified out-of-band (e.g. the user edits it in their editor),
+**When** the editor surface is reloaded,
+**Then** the read-fresh contract from `DECISIONS.md` §2 holds — the new contents appear with no caching.
+
+### Story 2.14: JD Pipeline & Tailoring surface — staged-package viewer
+
+As a solo developer (the author),
+I want a per-package detail page that shows the JD, the tailored CV, the tailored cover letter (or Upwork proposal), and the package metadata side-by-side, plus a "Tailor a new JD" entry point,
+So that I can review a single tailoring run without flipping between four files, and the JD-paste flow from Story 1.6 has a real production-quality surface instead of the minimal walking-skeleton textarea.
+
+**Context.** Was Epic 8.4 under the old hybrid architecture. Folded into Epic 2 by the 2026-05-23 pivot (`DECISIONS.md` §6) because this surface consumes Epic 2's structured JD parser (Story 2.3), Upwork-proposal artifact (Story 2.7), per-board artifact-set selector (Story 2.8), and metadata sidecars (Story 2.10) — shipping them together as one vertical slice avoids carrying a UI epic to the end.
+
+**Acceptance Criteria:**
+
+**Given** Stories 2.3, 2.7, 2.8, 2.10 are done and Story 1.6 is in place,
+**When** the frontend requests `GET /api/package/<slug>`,
+**Then** the backend reads `./out/<slug>/`'s artifacts (JD text, tailored CV markdown, tailored cover letter markdown OR Upwork proposal markdown depending on board, `package.metadata.json`) and returns a JSON document with each artifact's contents and metadata,
+**And** the route returns `404` for slugs that do not exist on disk.
+
+**Given** the page is loaded at `/packages/<slug>`,
+**When** it renders,
+**Then** the layout matches `design_guidelines/stitch-export/html/04-jd-pipeline-tailoring.html`,
+**And** the JD, tailored CV, and cover letter (or Upwork proposal) are rendered as markdown using a vetted library (no `dangerouslySetInnerHTML` on raw model output),
+**And** the package metadata sidebar shows source board (FR13), parsed JD fields (FR12), Upwork-specific signals where applicable (FR14), prompt-template versions (FR21), and cost-per-request (FR39),
+**And** all design tokens come from `design.md` (FR48).
+
+**Given** the JD-paste flow,
+**When** the user pastes a JD into the textarea on the home surface and submits,
+**Then** the request hits `POST /api/paste` (Story 1.6 / FR6),
+**And** on success the browser navigates to `/packages/<slug>` for the freshly staged package (the home textarea is preserved as a fast-entry path; the dedicated JD pipeline surface is for review),
+**And** the route returns `404` for slugs that do not exist on disk — no broken layout on race conditions.
+
+**Given** the package's metadata indicates a held state (Epic 3/4/5 drift fail, lands later),
+**When** the page renders,
+**Then** an "Approve override" action button is visible but disabled with a tooltip "Drift override available after Epic 6 ships" (cross-epic dependency — the button activates when Story 6.4's override endpoint lands).
 
 ## Epic 3: Fabrication Drift Check
 
@@ -720,7 +891,7 @@ So that fabrication-fail packages do not leak to the user via accidental notific
 **Given** a package is in HELD state,
 **When** the pipeline exits,
 **Then** the Google Chat notification (FR31, owned by Epic 6) is NOT sent — verified by asserting that the held-state branch does not invoke the notification module at all (rather than invoking it and suppressing it, to keep the no-notification contract structural),
-**And** the per-application metadata file (FR38) records `drift.fabrication: "fail"`, `held: true`, `held_path: "./out/<slug>/package.held.json"` so a future `jobhunter status` (Epic 6, FR35) can enumerate held packages by reading metadata only.
+**And** the per-application metadata file (FR38) records `drift.fabrication: "fail"`, `held: true`, `held_path: "./out/<slug>/package.held.json"` so a future `GET /api/queue` (Epic 6, FR35) can enumerate held packages by reading metadata only.
 
 **Given** held packages accumulate over time,
 **When** any pipeline run starts,
@@ -731,6 +902,39 @@ So that fabrication-fail packages do not leak to the user via accidental notific
 **When** the fabrication check fails for any reason (unsourced claim, quantifier mismatch, extraction timeout, matcher error),
 **Then** the package is held — there is no "soft fail" or "warn-only" mode in v1; the verdict is binary,
 **And** the manual override path (FR36, owned by Epic 6) is the ONLY way a held fabrication-fail package can be released — verified by asserting that no code path in Epic 3 promotes a HELD package to PASSED.
+
+### Story 3.5: Drift Check Diagnostics surface — fabrication section
+
+As a solo developer (the author),
+I want a browser drift diagnostics page for each package that visualizes the fabrication-check findings with claim→source traceability — the JSON drift report rendered as a navigable surface,
+So that the structured `package.drift.json` document Stories 3.1–3.4 produce is genuinely readable instead of a wall of JSON, and the diagnostics surface from Stitch screen 05 lands incrementally (fabrication section now, content-loss in 4.4, keyword-stuffing in 5.4).
+
+**Context.** This story was Epic 8.5 in the prior hybrid architecture. Per the 2026-05-23 pivot (`DECISIONS.md` §6), the diagnostics surface is built incrementally — one drift section per epic — so each epic ships a complete vertical slice (backend logic + UI surface) instead of carrying a UI epic to the end.
+
+**Acceptance Criteria:**
+
+**Given** Stories 3.1–3.4 (fabrication drift + held pattern) are done and the FastAPI scaffold from Story 1.6 is in place,
+**When** the frontend requests `GET /api/package/<slug>/drift`,
+**Then** the backend returns the parsed `./out/<slug>/package.drift.json` (with the fabrication section populated; other drift sections may be absent until Epics 4 and 5 land),
+**And** the route returns `404` for packages with no drift report on disk (e.g. Epic 1 walking-skeleton runs).
+
+**Given** the page is loaded at `/packages/<slug>/drift`,
+**When** it renders,
+**Then** the overall layout matches `design_guidelines/stitch-export/html/05-drift-check-diagnostics.html`,
+**And** the fabrication section lists each failed claim with its location in the tailored output and a "no source entry found in canonical CV" reason (FR24),
+**And** if the drift report contains no fabrication failures, the section renders an empty pass state matching the design,
+**And** sections for content-loss and keyword-stuffing render as "pending — not yet implemented" placeholders until Stories 4.4 and 5.4 land (so the page is renderable end-to-end now without crashing on missing keys),
+**And** all design tokens come from `design.md` (FR49, fabrication slice).
+
+**Given** a failed claim has any candidate canonical-CV entries (string-match near-misses),
+**When** the user hovers/clicks the claim,
+**Then** the UI surfaces those near-misses inline (no navigation away),
+**And** uses the focus/active states defined in `design.md`.
+
+**Given** the JD Pipeline & Tailoring surface from Story 2.14 is rendering a held package,
+**When** the user clicks "View drift diagnostics",
+**Then** the SPA navigates to `/packages/<slug>/drift`,
+**And** the URL is bookmarkable and reload-safe.
 
 ## Epic 4: Content-Loss Drift Check
 
@@ -767,7 +971,7 @@ so that the AI cannot quietly drop my strongest wins on the way to a tailored pa
 
 - **AC4 — CLI exit code and held-package behavior.**
   - Given at least one high-impact, JD-relevant entry is silently absent (no rationale logged),
-  - When `jobhunter paste` runs end-to-end,
+  - When `POST /api/paste` runs end-to-end,
   - Then the content-loss check exits with the per-check fail signal (non-zero internal verdict) and the package is held per the Epic 3 held-package pattern (artifacts still written to `./out/<slug>/`, no notification fires).
   - Given all high-impact JD-relevant entries are present or have logged rationales,
   - Then the content-loss check returns `pass` and the pipeline proceeds to the next check (keyword-stuffing in Epic 5, or notification in Epic 6 once that lands).
@@ -788,7 +992,7 @@ so that the AI cannot quietly drop my strongest wins on the way to a tailored pa
 
 As the solo developer reviewing held packages and tuning the check over time,
 I want every content-loss run to persist a structured diff of preserved versus dropped high-impact entries (with reason codes) at a known JSON path,
-so that I get actionable signal on what was lost and why, and so that `jobhunter stats` (FR40) can aggregate drop patterns across applications without re-parsing markdown (NFR22).
+so that I get actionable signal on what was lost and why, and so that `GET /api/stats` (FR40) can aggregate drop patterns across applications without re-parsing markdown (NFR22).
 
 **Acceptance Criteria**
 
@@ -832,7 +1036,7 @@ so that I get actionable signal on what was lost and why, and so that `jobhunter
   - Sibling keys at the top level (e.g. `fabrication` from Epic 3) are preserved unchanged.
 
 - **AC5 — Stats command can consume the file unchanged.**
-  - Given `jobhunter stats` (FR40) is run against an `./out/` directory containing multiple slugs,
+  - Given `GET /api/stats` (FR40) is run against an `./out/` directory containing multiple slugs,
   - When it walks `package.drift.json` files,
   - Then it can compute drop-catch-rate (count of `silently_lost` drops / total applications) and reason-code distribution without parsing any markdown.
   - A smoke test loads two synthetic `package.drift.json` files and asserts the aggregator produces a stable, schema-valid summary.
@@ -841,7 +1045,7 @@ so that I get actionable signal on what was lost and why, and so that `jobhunter
   - Given `verdict: "fail"` in the `content_loss` block,
   - When the pipeline checks whether to hold the package,
   - Then the package is held per the Epic 3 pattern: artifacts remain on disk (FR34), no GChat ping fires (FR33 — wired in Epic 6, stubbed for now as a no-op that respects the held flag).
-  - The held verdict is also reflected in the per-application metadata sidecar (FR38) so `jobhunter status` (FR35, Epic 6) can later list the failure reason without re-running the check.
+  - The held verdict is also reflected in the per-application metadata sidecar (FR38) so `GET /api/queue` (FR35, Epic 6) can later list the failure reason without re-running the check.
 
 **Notes / scope guardrails**
 
@@ -903,6 +1107,31 @@ so that I can tighten or loosen the check based on real-world override-rate data
 
 - INVEST budget: 1 night/weekend. The story is intentionally narrow: config plumbing + the embedding-distance mode as the upgrade path. The substring/tag-overlap default does not require an embeddings client and is the happy path for v1.
 - This story is optional per the epic plan — if Story 4.1 and 4.2 land with hard-coded conservative defaults and the matcher proves good enough in real use, this story can be deferred to v1.1. Including it now keeps the "tunable not redeployable" stance honest from day one.
+
+### Story 4.4: Drift Check Diagnostics surface — content-loss section
+
+As a solo developer (the author),
+I want the drift diagnostics page (live since Story 3.5) extended with a content-loss section that lists dropped high-impact entries and the JD requirements they would have addressed,
+So that the diagnostics surface keeps growing in lockstep with each new drift dimension, and Epic 4's `package.drift.json.content_loss` block becomes legible in the browser instead of a JSON read.
+
+**Context.** Was Epic 8.5 (content-loss portion) under the prior hybrid architecture. Folded into Epic 4 per the 2026-05-23 pivot (`DECISIONS.md` §6) so the content-loss check ships as one vertical slice — logic + UI together.
+
+**Acceptance Criteria:**
+
+**Given** Stories 4.1–4.2 (high-impact relevance + drop-detection drift metadata) are done and Story 3.5 (drift diagnostics surface with fabrication section) is live,
+**When** the frontend requests `GET /api/package/<slug>/drift` and the response includes a `content_loss` block,
+**Then** the page at `/packages/<slug>/drift` renders a populated content-loss section replacing the placeholder Story 3.5 shipped,
+**And** each dropped high-impact entry is listed with its source canonical-CV identifier, the JD requirement(s) it would have addressed (must-have vs nice-to-have label), and the relevance-matcher mode + threshold used for the run (from Story 4.2's `config_snapshot`),
+**And** the section matches the layout of the content-loss portion of `design_guidelines/stitch-export/html/05-drift-check-diagnostics.html` (FR49, content-loss slice).
+
+**Given** the package passed the content-loss check,
+**When** the section renders,
+**Then** an empty pass state is shown matching the design (not a missing/broken layout),
+**And** the rest of the diagnostics page (fabrication, sidebar) is unaffected.
+
+**Given** the user clicks a dropped high-impact entry,
+**When** the UI responds,
+**Then** the canonical-CV source entry is highlighted inline (same interaction pattern Story 3.5 uses for fabrication near-misses) so the author can see what was lost.
 
 ## Epic 5: Keyword-Stuffing Drift Check
 
@@ -1028,9 +1257,35 @@ Given a previous pipeline run wrote `package.drift.json` for a slug,
 When that slug is re-run (override or replay),
 Then the file is overwritten, not merged — there is one authoritative `package.drift.json` per slug per latest run, and the freshness contract from FR4 (canonical CV read fresh each run) is mirrored for drift metadata.
 
+### Story 5.4: Drift Check Diagnostics surface — keyword-stuffing section
+
+As a solo developer (the author),
+I want the drift diagnostics page extended with a keyword-stuffing section that shows per-keyword density bars against configured thresholds and flags offending sections,
+So that the final drift dimension is legible in the browser — completing the diagnostics surface that Stories 3.5 and 4.4 built incrementally.
+
+**Context.** Was the keyword-stuffing portion of Epic 8.5 under the prior hybrid architecture. Folded into Epic 5 per the 2026-05-23 pivot (`DECISIONS.md` §6) so the keyword-stuffing check ships as one vertical slice — logic + UI together. With this story, `design_guidelines/stitch-export/html/05-drift-check-diagnostics.html` is fully realized.
+
+**Acceptance Criteria:**
+
+**Given** Stories 5.1–5.3 (density measurement, placement detection, drift metadata writes + per-channel overrides) are done and Stories 3.5 + 4.4 (drift diagnostics surface with fabrication + content-loss sections) are live,
+**When** the frontend requests `GET /api/package/<slug>/drift` and the response includes a `keyword_stuffing` block,
+**Then** the page at `/packages/<slug>/drift` renders a populated keyword-stuffing section replacing the placeholder Story 3.5 shipped,
+**And** each measured keyword is rendered as a density bar against its configured per-section threshold (from Story 5.3's `config_snapshot` — global defaults or per-channel overrides),
+**And** sections flagged as dump-paragraphs (Story 5.2) are listed with their location in the tailored output,
+**And** the section matches the layout of the keyword-stuffing portion of `design_guidelines/stitch-export/html/05-drift-check-diagnostics.html` (FR49, keyword-stuffing slice — completes FR49 fully).
+
+**Given** the package passed the keyword-stuffing check,
+**When** the section renders,
+**Then** an empty pass state is shown matching the design,
+**And** the rest of the diagnostics page (fabrication, content-loss, sidebar) is unaffected.
+
+**Given** the package was run on a channel with per-channel overrides (Story 5.3),
+**When** the keyword-stuffing section renders,
+**Then** the effective threshold for each keyword is shown, and a small "(override applied for channel: <board>)" label appears next to each keyword whose threshold differs from the global default — so the author can see threshold drift between runs without grepping config.
+
 ## Epic 6: Notifications & Held-Package Queue
 
-The user's daily-driver surface and the moment of truth for the pipeline. When a package passes all three drift checks (Epics 3–5), the system POSTs to a configured Google Chat incoming webhook (FR31) with a one-line fit summary, the source board, and the path to the staged markdown package (FR32). When any drift check fails, the package is held — silently, no notification — and the markdown artifacts are still written to disk so the author can read them (FR33, FR34). Two CLI subcommands close the loop: `jobhunter status` lists held packages with their failure reasons (FR35), and `jobhunter override` releases a held package, with the override logged as structured metadata in the per-application file (boolean plus reason, not free-text — per PRD PO Assumptions) so override-rate becomes a measurable signal (FR36). Single channel only — email digest and push notifications are explicitly v2 per the brief. With Epic 6 complete, v1 is functionally usable end-to-end in paste mode, which is the brief's definition of the MVP being real.
+The user's daily-driver surface and the moment of truth for the pipeline. When a package passes all three drift checks (Epics 3–5), the system POSTs to a configured Google Chat incoming webhook (FR31) with a one-line fit summary, the source board, and the path to the staged markdown package (FR32). When any drift check fails, the package is held — silently, no notification — and the markdown artifacts are still written to disk so the author can read them (FR33, FR34). The web surface closes the loop: the **Dashboard** (Story 6.3 / Stitch screen 01, FR46) lists held packages with their failure reasons (`GET /api/queue` / FR35) and composes Story 2.12's stats card and the recent-verdicts table into the home page; the **Approve action** (Story 6.4 / `POST /api/override/<slug>` / FR36, FR51) releases a held package, with the override logged as structured metadata in the per-application file (boolean plus reason, not free-text — per PRD PO Assumptions) so override-rate becomes a measurable signal. Single channel only — email digest and push notifications are explicitly v2 per the brief. With Epic 6 complete, v1 is functionally usable end-to-end via the browser, which is the brief's definition of the MVP being real.
 
 ### Story 6.1: GChat webhook notification on pass
 
@@ -1108,86 +1363,97 @@ AC4 — Held packages survive a crash and are not double-staged
 
 ---
 
-### Story 6.3: `jobhunter status` CLI — read-only queue view
+### Story 6.3: Dashboard surface + queue API — held packages, recent verdicts, interview rate
 
-As the solo developer, I want a one-shot CLI command that tells me how many packages are waiting, what the most recent verdicts were, and where my rolling interview-conversion rate sits, so I have a single command to check "what does Job Hunter want from me right now."
+As the solo developer, I want a browser Dashboard that tells me how many packages are waiting, what the most recent verdicts were, and where my rolling interview-conversion rate sits, so I have a single page to answer "what does Job Hunter want from me right now."
+
+**Context.** Reframed 2026-05-23 from `jobhunter status` CLI to web-only (`DECISIONS.md` §6). This story owns the **Dashboard surface** — Stitch screen 01 (`design_guidelines/stitch-export/html/01-dashboard.html`) — and the backend queue API. It composes with Story 2.12's stats card (KPIs) and Story 6.4's Approve action (override) into the single home page of the app.
 
 **Acceptance Criteria**
 
-AC1 — `jobhunter status` shows held count and recent verdicts
-- **Given** the project is installed and the user is in the project root
-- **When** I run `jobhunter status`
-- **Then** the command exits with code `0`
-- **And** the output includes a header line of the form `Held packages: <N>` where `N` is the count of directories under `./out/_held/`
-- **And** the output includes a table of the last 10 packages (held or passed, most recent first) showing: slug, source board, verdict (`pass` / `held: fabrication` / `held: content-loss` / `held: keyword-stuffing`), and timestamp from the metadata sidecar
+AC1 — `GET /api/queue` returns held + recent state from disk
+- **Given** the FastAPI scaffold from Story 1.6 is in place
+- **When** the frontend issues `GET /api/queue`
+- **Then** the backend reads `./out/_held/` and the per-application metadata sidecars directly (no database — `DECISIONS.md` §6)
+- **And** the response body is a JSON document with `held_count` (integer count of directories under `./out/_held/`), `recent` (array of the last 10 packages held or passed, most recent first; each element has `{slug, source_board, verdict, timestamp}` where `verdict` is one of `pass`, `held:fabrication`, `held:content-loss`, `held:keyword-stuffing`)
+- **And** the endpoint is read-only: no file under `./out/`, `./out/_held/`, or `./out/_overridden/` is created, modified, moved, or deleted by any path serving this request
 
-AC2 — `jobhunter status` surfaces the rolling 30-application interview-conversion rate
-- **Given** the per-application metadata sidecars produced by the pipeline plus the application log that feeds Epic 2's `jobhunter stats`
-- **When** I run `jobhunter status`
-- **Then** the output includes a footer line `Rolling 30-app interview conversion: <rate>%` using the same calculation as `jobhunter stats` (single source of truth — `status` delegates the computation, does not reimplement it)
-- **And** when fewer than 30 applications exist, the output shows `Rolling 30-app interview conversion: insufficient data (<n>/30)` instead
+AC2 — Dashboard surface renders the Stitch dashboard layout
+- **Given** Story 6.3 is shipped and the user opens `http://127.0.0.1:8765/` in a browser
+- **When** the page renders
+- **Then** the layout matches `design_guidelines/stitch-export/html/01-dashboard.html` (sidebar nav + status-count cards + recent-packages table)
+- **And** all design tokens (colors, typography scale, spacing, border-radius) come from the Tailwind config built off `design_guidelines/stitch-export/design.md` — no ad-hoc hex codes or pixel values (FR46)
+- **And** the held-count card and the recent-packages table are populated from `GET /api/queue`
+- **And** Story 2.12's stats card is mounted in the position shown by the Stitch mockup (already shipped — Story 6.3 only composes it onto this surface)
 
-AC3 — `jobhunter status` is strictly read-only
-- **Given** the held queue contains packages
-- **When** I run `jobhunter status` repeatedly
-- **Then** no file under `./out/`, `./out/_held/`, or `./out/_overridden/` is created, modified, moved, or deleted
-- **And** no HTTP request is made to `GCHAT_WEBHOOK_URL`, the LLM provider, or any external endpoint
-- **And** the command's only side effect is writing to stdout/stderr
-
-AC4 — Empty queue exits cleanly with friendly output
+AC3 — Empty queue renders an empty state
 - **Given** `./out/_held/` does not exist or is empty
-- **When** I run `jobhunter status`
-- **Then** the command exits with code `0`
-- **And** the output shows `Held packages: 0` and an empty recent-packages section with a one-line hint (e.g. "No applications yet — run `jobhunter paste` to start")
+- **When** the user opens `/`
+- **Then** the held-count card shows `0` and the recent-packages table renders an empty state matching the design (no broken layout, no JS error)
+- **And** a one-line hint reads "No applications yet — paste a JD on the home surface to start" (link points to the JD-paste textarea from Story 1.6 / Story 2.14)
+
+AC4 — Clicking a held package navigates to the package detail surface
+- **Given** the recent-packages table is populated
+- **When** the user clicks a held package row
+- **Then** the SPA navigates to `/packages/<slug>` (the JD Pipeline & Tailoring surface from Story 2.14)
+- **And** the URL is bookmarkable and reload-safe
 
 ---
 
-### Story 6.4: `jobhunter override <slug>` CLI — release a held package with structured metadata
+### Story 6.4: Override API + Approve action — release a held package with structured metadata
 
-As the solo developer, I want to release a held package only after I have explicitly stated my reason AND acknowledged the drift report, so override becomes a measurable signal (not a free-text shrug) and I can tune drift thresholds later based on real override patterns.
+As the solo developer, I want an "Approve" action on the Dashboard (and the JD Pipeline detail page) that lets me release a held package only after I have explicitly stated my reason AND acknowledged the drift report, so override becomes a measurable signal (not a free-text shrug) and I can tune drift thresholds later based on real override patterns.
+
+**Context.** Reframed 2026-05-23 from `jobhunter override <slug>` CLI to web-only (`DECISIONS.md` §6). This story ships the `POST /api/override/<slug>` endpoint that the Dashboard "Approve" button and the JD Pipeline detail page both call. The validation contract (reason + ack-drift, both required) survives the pivot — the difference is the entrypoint.
 
 **Acceptance Criteria**
 
-AC1 — Override requires both structured flags; defaults are not allowed
+AC1 — Override endpoint requires both structured fields; defaults are not allowed
 - **Given** a held package at `./out/_held/acme-senior-backend-2026-05-19/`
-- **When** I run `jobhunter override acme-senior-backend-2026-05-19` with no flags
-- **Then** the command exits with non-zero code (`2` for usage error)
-- **And** stderr contains a message naming both required flags: `--reason <string>` and `--ack-drift <yes|no>`
+- **When** the frontend POSTs to `/api/override/acme-senior-backend-2026-05-19` with an empty body or missing fields
+- **Then** the endpoint returns `422 Unprocessable Entity` with a JSON body naming both required fields: `reason` (non-empty string) and `ack_drift` (strict boolean)
 - **And** the held package is not moved
-- **When** I run `jobhunter override acme-senior-backend-2026-05-19 --reason "client is an old colleague, fabrication flag was on adjacent-tool phrasing I do know"` with no `--ack-drift`
-- **Then** the command still exits non-zero and names the missing `--ack-drift` flag
-- **And** the same applies in reverse if only `--ack-drift` is provided with no `--reason`
+- **And** if only one of the two fields is present, the response still returns `422` and names the missing field
 
-AC2 — `--reason` is a non-empty string; `--ack-drift` is a strict boolean
+AC2 — `reason` is non-empty; `ack_drift` is strict boolean
 - **Given** any held slug
-- **When** I run `jobhunter override <slug> --reason "" --ack-drift yes`
-- **Then** the command rejects the empty reason and exits non-zero
-- **When** I run `jobhunter override <slug> --reason "valid reason" --ack-drift maybe`
-- **Then** the command rejects the value and names `yes` and `no` as the only accepted values
-- **And** `--ack-drift yes` is treated as boolean `true`; `--ack-drift no` is treated as boolean `false`
+- **When** the frontend POSTs `{"reason": "", "ack_drift": true}`
+- **Then** the endpoint returns `422` rejecting the empty reason
+- **When** the frontend POSTs `{"reason": "valid reason", "ack_drift": "maybe"}`
+- **Then** the endpoint returns `422` and names `true` and `false` as the only accepted values for `ack_drift`
+- **And** the JSON-body boolean is the only accepted form (no string coercion)
 
 AC3 — A valid override moves the package and stamps structured metadata
 - **Given** a held package at `./out/_held/acme-senior-backend-2026-05-19/`
-- **When** I run `jobhunter override acme-senior-backend-2026-05-19 --reason "drift was on adjacent-tool phrasing I actually know" --ack-drift yes`
-- **Then** the command exits with code `0`
+- **When** the frontend POSTs `{"reason": "drift was on adjacent-tool phrasing I actually know", "ack_drift": true}` to `/api/override/acme-senior-backend-2026-05-19`
+- **Then** the endpoint returns `200 OK` with a JSON body confirming `{"slug": "...", "overridden": true, "moved_to": "./out/_overridden/..."}`
 - **And** the directory `./out/_held/acme-senior-backend-2026-05-19/` no longer exists
 - **And** the directory `./out/_overridden/acme-senior-backend-2026-05-19/` exists with all original artifacts intact
 - **And** the metadata sidecar inside the overridden package contains a structured `override` block with at minimum: `override.applied: true`, `override.reason: "<the string>"`, `override.ack_drift: true|false`, `override.timestamp: <ISO8601>`
-- **And** the `override` block is structured fields, not a free-text comment dump — `jobhunter stats` (Epic 2) can aggregate override-rate without re-parsing prose
+- **And** the `override` block is structured fields, not a free-text comment dump — `GET /api/stats` (Story 2.12) can aggregate override-rate without re-parsing prose
 
 AC4 — Override never posts to GChat and never submits anywhere
-- **Given** a valid override run
-- **When** the command completes
+- **Given** a valid override request
+- **When** the handler runs
 - **Then** zero HTTPS POSTs are made to `GCHAT_WEBHOOK_URL`
-- **And** zero requests are made to any Upwork, LinkedIn, or OnlineJobs.ph endpoint
-- **And** the output explicitly reminds me the package is ready for me to review and submit manually (e.g. "Overridden. Open `./out/_overridden/<slug>/` and submit when ready.")
+- **And** zero requests are made to any Upwork, LinkedIn, or OnlineJobs.ph endpoint (FR44 / FR51 — structurally enforced)
+- **And** the response body includes a one-line note reminding the user that the package is ready for manual review and submission (e.g. `"Overridden. Open ./out/_overridden/<slug>/ and submit when ready."`)
+- **And** a unit test asserts that this handler's call graph contains zero `httpx`/`requests`/`urllib` calls to non-loopback hosts
 
-AC5 — Unknown slug exits cleanly
+AC5 — Unknown slug returns 404
 - **Given** there is no directory `./out/_held/does-not-exist/`
-- **When** I run `jobhunter override does-not-exist --reason "test" --ack-drift no`
-- **Then** the command exits non-zero
-- **And** stderr names the missing slug and suggests `jobhunter status` to list available held packages
+- **When** the frontend POSTs to `/api/override/does-not-exist` with a valid body
+- **Then** the endpoint returns `404 Not Found`
+- **And** the response body names the missing slug and points to `GET /api/queue` to list available held packages
 - **And** no directories are created or modified
+
+AC6 — Approve action wires from both Dashboard and JD Pipeline detail
+- **Given** Stories 6.3 (Dashboard surface) and 2.14 (JD Pipeline detail) are shipped and a held package exists
+- **When** the user clicks "Approve" on either surface
+- **Then** a confirmation modal asks for `reason` (text field) and `ack_drift` (checkbox the user must tick)
+- **And** clicking Submit POSTs to `/api/override/<slug>` with the structured body
+- **And** on `200` the UI optimistically removes the package from the held list and surfaces the success state
+- **And** on `404` or `422` the modal stays open and shows the structured error inline
 
 ---
 
@@ -1206,7 +1472,7 @@ AC1 — TTL is configurable in `config.yaml`, defaulting to 7 days
 
 AC2 — Discard sweep runs on each pipeline invocation and is idempotent
 - **Given** the held queue contains `./out/_held/old-slug/` whose metadata sidecar `created_at` is 8 days ago, and `./out/_held/fresh-slug/` whose `created_at` is 1 day ago, and `held_package_ttl_days: 7`
-- **When** the next pipeline run starts (any subcommand that touches the queue, e.g. `jobhunter paste` or a scheduled flow ingest)
+- **When** the next pipeline run starts (any handler that touches the queue, e.g. `POST /api/paste` or a scheduled flow ingest)
 - **Then** `./out/_held/old-slug/` is removed from disk
 - **And** `./out/_held/fresh-slug/` is untouched
 - **And** running the same sweep again immediately produces no further changes (idempotent)
@@ -1409,3 +1675,32 @@ so that LinkedIn jobs reach the held-package queue exclusively via parsing Linke
 - Then the only environment variables required are `INGEST_BASE_URL`, `INGEST_SHARED_TOKEN`, `IMAP_HOST`, `IMAP_USER`, `IMAP_PASSWORD` (Gmail app-password for the dedicated inbox), and `IMAP_PORT`,
 - And a code-review checklist comment at the top of the flow JSON restates: "FR10 + FR11 + NFR12: LinkedIn ingest is email-parse ONLY. This flow MUST NOT fetch any linkedin.com URL. Site crawling is forbidden — ToS landmine and account-suspension risk against the author's income-bearing LinkedIn account.",
 - And the inbox used is a dedicated Gmail account separate from the author's primary LinkedIn-registered email, so the polling credentials are isolated from anything tied to the author's LinkedIn login.
+
+### Story 7.5: Job Alerts & Automated Scans surface
+
+As a solo developer (the author),
+I want a browser view of the n8n-flow status — last run timestamp, success/failure, count of JDs ingested per flow — so I can see whether my automated front door is healthy without SSHing into the n8n host or opening the n8n UI.
+
+**Context.** Was Epic 8.6 under the prior hybrid architecture. Folded into Epic 7 per the 2026-05-23 pivot (`DECISIONS.md` §6) so the n8n ingest layer ships as one vertical slice — backend logic + UI surface together.
+
+**Acceptance Criteria:**
+
+**Given** Stories 7.1–7.4 (n8n shared-token auth + Upwork/OJ.ph/LinkedIn flows) are done and the FastAPI scaffold from Story 1.6 is in place,
+**When** the frontend requests `GET /api/scans`,
+**Then** the backend returns a JSON document with one entry per flow (Upwork search, OnlineJobs.ph listings, LinkedIn email parser) containing `{flow_name, last_run_timestamp, last_run_status, jds_ingested_count, last_error?}`,
+**And** the backend never exposes inbox credentials, n8n auth tokens, IMAP passwords, or any value from `.env` to the frontend (only the operational telemetry).
+
+**Given** the page is loaded at `/scans`,
+**When** it renders,
+**Then** the layout matches `design_guidelines/stitch-export/html/03-job-alerts-automated-scans.html`,
+**And** each flow card shows last-run timestamp (relative + absolute on hover), status (pass/fail), JD count, and any error,
+**And** all design tokens come from `design.md` (FR50).
+
+**Given** a flow has never run (no n8n callbacks yet),
+**When** the surface renders,
+**Then** the flow card shows a "never run" empty state with a one-line hint that the n8n flow's `INGEST_BASE_URL` must point to `http://127.0.0.1:8765` for status callbacks to land.
+
+**Given** the backend telemetry source is the per-application metadata sidecars + the n8n callback log,
+**When** the endpoint runs,
+**Then** no database or other persistence layer is introduced (`DECISIONS.md` §6) — telemetry is reconstructed from disk artifacts the n8n flows already produce.
+

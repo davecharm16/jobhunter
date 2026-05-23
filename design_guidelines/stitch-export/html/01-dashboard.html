@@ -1,0 +1,326 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Job Hunter - Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-container": "#dae2fd",
+                        "on-secondary": "#ffffff",
+                        "surface-dim": "#d8dadc",
+                        "surface-container-lowest": "#ffffff",
+                        "surface": "#f7f9fb",
+                        "on-tertiary-container": "#ffd2be",
+                        "inverse-primary": "#c3c0ff",
+                        "surface-container": "#eceef0",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "inverse-surface": "#2d3133",
+                        "tertiary": "#7e3000",
+                        "on-primary": "#ffffff",
+                        "background": "#f7f9fb",
+                        "on-tertiary-fixed": "#351000",
+                        "on-primary-fixed-variant": "#3323cc",
+                        "secondary": "#565e74",
+                        "on-surface-variant": "#464555",
+                        "on-surface": "#191c1e",
+                        "surface-container-low": "#f2f4f6",
+                        "tertiary-fixed": "#ffdbcc",
+                        "on-tertiary": "#ffffff",
+                        "surface-tint": "#4d44e3",
+                        "on-primary-container": "#dad7ff",
+                        "on-error-container": "#93000a",
+                        "outline": "#777587",
+                        "surface-bright": "#f7f9fb",
+                        "primary": "#3525cd",
+                        "on-secondary-container": "#5c647a",
+                        "tertiary-fixed-dim": "#ffb695",
+                        "surface-container-highest": "#e0e3e5",
+                        "on-error": "#ffffff",
+                        "outline-variant": "#c7c4d8",
+                        "on-secondary-fixed": "#131b2e",
+                        "on-background": "#191c1e",
+                        "surface-container-high": "#e6e8ea",
+                        "on-tertiary-fixed-variant": "#7b2f00",
+                        "surface-variant": "#e0e3e5",
+                        "error": "#ba1a1a",
+                        "tertiary-container": "#a44100",
+                        "error-container": "#ffdad6",
+                        "primary-container": "#4f46e5",
+                        "inverse-on-surface": "#eff1f3",
+                        "primary-fixed": "#e2dfff",
+                        "secondary-fixed": "#dae2fd",
+                        "on-primary-fixed": "#0f0069",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "on-secondary-fixed-variant": "#3f465c",
+                        "pass-green": "#10B981",
+                        "fail-red": "#EF4444"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-max": "1440px",
+                        "margin-mobile": "16px",
+                        "sidebar-width": "260px",
+                        "stack-sm": "8px",
+                        "stack-xs": "4px",
+                        "margin-desktop": "40px",
+                        "stack-lg": "24px",
+                        "stack-md": "16px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "display": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "display": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface font-body-md min-h-screen flex">
+<!-- SideNavBar (Shared Component) -->
+<aside class="hidden md:flex flex-col w-[260px] h-screen sticky left-0 top-0 py-6 border-r border-outline-variant bg-surface-container-low z-50">
+<div class="px-gutter mb-8">
+<h1 class="text-headline-lg font-headline-lg font-bold text-on-surface">Job Hunter</h1>
+</div>
+<div class="px-6 mb-4">
+<span class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">Menu</span>
+</div>
+<nav class="flex-1 flex flex-col gap-1 px-4">
+<!-- Active Tab: Dashboard -->
+<a class="flex items-center gap-3 px-4 py-3 text-primary font-bold border-l-4 border-primary bg-secondary-container hover:bg-surface-container-high transition-colors rounded-r-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-body-md font-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-r-lg border-l-4 border-transparent group" href="#">
+<span class="material-symbols-outlined" data-icon="pipeline">timeline</span>
+<span class="text-body-md font-body-md">JD Pipeline</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-r-lg border-l-4 border-transparent group" href="#">
+<span class="material-symbols-outlined" data-icon="edit_document">edit_document</span>
+<span class="text-body-md font-body-md">CV Tailoring</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-r-lg border-l-4 border-transparent group" href="#">
+<span class="material-symbols-outlined" data-icon="check_circle">check_circle</span>
+<span class="text-body-md font-body-md">Drift Checks</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-r-lg border-l-4 border-transparent group" href="#">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="text-body-md font-body-md">Job Alerts</span>
+</a>
+</nav>
+<!-- Profile Widget -->
+<div class="mx-4 mt-auto bg-surface-container-lowest p-4 rounded-xl border border-outline-variant shadow-sm flex flex-col gap-3">
+<div class="flex items-center gap-3">
+<img alt="User profile" class="w-12 h-12 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCvKAx0KMUSQ5MTvnVwLV1MGsVd1XIFUvV0RB2x_YTE4S600qr-i-FERLMJnqEJA8b0_xckHn6BFE54n8MQA5R77paxup2JE5zu3kg8FV7etUZekk6NGNFjWqwmka3j_NMOSzVIQYHwq-k3zZ5RBzonFYObmgRxKoZuQ846txdwMzUGhHdrpEABAXPaKF1ajVzh9UX0V6CdT5NtwNmEQhMg1Tdtepxumqa1L3PwvvvmFFMfNxX4C3r_zN3dqKybdYb3xU9z63LHz9fT">
+<div class="flex-1">
+<h3 class="text-body-md font-body-md font-semibold text-on-surface">Tom!</h3>
+<p class="text-label-md font-label-md text-on-surface-variant">62% Complete</p>
+</div>
+<div class="w-10 h-10 rounded-full border-4 border-primary flex items-center justify-center relative">
+<span class="text-label-md font-label-md font-bold absolute text-primary">62%</span>
+</div>
+</div>
+<p class="text-label-md font-label-md text-on-surface-variant">For better recommendation please provide your details.</p>
+<button class="bg-primary text-on-primary text-body-md font-body-md font-medium py-2 px-4 rounded-lg hover:bg-primary-container transition-colors w-full flex justify-center items-center gap-2">
+                Complete Now <span class="material-symbols-outlined text-sm">arrow_outward</span>
+</button>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col min-w-0">
+<!-- TopAppBar (Shared Component) -->
+<header class="flex justify-between items-center h-16 px-gutter w-full sticky top-0 z-40 bg-surface border-b border-outline-variant">
+<!-- Mobile Menu Toggle & Brand (Visible only on mobile) -->
+<div class="md:hidden flex items-center gap-4">
+<button class="text-on-surface hover:bg-surface-container-low p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<span class="text-headline-lg-mobile font-headline-lg-mobile font-bold text-on-surface">Cv. Builder</span>
+</div>
+<!-- Search Bar -->
+<div class="hidden md:flex items-center bg-surface-container-low rounded-lg px-4 py-2 w-96 border border-outline-variant focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+<span class="material-symbols-outlined text-on-surface-variant mr-2" data-icon="search">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-md font-body-md w-full placeholder:text-on-surface-variant text-on-surface p-0" placeholder="Search or type a command" type="text">
+</div>
+<!-- Actions -->
+<div class="flex items-center gap-4 ml-auto">
+<button class="hidden md:flex bg-primary text-on-primary text-body-md font-body-md font-medium py-2 px-4 rounded-lg hover:bg-primary-container transition-colors items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="add_box">add_box</span>
+                    Create New CV
+                </button>
+<button class="text-on-surface-variant hover:bg-surface-container-low p-2 rounded-full transition-colors relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<div class="w-8 h-8 rounded-full border border-outline-variant overflow-hidden md:hidden">
+<img alt="User profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCcGWjKwsFf6fg-lxAZxQLe2hEsPicENCWJChiuEhQAQoxGem021clUJ3CscOs4Q9K-LfbHXAHeQNNpAamlPsFjcK2nkoiBinThMxSUrpu2olDr6dXxcZ_skYusKu5s7vqU3Dx007PIQ7I4jIATOBKc6bD5JQfWwKW7efhUsYvQk1NvRKNTK5YR9p-A0T8ms47KlrjdmNikP7jU8rMoOAgwKdXyXo1xkcvu6dcs9G8PL9DDH5Wtr1Yfzo5FsyWTKDjdp5GYaNIN3C-U">
+</div>
+</div>
+</header>
+<!-- Dashboard Content -->
+<div class="p-gutter max-w-container-max mx-auto w-full flex flex-col gap-stack-lg">
+<!-- Welcome Header -->
+<div>
+<h2 class="text-display font-display text-on-surface mb-2">Hello, Tom!</h2>
+<p class="text-body-lg font-body-lg text-on-surface-variant">Ready to land your next role? Let's start tailoring.</p>
+</div>
+<!-- Quick Action: Start New Application -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm flex flex-col gap-4">
+<div class="flex items-center gap-3 mb-2">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="post_add">post_add</span>
+</div>
+<div>
+<h3 class="text-headline-md font-headline-md text-on-surface">Start New Application</h3>
+<p class="text-body-md font-body-md text-on-surface-variant">Paste a Job Description to begin generating a tailored CV and Cover Letter.</p>
+</div>
+</div>
+<div class="relative">
+<textarea class="w-full h-32 bg-surface-container-low border border-outline-variant rounded-lg p-4 text-body-md font-body-md text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:ring-2 focus:ring-primary/20 resize-none transition-all" placeholder="Paste full job description here (responsibilities, requirements, etc.)..."></textarea>
+</div>
+<div class="flex justify-end">
+<button class="bg-primary text-on-primary text-body-md font-body-md font-medium py-3 px-6 rounded-lg hover:bg-primary-container transition-colors flex items-center gap-2">
+                        Begin Tailoring <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</section>
+<!-- Metrics Row -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-stack-md">
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm flex flex-col gap-2">
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="text-body-md font-body-md font-medium">Interview Rate</span>
+<span class="material-symbols-outlined text-xl" data-icon="monitoring">monitoring</span>
+</div>
+<div class="text-headline-lg font-headline-lg text-on-surface font-bold">12.5%</div>
+<div class="text-label-md font-label-md text-pass-green flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="trending_up">trending_up</span> +2.1% this month
+                    </div>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm flex flex-col gap-2">
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="text-body-md font-body-md font-medium">Drift Catches</span>
+<span class="material-symbols-outlined text-xl" data-icon="policy">policy</span>
+</div>
+<div class="text-headline-lg font-headline-lg text-on-surface font-bold">4</div>
+<div class="text-label-md font-label-md text-on-surface-variant flex items-center gap-1">
+                        Fabrications prevented
+                    </div>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm flex flex-col gap-2">
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="text-body-md font-body-md font-medium">Total Spend</span>
+<span class="material-symbols-outlined text-xl" data-icon="payments">payments</span>
+</div>
+<div class="text-headline-lg font-headline-lg text-on-surface font-bold">$1.24</div>
+<div class="text-label-md font-label-md text-on-surface-variant flex items-center gap-1">
+                        API usage cost
+                    </div>
+</div>
+</section>
+<!-- Application Pipeline -->
+<section class="flex flex-col gap-stack-md mt-4">
+<div class="flex justify-between items-center">
+<h3 class="text-headline-md font-headline-md text-on-surface">Application Pipeline</h3>
+<button class="text-primary text-body-md font-body-md font-medium hover:underline flex items-center gap-1">
+                        View All <span class="material-symbols-outlined text-sm">arrow_outward</span>
+</button>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-stack-md">
+<!-- Pipeline Card 1 (Pass) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div>
+<h4 class="text-headline-md font-headline-md text-on-surface font-semibold">Senior Frontend Developer</h4>
+<p class="text-body-md font-body-md text-on-surface-variant flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-sm">work</span> TechFlow Inc. (LinkedIn)
+                                </p>
+</div>
+<span class="px-3 py-1 bg-secondary-container text-on-secondary-fixed text-label-md font-label-md rounded-full font-medium">
+                                Review
+                            </span>
+</div>
+<div class="border-t border-outline-variant pt-4 flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-pass-green" data-icon="check_circle">check_circle</span>
+<span class="text-body-md font-body-md text-on-surface font-medium">Drift Health: Pass</span>
+</div>
+<button class="text-primary font-medium text-body-md font-body-md hover:underline">View Docs</button>
+</div>
+</div>
+<!-- Pipeline Card 2 (Fail - Fabrication) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-4 ring-1 ring-fail-red/20">
+<div class="flex justify-between items-start">
+<div>
+<h4 class="text-headline-md font-headline-md text-on-surface font-semibold">UX Designer</h4>
+<p class="text-body-md font-body-md text-on-surface-variant flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-sm">work</span> DesignStudio (Upwork)
+                                </p>
+</div>
+<span class="px-3 py-1 bg-surface-container-highest text-on-surface text-label-md font-label-md rounded-full font-medium">
+                                Drift Check
+                            </span>
+</div>
+<div class="border-t border-outline-variant pt-4 flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-fail-red" data-icon="warning">warning</span>
+<span class="text-body-md font-body-md text-fail-red font-medium">Fabrication Detected</span>
+</div>
+<button class="text-primary font-medium text-body-md font-body-md hover:underline">Fix Issues</button>
+</div>
+</div>
+<!-- Pipeline Card 3 (Drafting) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div>
+<h4 class="text-headline-md font-headline-md text-on-surface font-semibold">Product Manager</h4>
+<p class="text-body-md font-body-md text-on-surface-variant flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-sm">work</span> Innovate Corp (OnlineJobs)
+                                </p>
+</div>
+<span class="px-3 py-1 bg-surface-container-high text-on-surface-variant text-label-md font-label-md rounded-full font-medium">
+                                Drafting
+                            </span>
+</div>
+<div class="border-t border-outline-variant pt-4 flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="pending">pending</span>
+<span class="text-body-md font-body-md text-on-surface-variant font-medium">Tailoring in progress...</span>
+</div>
+<button class="text-primary font-medium text-body-md font-body-md hover:underline">Continue</button>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+
+
+</body></html>

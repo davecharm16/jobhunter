@@ -36,6 +36,9 @@
 
 generated: 2026-05-19
 last_updated: 2026-05-23
+# 2026-05-23: Web-only pivot per DECISIONS.md §6 (supersedes §5). Epic 8 dissolved; UI scattered across feature epics. Added: 1-6 (FastAPI port + frontend scaffold + launcher) to epic-1; 2-13 (Settings/CV editor surface) + 2-14 (JD Pipeline surface) to epic-2; 3-5 (Drift Diagnostics fabrication section) to epic-3; 4-4 (Drift Diagnostics content-loss section) to epic-4; 5-4 (Drift Diagnostics keyword-stuffing section) to epic-5; 7-5 (Scans surface) to epic-7. Stories 6-3 and 6-4 reframed from CLI to web (slugs renamed). Epic 1 reopens as in-progress (1-6 backlog) — 1-1..1-5 retain their done status. Epic 8 block + 8-1..8-6 removed.
+# 2026-05-23: Epic 8 (Local Web UI) added to v1 scope per DECISIONS.md §5 + PRD FR45-FR51; 6 stories appended (8-1 through 8-6); epic-8-retrospective optional — superseded by web-only pivot on the same day.
+# 2026-05-23: Epic 1 retrospective completed (autonomous YOLO mode); epic-1-retrospective optional → done; retro at _bmad-output/implementation-artifacts/epic-1-retro-2026-05-23.md
 # 2026-05-23: Story 1-5 moved review → done (story-automator-review pass 2 auto-fixed HIGH H1 ledger type validation + HIGH H2 LLM usage validation + MEDIUM M2 CLI slug-collision coverage; 0 CRITICAL; pytest 189 passed / 1 skipped)
 # 2026-05-23: Story 1-5 moved in-progress → review (dev-story workflow)
 # 2026-05-23: Story 1-5 moved ready-for-dev → in-progress (dev-story workflow)
@@ -60,16 +63,21 @@ tracking_system: file-system
 story_location: "{project-root}/_bmad-output/implementation-artifacts"
 
 development_status:
-  # Epic 1: Walking Skeleton (v0.1)
+  # Epic 1: Walking Skeleton (v0.1) + FastAPI pivot
+  # Reopened in-progress on 2026-05-23 — Story 1.6 added for the web-only pivot (DECISIONS.md §6).
+  # Stories 1-1..1-5 retain done status; their core modules survive the pivot unchanged.
   epic-1: in-progress
   1-1-runtime-language-and-canonical-cv-schema-bootstrap: done
   1-2-cli-scaffold-env-secrets-handling-and-cost-cap-config: done
   1-3-canonical-cv-reader-with-pdf-docx-ingest-rejection: done
   1-4-jobhunter-paste-jd-ingest-from-stdin-or-file-argument: done
   1-5-single-tailoring-llm-call-writes-tailored-cv-cover-letter-to-out-slug: done
-  epic-1-retrospective: optional
+  1-6-fastapi-port-and-frontend-scaffold-and-launcher: backlog
+  epic-1-retrospective: done
 
   # Epic 2: Paste Pipeline Hardening & Artifact System
+  # 2-12 reframed from CLI to GET /api/stats + Dashboard stats card on 2026-05-23.
+  # 2-13 and 2-14 added on 2026-05-23 for the Settings/CV editor and JD Pipeline surfaces.
   epic-2: backlog
   2-1-canonical-cv-tagging-schema-and-high-impact-flag: backlog
   2-2-config-yaml-separation-of-tunables-from-secrets: backlog
@@ -81,45 +89,60 @@ development_status:
   2-8-per-board-artifact-set-selector: backlog
   2-9-prompt-template-versioning: backlog
   2-10-per-application-metadata-sidecar-and-per-request-cost-logging: backlog
-  2-11-internal-post-ingest-endpoint-with-shared-token-auth: backlog
-  2-12-jobhunter-stats-cli-for-cost-and-conversion-measurement: backlog
+  2-11-internal-post-paste-endpoint-with-shared-token-auth: backlog
+  2-12-stats-api-and-dashboard-stats-card: backlog
+  2-13-settings-and-canonical-cv-editor-surface: backlog
+  2-14-jd-pipeline-and-tailoring-surface-staged-package-viewer: backlog
   epic-2-retrospective: optional
 
   # Epic 3: Fabrication Drift Check
+  # 3-5 added on 2026-05-23 for the Drift Diagnostics surface — fabrication slice.
   epic-3: backlog
   3-1-finalize-llm-provider-and-build-atomic-claim-extractor: backlog
   3-2-structural-matcher-with-claim-to-source-cv-traceability: backlog
   3-3-semantic-equivalence-threshold-for-tolerated-paraphrase: backlog
   3-4-held-package-pattern-with-hard-fail-policy-and-7-day-retention: backlog
+  3-5-drift-check-diagnostics-surface-fabrication-section: backlog
   epic-3-retrospective: optional
 
   # Epic 4: Content-Loss Drift Check
+  # 4-4 added on 2026-05-23 for the Drift Diagnostics surface — content-loss slice.
   epic-4: backlog
   4-1-high-impact-relevance-check-against-jd-must-haves-and-nice-to-haves: backlog
   4-2-drop-detection-diff-and-structured-drift-metadata-in-package-drift-json: backlog
   4-3-configurable-relevance-threshold-and-matcher-mode-in-config-yaml: backlog
+  4-4-drift-check-diagnostics-surface-content-loss-section: backlog
   epic-4-retrospective: optional
 
   # Epic 5: Keyword-Stuffing Drift Check
+  # 5-4 added on 2026-05-23 for the Drift Diagnostics surface — keyword-stuffing slice (completes the surface).
   epic-5: backlog
   5-1-keyword-density-measurement-against-per-keyword-thresholds: backlog
   5-2-dump-paragraph-and-comma-run-placement-detection: backlog
   5-3-drift-metadata-writes-and-per-channel-threshold-overrides: backlog
+  5-4-drift-check-diagnostics-surface-keyword-stuffing-section: backlog
   epic-5-retrospective: optional
 
   # Epic 6: Notifications & Held-Package Queue
+  # 6-3 and 6-4 reframed from CLI to web-only on 2026-05-23 (slugs renamed).
   epic-6: backlog
   6-1-gchat-webhook-notification-on-pass: backlog
   6-2-silent-hold-on-any-drift-check-fail: backlog
-  6-3-jobhunter-status-cli-read-only-queue-view: backlog
-  6-4-jobhunter-override-slug-cli-release-a-held-package-with-structured-metadata: backlog
+  6-3-dashboard-surface-and-queue-api-held-packages-recent-verdicts-interview-rate: backlog
+  6-4-override-api-and-approve-action-release-a-held-package-with-structured-metadata: backlog
   6-5-held-package-ttl-with-auto-discard: backlog
   epic-6-retrospective: optional
 
   # Epic 7: Automated Job Ingestion (n8n Scheduled Flows)
+  # 7-5 added on 2026-05-23 for the Job Alerts & Automated Scans surface (Stitch screen 03).
   epic-7: backlog
   7-1-endpoint-integration-and-shared-token-auth-for-n8n-flows: backlog
   7-2-upwork-scheduled-search-flow: backlog
   7-3-onlinejobs-ph-listings-flow: backlog
   7-4-linkedin-job-alert-email-parser-flow: backlog
+  7-5-job-alerts-and-automated-scans-surface: backlog
   epic-7-retrospective: optional
+
+  # Epic 8: DISSOLVED on 2026-05-23 (web-only pivot per DECISIONS.md §6).
+  # UI work scattered into the feature epics above. The previous 8-1..8-6 keys were
+  # removed; nothing under epic-8 should be referenced by downstream automation.

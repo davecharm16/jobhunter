@@ -23,19 +23,21 @@ purpose: "Token-efficient context for downstream PRD creation"
 - Canonical CV lives in markdown/YAML, in version control — never PDF/docx ingest
 - Per-application LLM cost under $0.25; hard monthly spend cap on API key
 - Secrets in `.env`, `.gitignore`'d
-- Local-first runtime; no hosted infra in v1
+- Local-first runtime; no **hosted/multi-tenant** infra in v1. The v1 surface IS a local web app bound to `127.0.0.1` (web-only architecture, DECISIONS.md §6 — supersedes the earlier §5 framing that treated it as a layer over a CLI). Nothing leaves the machine except the LLM call.
 
 ## v0.1 walking skeleton (week 1)
-Single script: paste JD → tailor markdown CV + cover letter → write to `.md` file → open in editor. No drift check, no UI, no notifications. Proves concept before anything else is built.
+Minimal end-to-end FastAPI app: `jobhunter` boots a server on `127.0.0.1:8765`, a browser textarea POSTs to `POST /api/paste`, the backend tailors a markdown CV + cover letter and surfaces file paths in the browser. No drift check, no notifications, no production-quality UI yet. Proves concept before anything else is built. *(Originally framed as "a single CLI script"; reframed on 2026-05-23 when the project pivoted to web-only architecture — see DECISIONS.md §6. Epic 1's core modules from Stories 1.1–1.5 survive unchanged; Story 1.6 carries the pivot.)*
 
 ## v1 scope (in order)
-1. Paste-a-JD pipeline (JD parser, tailoring, cover letter / Upwork proposal as separate artifact types)
-2. **Fabrication drift check** — claim-to-source-CV traceability (structural, not LLM-judge vibes)
-3. **Content-loss drift check** — high-impact original entries survive rewrite
-4. **Keyword-stuffing drift check** — density/placement natural, ATS-passable, not ATS-tell
-5. Single notification channel: Google Chat webhook
-6. Scheduled-search via n8n (or Make.com / equivalent workflow tool) — ingests Upwork, OnlineJobs.ph, LinkedIn job-alert emails into paste pipeline endpoint
-7. LinkedIn ingest = parse official Job Alert emails, NOT crawl the site
+1. **Walking skeleton + FastAPI pivot** — `jobhunter` launcher binds `127.0.0.1:8765`, `POST /api/paste` is the one ingest endpoint, minimal React + Vite + Tailwind frontend scaffold with design tokens from `design_guidelines/stitch-export/design.md`. No CLI subcommand surface (`DECISIONS.md` §6).
+2. Paste-pipeline hardening + artifact system (structured JD parser, Upwork proposal as a first-class artifact, prompt-template versioning, metadata sidecars, `POST /api/paste` shared-token auth for n8n callers) **plus** the Settings & Canonical CV editor surface (Stitch screen 02) and the JD Pipeline & Tailoring viewer (Stitch screen 04)
+3. **Fabrication drift check** — claim-to-source-CV traceability (structural, not LLM-judge vibes) + drift diagnostics surface fabrication slice (Stitch screen 05)
+4. **Content-loss drift check** — high-impact original entries survive rewrite + drift diagnostics content-loss slice
+5. **Keyword-stuffing drift check** — density/placement natural, ATS-passable, not ATS-tell + drift diagnostics keyword-stuffing slice (completes Stitch screen 05)
+6. Single notification channel: Google Chat webhook + Dashboard surface (Stitch screen 01) showing held queue + KPI stats + Approve action (`POST /api/override/<slug>`)
+7. Scheduled-search via n8n (or Make.com / equivalent workflow tool) — ingests Upwork, OnlineJobs.ph, LinkedIn job-alert emails into `POST /api/paste`; LinkedIn ingest = parse official Job Alert emails, NOT crawl the site + Job Alerts & Automated Scans surface (Stitch screen 03)
+
+*Note on architecture: v1 is a **single-user local web app bound to `127.0.0.1`**. Web surfaces are scattered into the feature epics — there is no separate "Epic 8 — Local Web UI" (dissolved 2026-05-23, DECISIONS.md §6). Each feature epic ships an end-to-end vertical slice (backend route + frontend surface).*
 
 ## v1 explicit non-scope (rejected for v1)
 - **Voice drift check** — deferred to v2; no clean pass/fail, known tuning rabbit hole, requires hand-labeled eval set first
@@ -43,8 +45,8 @@ Single script: paste JD → tailor markdown CV + cover letter → write to `.md`
 - **Email digest / push notifications** — single GChat webhook is enough for solo user; multi-channel deferred
 - **Browser auto-fill / one-click apply** — ToS landmine and big build; deferred indefinitely
 - **Multi-CV / multi-profile support** — single canonical CV in v1
-- **Web review UI with auth/state** — just open the generated `.md` in user's editor
-- **Hosted/multi-tenant SaaS** — v1 is local-only
+- **Hosted/multi-tenant SaaS web UI with auth/state** — v1 ships a local-only single-user web app bound to `127.0.0.1` with no auth; hosted/multi-tenant remains v2+
+- **CLI subcommand surface** — v1 has no `jobhunter paste`/`status`/`override`/`stats` subcommands; the web app is the only user surface (revised 2026-05-23, DECISIONS.md §6)
 - **Peer packaging / setup docs** — v2 conversation, only after 30+ real applications by author
 
 ## Pipeline architecture (high-level)
@@ -105,7 +107,7 @@ Single script: paste JD → tailor markdown CV + cover letter → write to `.md`
 | PII / NDA / client-confidential JDs through third-party LLM APIs | Prefer no-training data-handling terms; redact client identifiers; local storage default |
 | LLM-as-judge unreliability for drift check | Fabrication check is structural (claim-to-source traceability), not vibes; subjective checks (voice) deferred until eval set exists |
 | Cost runaway from buggy evaluator loops | Hard monthly spend cap; per-request token logging from day one; $0.25/app target tracked as KPI |
-| Scope creep on solo build | v0.1 walking skeleton in week 1; "shareable" is v2; voice/PDF/web-UI explicitly cut |
+| Scope creep on solo build | v0.1 walking skeleton in week 1 (now FastAPI-shaped, not pure CLI); "shareable" is v2; voice/PDF explicitly cut; web app bounded to localhost + no auth + no outbound submission; pivoted to web-only on 2026-05-23 to avoid building CLI + UI twice (DECISIONS.md §6) |
 | Confounded success metric (selection effects) | Track application-fit-score + recruiter response rate alongside screen rate to disentangle |
 | Regulatory (GDPR/CCPA, NYC LL144, EU AI Act) | Candidate-side tool largely sidesteps employer-side rules; PII handling minimized; future hosted variant would need compliance review |
 

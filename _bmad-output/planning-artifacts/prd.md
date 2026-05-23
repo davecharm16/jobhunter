@@ -113,7 +113,7 @@ This product is delivered in phases. Phasing is in the product brief and is non-
 
 ### Phase 0 (v0.1) — Walking Skeleton (Week 1)
 
-A single CLI script. The author pastes a JD into stdin or a file, the script tailors a markdown CV and a markdown cover letter against the canonical-CV YAML/markdown, writes them to `./out/<slug>/cv.md` and `./out/<slug>/cover-letter.md`, and opens them in the configured editor. No drift check. No notifications. No UI. No tests beyond smoke. If this does not save real time on a real application in week 1, the concept is wrong and Phase 1 is not built.
+A minimal end-to-end FastAPI app. The `jobhunter` command starts a server on `127.0.0.1:8765` that exposes `POST /api/paste`; a browser textarea (one minimal page, design-system shell only) lets the author drop in a JD, the backend tailors a markdown CV and a markdown cover letter against the canonical-CV YAML/markdown, writes them to `./out/<slug>/cv.md` and `./out/<slug>/cover-letter.md`, and surfaces the file paths in the browser. No drift check. No notifications. No queue. No tests beyond smoke. If this does not save real time on a real application in week 1, the concept is wrong and Phase 1 is not built. *(Originally framed as "a single CLI script"; revised on 2026-05-23 when the project pivoted to web-only architecture — see `DECISIONS.md` §6. The shipped Epic 1 work covers the core modules, and Story 1.6 lands the FastAPI port + minimal frontend scaffold.)*
 
 ### Phase 1 (v1) — MVP
 
@@ -154,13 +154,16 @@ The core stance — quality over volume, human in the loop, no fabrication — d
 - Email digest and push notifications (GChat webhook is enough for a solo user)
 - Browser auto-fill / one-click apply (ToS landmine, big build)
 - Multi-CV / multi-profile support (single canonical CV in v1)
-- Web review UI with auth/state (the user opens the generated `.md` in their editor)
-- Hosted / multi-tenant SaaS, billing, accounts (local-only in v1)
+- Hosted / multi-tenant web UI with auth (local-only web UI bound to `127.0.0.1` **is** the v1 surface — see §"Web Application Surface" below; only the hosted multi-tenant variant remains v3+)
+- CLI subcommand surface (`jobhunter paste/status/override/stats`) — the v1 surface is the web app; no parallel CLI is maintained (revised on 2026-05-23, see `DECISIONS.md` §6)
+- Hosted SaaS billing, accounts, sign-in flows (local-only in v1)
 - Packaging for non-technical peers (v2 conversation, only after 30+ real applications)
 
 ## User Journeys
 
 Job Hunter is a single-user product in v1 — the author. There is no admin role, no support staff, no API consumer in the traditional SaaS sense. The "users" of the pipeline are the author in three distinct modes (paste, scheduled-search, review) plus the canonical CV itself as the system's source of truth that the author maintains over time. The journeys below are structured around the *occasions* the product is used, which is how solo-developer tools earn their keep.
+
+*Note: the journey narratives below were written before the 2026-05-23 web-only pivot (see `DECISIONS.md` §6). References to `jobhunter paste`, `jobhunter status`, `jobhunter override` as CLI subcommands are obsolete — those interactions now happen in the browser. The underlying actions and the order of events are unchanged; only the entry surface flipped from terminal to browser. The FRs at §"Functional Requirements" are the load-bearing contract; the journeys here remain useful as occasion-based context.*
 
 ### Journey 1 — Primary user, happy path: Tuesday evening Upwork tailoring
 
@@ -350,16 +353,17 @@ The innovation claims are validated empirically by the same metrics in Success C
 
 ### Project-Type Overview
 
-Job Hunter is a **local CLI tool plus an external workflow-automation surface (n8n / Make / equivalent)**. There is no web UI, no mobile app, no API service for third parties, and no multi-tenant infrastructure in v1. The user interface in v1 is: a CLI command, a markdown file open in the user's preferred editor, and a Google Chat space.
+Job Hunter is a **local single-user web app bound to `127.0.0.1`** plus an external workflow-automation surface (n8n / Make / equivalent). There is no mobile app, no API service for third parties, and no multi-tenant infrastructure in v1. The user interface in v1 is: a browser pointed at `http://127.0.0.1:8765`, the canonical CV file on disk (markdown/YAML, also editable through the Settings surface), and a Google Chat space receiving webhook pings. *(Revised on 2026-05-23 from a CLI-tool framing; see `DECISIONS.md` §6.)*
 
 ### Technical Architecture Considerations
 
 - **Language / runtime.** Decided at v1 build time. Python or TypeScript are the leading candidates — both have mature LLM SDKs, good markdown tooling, and easy n8n integration. Final choice depends on which the author can move fastest in for a solo nights-and-weekends build.
 - **Persistence.** Filesystem. Canonical CV is a markdown/YAML file in a git repo. Per-application outputs are markdown files in `./out/<slug>/`. Per-application metadata (drift verdicts, cost log, override flags) lives as JSON or YAML sidecar files next to the artifacts. No database in v1.
 - **Configuration.** A single `.env` for secrets (LLM API key, GChat webhook URL, n8n endpoint token). A separate `config.yaml` for tunables (drift-check thresholds, prompt template paths, cost cap, output directory). `.env` is `.gitignore`'d; `config.yaml` may be checked in.
-- **Internal "API."** The paste pipeline exposes a single internal endpoint (`POST /ingest` on localhost or a thin function call) that accepts a JD payload (text + source + optional metadata) and runs the full pipeline. The human CLI command calls this endpoint; the n8n flows call this endpoint. One pipeline, two clients.
+- **Application surface.** A single FastAPI app bound to `127.0.0.1:8765`. The `jobhunter` command boots the server (no subcommands). All user actions happen in a React + Vite + Tailwind frontend served by the same process. Tailwind config consumes design tokens from `design_guidelines/stitch-export/design.md`. Decision recorded in `DECISIONS.md` §6 (supersedes §1's CLI-first framing).
+- **Internal "API."** The paste pipeline exposes a single internal endpoint (`POST /api/paste`) that accepts a JD payload (text + source + optional metadata) and runs the full pipeline. The browser textarea (FR48) calls this endpoint; the n8n flows call this endpoint. One pipeline, two clients.
 - **LLM provider.** Single provider in v1. Anthropic, OpenAI, or a local model — chosen at build time based on cost/quality of structural fabrication-check tracing. The provider must support no-training data-handling terms.
-- **Observability.** Per-request token logging (model, input tokens, output tokens, cost). Per-application metadata (drift verdicts, override flag, cost-to-produce). Both written to disk; aggregated by a `jobhunter stats` subcommand.
+- **Observability.** Per-request token logging (model, input tokens, output tokens, cost). Per-application metadata (drift verdicts, override flag, cost-to-produce). Both written to disk; aggregated by `GET /api/stats` and surfaced on the Dashboard (FR40, FR46).
 
 ### Implementation Considerations
 
@@ -390,14 +394,14 @@ Journey 5 (peer adoption) is *not* a v1 success criterion. The v1 capabilities u
 
 **Must-Have Capabilities (v1):**
 
-1. CLI command that accepts a pasted JD and runs the full pipeline end-to-end
+1. Web app (FastAPI on `127.0.0.1` + React/Vite/Tailwind frontend) with a JD-paste textarea that runs the full pipeline end-to-end via `POST /api/paste`
 2. JD parser that extracts structured fields including board-specific signals (Upwork budget bands, OJ.ph rate ranges)
 3. Canonical CV in markdown/YAML, version-controlled, with entry-level tags
 4. Three artifact types with separate prompt templates: traditional CV, cover letter, Upwork proposal
 5. **Fabrication drift check** — claim-to-source-CV structural traceability (the headline)
 6. **Content-loss drift check** — high-impact canonical-CV entries preserved when relevant
 7. **Keyword-stuffing drift check** — density/placement within natural bounds
-8. GChat webhook notification on pass; silent hold on fail; held queue listable from CLI
+8. GChat webhook notification on pass; silent hold on fail; held queue listable on the Dashboard surface
 9. Manual override path with logged metadata
 10. n8n (or equivalent) scheduled flows ingesting Upwork search results, OJ.ph listings, and LinkedIn Job Alert emails into the same pipeline endpoint
 11. Per-application metadata (drift verdicts, cost, override flag) on disk
@@ -455,8 +459,8 @@ The Functional Requirements below are the binding capability contract for v1 (MV
 
 ### JD Ingest
 
-- FR6: Author can paste a JD into the pipeline via the CLI (stdin or file argument) and trigger the full tailoring + drift-check + notification pipeline.
-- FR7: System exposes a single internal endpoint that both the human CLI and scheduled flows POST JDs to.
+- FR6: Author can paste a JD into the pipeline via the JD Pipeline & Tailoring surface (FR48) — a browser textarea that POSTs to `POST /api/paste` — and trigger the full tailoring + drift-check + notification pipeline.
+- FR7: System exposes a single internal endpoint (`POST /api/paste` — the same handler invoked by the browser textarea above) that both the web UI and scheduled flows POST JDs to.
 - FR8: Scheduled flows (n8n / Make / equivalent) can post JDs from Upwork search results into the pipeline endpoint.
 - FR9: Scheduled flows can post JDs from OnlineJobs.ph listings into the pipeline endpoint.
 - FR10: Scheduled flows can post JDs from parsed LinkedIn Job Alert emails into the pipeline endpoint.
@@ -502,15 +506,15 @@ The Functional Requirements below are the binding capability contract for v1 (MV
 - FR32: The GChat notification includes a one-line fit summary, the source board, and the path to the staged markdown package.
 - FR33: System holds packages that fail any drift check without sending a notification.
 - FR34: System writes the staged markdown artifacts to disk even when a package is held, so the user can read them.
-- FR35: Author can list held packages and their failure reasons via a CLI subcommand.
-- FR36: Author can override a held package via a CLI subcommand, and the override is logged in per-application metadata.
+- FR35: Author can list held packages and their failure reasons via the Dashboard surface (FR46), backed by `GET /api/queue`.
+- FR36: Author can override a held package via the "Approve" action on the Dashboard surface (FR46/FR51), backed by `POST /api/override/<slug>`; the override is logged in per-application metadata.
 
 ### Output, Metadata, and Cost Observability
 
 - FR37: System writes each generated package to `./out/<slug>/` as markdown artifacts (one file per artifact type).
 - FR38: System writes a per-application metadata file (JSON or YAML) capturing JD source, parsed fields, drift verdicts, override flag if any, prompt-template versions, and total cost-to-produce.
 - FR39: System logs per-request LLM token usage (model, input tokens, output tokens, dollar cost) from the first call onward.
-- FR40: Author can view aggregated cost-per-application, drift-catch rate, and override rate via a CLI `stats` subcommand.
+- FR40: Author can view aggregated cost-per-application, drift-catch rate, and override rate on the Dashboard surface (FR46), backed by `GET /api/stats`.
 
 ### Configuration and Safety
 
@@ -518,6 +522,18 @@ The Functional Requirements below are the binding capability contract for v1 (MV
 - FR42: All tunables (drift-check thresholds, prompt template paths, cost cap, output directory, JD-red-flag floors) live in a `config.yaml` separate from secrets.
 - FR43: System enforces a configured hard monthly LLM spend cap and refuses to run when the cap is exceeded.
 - FR44: System never auto-submits an application to any platform.
+
+### Web Application Surface (web-only architecture; see DECISIONS.md §6, supersedes §5)
+
+The product surface is a local-only single-user **web application**. There is no CLI subcommand surface — the `jobhunter` command boots a FastAPI server on `127.0.0.1` and (optionally) opens the browser. Every user action lives behind an HTTP endpoint + a frontend surface; FRs in this section apply to the app as a whole, and surface-by-surface FRs are scattered across the appropriate feature epics rather than carried as a separate epic. Design source of truth: `design_guidelines/stitch-export/` (frozen Stitch export, including `design.md` + 5 screen mockups).
+
+- FR45: The `jobhunter` command (no subcommand) starts a FastAPI server bound to `127.0.0.1` (never `0.0.0.0`) on a default port `8765` that is overridable via `JOBHUNTER_WEB_PORT`, logs the URL to stderr, and best-effort opens the user's default browser. A startup check rejects any non-loopback bind host. There is no other CLI entrypoint.
+- FR46: System presents a Dashboard surface showing the held-package queue, the rolling 30-application interview-conversion rate (from FR40), and the current per-month spend total (from FR43), matching the layout of `design_guidelines/stitch-export/html/01-dashboard.html`. (Owned by Epic 6.)
+- FR47: System presents a Settings & Canonical CV surface that lets the author view and edit the canonical CV (FR1–FR3, including tags and high-impact flags) without leaving the browser, matching the layout of `design_guidelines/stitch-export/html/02-settings-canonical-cv.html`. (Owned by Epic 2.)
+- FR48: System presents a JD Pipeline & Tailoring surface that lets the author paste a JD, trigger the pipeline (same path as FR6), and view the staged tailored artifacts (CV / cover letter / Upwork proposal — FR17–FR19), matching the layout of `design_guidelines/stitch-export/html/04-jd-pipeline-tailoring.html`. (Owned by Epic 2.)
+- FR49: System presents a Drift Check Diagnostics surface that visualizes the fabrication, content-loss, and keyword-stuffing drift reports (FR22–FR30) per staged package — including per-claim source-traceability arrows, dropped high-impact entries with reason, and keyword-density heatmaps — matching the layout of `design_guidelines/stitch-export/html/05-drift-check-diagnostics.html`. (Built incrementally across Epics 3, 4, and 5 — one drift section per epic.)
+- FR50: System presents a Job Alerts & Automated Scans surface that shows the status of scheduled n8n flows (FR8–FR10) — last-run timestamps, JDs ingested per flow, errors — matching the layout of `design_guidelines/stitch-export/html/03-job-alerts-automated-scans.html`. (Owned by Epic 7.)
+- FR51: The Dashboard "Approve" action on a held package invokes the same override code path as `POST /api/override/<slug>` (FR36) and writes the same override metadata. The system never POSTs an application to any external job board (FR44 survives unchanged and is now structurally enforced — there is no second code path that could regress it).
 
 ### Explicitly Out of FR Scope in v1
 
@@ -533,7 +549,7 @@ The Functional Requirements below are the binding capability contract for v1 (MV
 
 ## Non-Functional Requirements
 
-Only the NFR categories that actually shape v1 are documented. Categories irrelevant to a local-first, single-user CLI tool (e.g. concurrent-user scalability, multi-region availability, public accessibility compliance for an end-user web UI that does not exist) are intentionally omitted.
+Only the NFR categories that actually shape v1 are documented. Categories irrelevant to a local-first, single-user **web app bound to `127.0.0.1`** (e.g. concurrent-user scalability, multi-region availability, hosted accessibility compliance, public TLS termination) are intentionally omitted.
 
 ### Performance
 
@@ -546,7 +562,7 @@ Only the NFR categories that actually shape v1 are documented. Categories irrele
 - **Per-application LLM cost target: under $0.25 end-to-end**, including JD parse, tailoring, all three drift checks, and any single retry.
 - **Hard monthly spend cap on the LLM API key**, enforced both at the provider portal (defense-in-depth) and in `config.yaml`. System refuses to run pipeline calls when the cap is breached.
 - **Per-request token logging from the first call onward.** No call is unaccounted for.
-- **Aggregated cost-per-application reported via `jobhunter stats`** so the KPI is always visible, not buried.
+- **Aggregated cost-per-application reported on the Dashboard surface (FR40, `GET /api/stats`)** so the KPI is always visible, not buried.
 
 ### Security and Privacy
 
@@ -567,30 +583,42 @@ Only the NFR categories that actually shape v1 are documented. Categories irrele
 
 - **Outbound LLM provider:** one provider at a time in v1 (provider choice deferred to build time). Switching providers must be a config change, not a code rewrite — model name, base URL, and API key all configurable.
 - **Outbound notification:** Google Chat incoming webhook URL (one). Webhook URL is configurable.
-- **Inbound JD endpoint:** a single internal endpoint accepting JD payloads from both the human CLI and from scheduled flows. The endpoint is authenticated by a shared token from `.env` so a misconfigured n8n instance cannot post junk into the pipeline.
+- **Inbound JD endpoint:** a single internal endpoint (`POST /api/paste`) accepting JD payloads from both the web UI's browser textarea and from scheduled flows. The endpoint is authenticated by a shared token from `.env` (for n8n callers) so a misconfigured n8n instance cannot post junk into the pipeline; browser-origin requests are scoped by the localhost binding (no auth header required from `127.0.0.1`).
 - **n8n / workflow tool:** self-hosted or cloud, author's choice. Flows are not part of the core code repo; they live in n8n's own state. The contract between n8n and the core is the inbound JD endpoint, nothing more.
 
 ### Maintainability
 
 - **Drift-check thresholds, prompt templates, and red-flag floors are configuration**, not code. The author can tune behavior without redeploying.
 - **Prompt templates are versioned files** with version strings recorded in per-application metadata so the author can correlate output quality with template revisions.
-- **Per-application metadata is structured (JSON or YAML)** so a future `jobhunter stats` subcommand can aggregate without re-parsing markdown.
+- **Per-application metadata is structured (JSON or YAML)** so the `GET /api/stats` endpoint (FR40) can aggregate without re-parsing markdown.
+
+### Web Server Constraints (web-only architecture; see DECISIONS.md §6, supersedes §5)
+
+- **Binding:** Server binds to `127.0.0.1` only — never `0.0.0.0`. A startup check rejects any non-loopback bind host. No LAN exposure default. If a `--bind` flag is added later, the default must remain loopback.
+- **Auth:** No authentication in v1 (single-user, single-machine). No login screen, no session cookies. If auth is ever added, that needs a fresh ADR entry.
+- **No outbound submission:** The "Approve" action invokes the only override code path that exists; it never POSTs an application to any external job board. FR44 (no auto-submit) survives unchanged and is structurally enforced — there is no second code path to regress it.
+- **No new persistence layer:** Backend reads `sprint-status.yaml` + per-package sidecar JSON directly. No DB, no Redis, no separate state store.
+- **One LLM SDK:** All tailoring still goes through `src/jobhunter/llm_client.py`. The web layer does not introduce new LLM call paths.
+- **Design source of truth:** Tailwind config and component code derive design tokens from `design_guidelines/stitch-export/design.md`. No ad-hoc hex codes or pixel values in component source. Re-export from Stitch and overwrite the directory if the source design changes; never hand-edit inside `stitch-export/`.
+- **Startup target:** `jobhunter` cold-start to first paint under 3s on the author's machine.
+- **No CLI subcommand surface:** `jobhunter` takes no arguments other than launcher flags (e.g. `--port`). Subcommand syntaxes like `jobhunter paste`, `jobhunter status`, `jobhunter override`, `jobhunter stats` are explicitly not supported in v1 — those workflows are accessed via the browser surfaces (FR46–FR50) and their underlying endpoints.
 
 ### Out of Scope (NFR)
 
-- Multi-user concurrency: this is a single-user local CLI in v1.
+- Multi-user concurrency: this is a single-user local web app bound to `127.0.0.1` in v1.
 - High-availability / multi-region: there is no hosted service.
-- WCAG / Section 508 accessibility: there is no end-user-facing UI surface that compliance attaches to. (If a hosted variant is ever built, this is revisited.)
+- LAN / WAN exposure of the web UI: localhost-only in v1. Hosted multi-tenant variant is v3+.
+- WCAG / Section 508 accessibility: the v1 local web UI is single-user on the author's own machine, so formal accessibility certification is not in scope. (Sensible defaults — keyboard nav, semantic HTML, sufficient contrast from the Stitch design system — should still be honored.)
 - GDPR / CCPA programmatic compliance features: the only personal data is the author's own; full compliance review is revisited only if a hosted variant ships.
 
 ## PO Assumptions
 
 The following decisions were defensible PM-level calls made where the distillate was silent or deferred-to-build-time. Each is recorded for traceability so the next phase (epics + stories) can revisit any that turn out to be wrong.
 
-- **Project type classification.** Classified as "Local CLI tool + workflow-automation flows." The distillate calls it "local script" with n8n flows but does not pick a formal project type from the BMAD CSV. CLI-tool-plus-workflow is the closest honest fit.
+- **Project type classification.** Classified as "Local single-user web app + workflow-automation flows." (Originally classified as "Local CLI tool + workflow-automation flows" — revised on 2026-05-23 when the project pivoted to web-only architecture; see `DECISIONS.md` §6.) The distillate calls it "local script" with n8n flows but does not pick a formal project type from the BMAD CSV. Local-web-app-plus-workflow is the closest honest fit under the current architecture.
 - **Domain classification.** Classified as "career_tech_personal_productivity / applied LLM tooling." Adjacent to HR-tech but candidate-side. Complexity rated medium (not low) because of the LLM-drift-check tuning surface and the platform-ToS surface.
 - **Release mode = phased.** The brief defines v0.1 → v1 → v2 → v3 as explicit phases with a non-negotiable order. This is a phased delivery, not a single release.
-- **Internal endpoint as the integration contract between CLI and n8n.** The brief says scheduled flows "post JDs into the paste pipeline via an internal endpoint." This PRD specifies that endpoint as the *single* contract between the ingest layer and the core, with a shared auth token from `.env`. Implementation can be an HTTP endpoint on localhost or a CLI subcommand that n8n shells out to — the abstraction is what matters.
+- **Internal endpoint as the integration contract between the web UI and n8n.** The brief says scheduled flows "post JDs into the paste pipeline via an internal endpoint." This PRD specifies that endpoint as `POST /api/paste` — the *single* contract between every ingest path (browser textarea, n8n flows) and the core, with a shared auth token from `.env` for n8n callers and localhost-origin trust for the browser. (Revised on 2026-05-23 to drop the "or a CLI subcommand" alternative — see `DECISIONS.md` §6.)
 - **Per-application latency SLO (paste mode: < 90s).** The brief sets a 10-minute *human-review* time budget but no machine-latency SLO. 90 seconds is a defensible target for a 3-call pipeline (parse + tailor + checks) on standard LLM tiers; tune at build time.
 - **Drift-check thresholds default conservative (high recall, more flags).** The brief implies this stance ("catches ≥ 1 issue per 10 packages") but does not explicitly say defaults skew toward over-flagging. This PRD makes the stance explicit so v1 ships with false positives the author overrides, rather than false negatives that quietly let fabrications through.
 - **Override flag is structured metadata, not a free-text comment.** The brief mentions human override implicitly; this PRD names it as a logged boolean plus reason field in per-application metadata so override-rate becomes a measurable signal.

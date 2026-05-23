@@ -1,0 +1,250 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>JD Pipeline Detail Screen</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-container": "#dae2fd",
+                        "on-secondary": "#ffffff",
+                        "surface-dim": "#d8dadc",
+                        "surface-container-lowest": "#ffffff",
+                        "surface": "#f7f9fb",
+                        "on-tertiary-container": "#ffd2be",
+                        "inverse-primary": "#c3c0ff",
+                        "surface-container": "#eceef0",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "inverse-surface": "#2d3133",
+                        "tertiary": "#7e3000",
+                        "on-primary": "#ffffff",
+                        "background": "#f7f9fb",
+                        "on-tertiary-fixed": "#351000",
+                        "on-primary-fixed-variant": "#3323cc",
+                        "secondary": "#565e74",
+                        "on-surface-variant": "#464555",
+                        "on-surface": "#191c1e",
+                        "surface-container-low": "#f2f4f6",
+                        "tertiary-fixed": "#ffdbcc",
+                        "on-tertiary": "#ffffff",
+                        "surface-tint": "#4d44e3",
+                        "on-primary-container": "#dad7ff",
+                        "on-error-container": "#93000a",
+                        "outline": "#777587",
+                        "surface-bright": "#f7f9fb",
+                        "primary": "#3525cd",
+                        "on-secondary-container": "#5c647a",
+                        "tertiary-fixed-dim": "#ffb695",
+                        "surface-container-highest": "#e0e3e5",
+                        "on-error": "#ffffff",
+                        "outline-variant": "#c7c4d8",
+                        "on-secondary-fixed": "#131b2e",
+                        "on-background": "#191c1e",
+                        "surface-container-high": "#e6e8ea",
+                        "on-tertiary-fixed-variant": "#7b2f00",
+                        "surface-variant": "#e0e3e5",
+                        "error": "#ba1a1a",
+                        "tertiary-container": "#a44100",
+                        "error-container": "#ffdad6",
+                        "primary-container": "#4f46e5",
+                        "inverse-on-surface": "#eff1f3",
+                        "primary-fixed": "#e2dfff",
+                        "secondary-fixed": "#dae2fd",
+                        "on-primary-fixed": "#0f0069",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "on-secondary-fixed-variant": "#3f465c"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-max": "1440px",
+                        "margin-mobile": "16px",
+                        "sidebar-width": "260px",
+                        "stack-sm": "8px",
+                        "stack-xs": "4px",
+                        "margin-desktop": "40px",
+                        "stack-lg": "24px",
+                        "stack-md": "16px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "display": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "headline-lg-mobile": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "display": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex">
+<!-- SideNavBar -->
+<nav class="bg-surface-container-low flex flex-col w-[260px] h-screen fixed left-0 top-0 py-6 border-r border-outline-variant z-50">
+<div class="px-gutter mb-8">
+<h1 class="text-headline-lg font-headline-lg font-bold text-on-surface"><span style="letter-spacing: -0.6px;">Job Hunter</span></h1>
+</div>
+<div class="flex flex-col gap-1 flex-1">
+<a class="text-on-surface-variant flex items-center px-4 py-3 hover:bg-surface-container-high transition-colors gap-3" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-body-md font-body-md">Dashboard</span>
+</a>
+<a class="text-primary font-bold border-l-4 border-primary bg-secondary-container flex items-center px-4 py-3 transition-colors gap-3" href="#">
+<span class="material-symbols-outlined">timeline</span>
+<span class="text-body-md font-body-md">JD Pipeline</span>
+</a>
+<a class="text-on-surface-variant flex items-center px-4 py-3 hover:bg-surface-container-high transition-colors gap-3" href="#">
+<span class="material-symbols-outlined">edit_document</span>
+<span class="text-body-md font-body-md">CV Tailoring</span>
+</a>
+<a class="text-on-surface-variant flex items-center px-4 py-3 hover:bg-surface-container-high transition-colors gap-3" href="#">
+<span class="material-symbols-outlined">check_circle</span>
+<span class="text-body-md font-body-md">Drift Checks</span>
+</a>
+<a class="text-on-surface-variant flex items-center px-4 py-3 hover:bg-surface-container-high transition-colors gap-3" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="text-body-md font-body-md">Job Alerts</span>
+</a>
+</div>
+<!-- Profile Completion Widget -->
+<div class="mt-auto px-4 pb-4">
+<div class="bg-surface p-4 rounded-lg border border-outline-variant shadow-sm flex flex-col gap-3">
+<div class="flex items-center gap-3">
+<img alt="User profile" class="w-10 h-10 rounded-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwoNbv2_LDv7RP32Lq-GnsgvuUCXfUzfHPp6iAYy1mv9ggrowsXU2PqvtzQJPl449UfzByyi8u6lQS8sbS37ByUti7GXTNjMxhoLxfLoYSbwwU6V_x3lZPWtxprmtq_CKarv2IWwHxS0oj6XeXymNzaRlJd5o8GKBxWgzFCjGCwYs7o2TUeaElWoFIjUjaaqKwNJQM9MrTgBmOJXRZuBK8BW9Z9D_ZJfApkHdKkHtJkoBmM5Ao0T5WNrC5lzxK-_VLN0jj8i2uYuZu">
+<div>
+<p class="text-body-md font-bold text-on-surface">Tom!</p>
+<p class="text-label-md text-on-surface-variant">62% Complete</p>
+</div>
+</div>
+<button class="w-full bg-primary text-on-primary text-body-md font-bold py-2 rounded-lg hover:bg-primary-container transition-colors">Complete Now</button>
+</div>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="ml-[260px] flex-1 flex flex-col min-h-screen">
+<!-- TopAppBar -->
+<header class="bg-surface flex justify-between items-center h-16 px-gutter w-full sticky top-0 z-40 border-b border-outline-variant">
+<div class="flex items-center gap-4 w-1/3">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-full py-2 pl-10 pr-4 text-body-md focus:ring-2 focus:ring-primary focus:bg-surface transition-all" placeholder="Search or type a command" type="text">
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="bg-primary text-on-primary px-4 py-2 rounded-lg text-body-md font-bold hover:bg-primary-container transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span> Create New CV
+                </button>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<img alt="User profile" class="w-8 h-8 rounded-full border border-outline-variant cursor-pointer" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCUEpvWRhMe4nBSjpGCTbNZdjyBlhLDSKeb1HYiRxc1DfTVO31Vg9o0lkqTShCg5F-t3r7tfaOyz5zv1GjweNG7gL7TlcFBELAkP1ADk12E4EHaxogsZukwDQD1ETkqloyE8iYci32xD5dN0q0WaGnuflnjQRos-D8jcTDKTNRDcjQWQ_ZSvovLsNm83Tpct9QSYkG5ayA-vT9s99p5qjadfiTMGVvF6oLNb_plSbHM6gDnWyTRPKz10FnhMSMWqZLDxhavprhEIXll">
+</div>
+</header>
+<!-- Page Content -->
+<div class="p-margin-desktop flex-1 flex gap-gutter overflow-hidden h-[calc(100vh-64px)]">
+<!-- Left Pane: JD Signals -->
+<aside class="w-1/3 flex flex-col gap-stack-md overflow-y-auto pr-2 custom-scrollbar">
+<div class="mb-2">
+<h2 class="text-headline-md font-headline-md text-on-surface mb-1">Senior Frontend Engineer</h2>
+<p class="text-body-md text-on-surface-variant flex items-center gap-1"><span class="material-symbols-outlined text-sm">business</span> TechCorp Inc. • Remote</p>
+</div>
+<div class="bg-surface p-4 rounded-xl border border-outline-variant shadow-sm">
+<h3 class="text-body-lg font-bold text-on-surface mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-primary">priority_high</span> Must-Haves</h3>
+<ul class="flex flex-col gap-2">
+<li class="flex items-start gap-2 text-body-md"><span class="material-symbols-outlined text-primary text-sm mt-0.5">check_circle</span> 5+ years React experience</li>
+<li class="flex items-start gap-2 text-body-md"><span class="material-symbols-outlined text-primary text-sm mt-0.5">check_circle</span> TypeScript proficiency</li>
+<li class="flex items-start gap-2 text-body-md"><span class="material-symbols-outlined text-primary text-sm mt-0.5">check_circle</span> State management (Redux/Zustand)</li>
+</ul>
+</div>
+<div class="bg-error-container/20 p-4 rounded-xl border border-error/30 shadow-sm">
+<h3 class="text-body-lg font-bold text-error mb-3 flex items-center gap-2"><span class="material-symbols-outlined">warning</span> Red Flags</h3>
+<ul class="flex flex-col gap-2">
+<li class="flex items-start gap-2 text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-error text-sm mt-0.5">close</span> "Fast-paced environment" (High turnover risk)</li>
+<li class="flex items-start gap-2 text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-error text-sm mt-0.5">close</span> Vague equity terms</li>
+</ul>
+</div>
+<div class="flex gap-stack-md">
+<div class="flex-1 bg-surface-container p-4 rounded-xl border border-outline-variant">
+<p class="text-label-md text-on-surface-variant mb-1 uppercase tracking-wide">Budget Range</p>
+<p class="text-body-lg font-bold text-on-surface">$120k - $150k</p>
+</div>
+<div class="flex-1 bg-surface-container p-4 rounded-xl border border-outline-variant">
+<p class="text-label-md text-on-surface-variant mb-1 uppercase tracking-wide">Expected Tone</p>
+<p class="text-body-lg font-bold text-on-surface">Data-Driven</p>
+</div>
+</div>
+</aside>
+<!-- Right Pane: Artifacts -->
+<div class="w-2/3 flex flex-col bg-surface border border-outline-variant rounded-xl shadow-sm overflow-hidden flex-1">
+<!-- Artifact Tabs -->
+<div class="flex border-b border-outline-variant bg-surface-container-low">
+<button class="px-6 py-3 text-body-md font-bold text-primary border-b-2 border-primary bg-surface transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">description</span> Tailored CV
+                    </button>
+<button class="px-6 py-3 text-body-md text-on-surface-variant hover:bg-surface-container-high transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">mail</span> Cover Letter
+                    </button>
+<div class="ml-auto flex items-center px-4">
+<button class="text-label-md font-bold text-on-surface-variant flex items-center gap-1 hover:text-primary transition-colors border border-outline-variant rounded px-2 py-1">
+<span class="material-symbols-outlined text-[16px]">rule</span> Drift Check Active
+                        </button>
+</div>
+</div>
+<!-- Markdown Editor Area -->
+<div class="flex-1 p-6 overflow-y-auto font-mono text-[13px] leading-relaxed text-on-surface bg-[#FAFAFA] relative">
+<!-- Line Numbers & Content -->
+<div class="flex gap-4">
+<div class="text-outline-variant text-right select-none flex flex-col">
+<span class="">1</span><span class="">2</span><span class="">3</span><span class="">4</span><span class="">5</span><span class="">6</span><span class="">7</span><span class="">8</span><span class="">9</span><span class="">10</span><span class="">11</span><span class="">12</span><span class="">13</span><span class="">14</span><span class="">15</span>
+</div>
+<div class="flex-1">
+<span class="text-primary font-bold"># Tom Developer</span><br>
+<span class="text-on-surface-variant">## Senior Frontend Engineer</span><br>
+<br>
+<span class="text-primary font-bold">### Summary</span><br>
+                            Results-oriented Senior Frontend Engineer with 6+ years of experience building scalable <span class="bg-secondary-container/50 px-1 rounded border-b border-primary border-dashed cursor-help" title="Tailored to JD Must-Have">React applications</span>. Proven track record in improving performance and leading cross-functional teams in agile environments.<br>
+<br>
+<span class="text-primary font-bold">### Experience</span><br>
+<span class="font-bold">Lead UI Developer</span> | InnovateTech | 2021 - Present<br>
+                            - Spearheaded the migration of legacy monolithic frontend to a micro-frontend architecture using <span class="bg-secondary-container/50 px-1 rounded border-b border-primary border-dashed cursor-help" title="Tailored to JD Must-Have">React and TypeScript</span>, reducing build times by 40%.<br>
+                            - Implemented centralized state management with <span class="bg-secondary-container/50 px-1 rounded border-b border-primary border-dashed cursor-help" title="Tailored to JD Must-Have">Redux Toolkit</span> across 5 core enterprise products.<br>
+                            - <span class="bg-error-container/30 px-1 rounded border-b border-error border-dashed cursor-help" title="Drift Warning: Hallucination detected. Original CV states 'Mentored 2 juniors', not 'Led team of 10'.">Led a team of 10 engineers in delivering high-impact features ahead of schedule.</span><br>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+    </style>
+
+
+</body></html>

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Job Alerts &amp; Automated Scans - Job Hunter</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-dim": "#d8dadc",
+                    "secondary": "#565e74",
+                    "surface-bright": "#f7f9fb",
+                    "secondary-fixed": "#dae2fd",
+                    "on-tertiary-fixed-variant": "#7b2f00",
+                    "background": "#f7f9fb",
+                    "surface-container": "#eceef0",
+                    "error": "#ba1a1a",
+                    "secondary-container": "#dae2fd",
+                    "outline-variant": "#c7c4d8",
+                    "on-error": "#ffffff",
+                    "on-primary-container": "#dad7ff",
+                    "surface-container-high": "#e6e8ea",
+                    "tertiary": "#7e3000",
+                    "on-secondary": "#ffffff",
+                    "on-primary-fixed": "#0f0069",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary-container": "#5c647a",
+                    "surface-variant": "#e0e3e5",
+                    "on-secondary-fixed-variant": "#3f465c",
+                    "surface": "#f7f9fb",
+                    "on-surface-variant": "#464555",
+                    "tertiary-container": "#a44100",
+                    "primary": "#3525cd",
+                    "on-background": "#191c1e",
+                    "error-container": "#ffdad6",
+                    "primary-fixed": "#e2dfff",
+                    "primary-fixed-dim": "#c3c0ff",
+                    "surface-tint": "#4d44e3",
+                    "on-primary": "#ffffff",
+                    "inverse-primary": "#c3c0ff",
+                    "primary-container": "#4f46e5",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-fixed": "#351000",
+                    "secondary-fixed-dim": "#bec6e0",
+                    "on-secondary-fixed": "#131b2e",
+                    "on-tertiary-container": "#ffd2be",
+                    "on-primary-fixed-variant": "#3323cc",
+                    "tertiary-fixed-dim": "#ffb695",
+                    "surface-container-highest": "#e0e3e5",
+                    "on-surface": "#191c1e",
+                    "inverse-surface": "#2d3133",
+                    "tertiary-fixed": "#ffdbcc",
+                    "outline": "#777587",
+                    "on-error-container": "#93000a",
+                    "surface-container-low": "#f2f4f6",
+                    "inverse-on-surface": "#eff1f3"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "container-max": "1440px",
+                    "gutter": "24px",
+                    "stack-lg": "24px",
+                    "sidebar-width": "260px",
+                    "margin-desktop": "40px",
+                    "margin-mobile": "16px",
+                    "stack-sm": "8px",
+                    "stack-xs": "4px",
+                    "stack-md": "16px"
+            },
+            "fontFamily": {
+                    "headline-lg-mobile": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "display": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "body-md": ["Inter"],
+                    "label-md": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-lg-mobile": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                    "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                    "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                    "display": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                    "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                    "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                    "label-md": ["12px", { "lineHeight": "16px", "fontWeight": "500" }]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        body {
+            background-color: #f7f9fb;
+            color: #191c1e;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-screen w-[260px] bg-surface-container-lowest border-r border-outline-variant flex flex-col py-stack-lg z-50">
+<div class="px-gutter mb-stack-lg flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-headline-lg">JH</div>
+<div>
+<h1 class="text-headline-lg font-headline-lg text-primary tracking-tight">Job Hunter</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">AI Career Assistant</p>
+</div>
+</div>
+<div class="px-gutter mb-stack-lg">
+<div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant">
+<div class="flex justify-between items-center mb-2">
+<span class="font-label-md text-label-md text-on-surface-variant">Profile Completion</span>
+<span class="font-label-md text-label-md font-bold text-primary">85%</span>
+</div>
+<div class="w-full bg-surface-variant h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full" style="width: 85%;"></div>
+</div>
+<button class="mt-3 w-full bg-primary text-on-primary font-label-md text-label-md py-1.5 rounded-DEFAULT">Profile 85% Complete</button>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant opacity-80 hover:bg-surface-container transition-colors scale-100 active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard" data-weight="fill" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant opacity-80 hover:bg-surface-container transition-colors scale-100 active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="auto_fix_high" data-weight="fill" style="font-variation-settings: 'FILL' 1;">auto_fix_high</span>
+<span class="font-body-md text-body-md">JD Pipeline</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant opacity-80 hover:bg-surface-container transition-colors scale-100 active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="fact_check" data-weight="fill" style="font-variation-settings: 'FILL' 1;">fact_check</span>
+<span class="font-body-md text-body-md">Drift Checks</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-primary font-bold border-l-[3px] border-primary bg-surface-container-low transition-colors scale-100 active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined text-primary" data-icon="notifications" data-weight="fill" style="font-variation-settings: 'FILL' 1;">notifications</span>
+<span class="font-body-md text-body-md text-primary">Job Alerts</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant opacity-80 hover:bg-surface-container transition-colors scale-100 active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="description" data-weight="fill" style="font-variation-settings: 'FILL' 1;">description</span>
+<span class="font-body-md text-body-md">CV Settings</span>
+</a>
+</nav>
+<div class="px-4 mt-auto space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant opacity-80 hover:bg-surface-container transition-colors scale-100 active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="help" data-weight="fill" style="font-variation-settings: 'FILL' 1;">help</span>
+<span class="font-body-md text-body-md">Help Center</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant opacity-80 hover:bg-surface-container transition-colors scale-100 active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="logout" data-weight="fill" style="font-variation-settings: 'FILL' 1;">logout</span>
+<span class="font-body-md text-body-md">Log Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<div class="flex-1 ml-[260px] flex flex-col">
+<!-- TopNavBar -->
+<header class="sticky top-0 z-40 w-full bg-surface-container-lowest/80 backdrop-blur-md border-b border-outline-variant flex items-center justify-between px-gutter h-16">
+<div class="flex items-center gap-4">
+<span class="text-headline-md font-headline-md font-bold text-on-surface">Job Hunter</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors focus-within:ring-2 focus-within:ring-primary/20 rounded-full p-2">
+<span class="material-symbols-outlined" data-icon="notifications_active" data-weight="fill" style="font-variation-settings: 'FILL' 1;">notifications_active</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors focus-within:ring-2 focus-within:ring-primary/20 rounded-full p-2">
+<span class="material-symbols-outlined" data-icon="account_circle" data-weight="fill" style="font-variation-settings: 'FILL' 1;">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-1 p-margin-desktop overflow-y-auto">
+<!-- Header Section -->
+<div class="mb-stack-lg">
+<h2 class="font-display text-display text-on-background mb-stack-xs">Job Alerts &amp; Scanners</h2>
+<p class="font-body-lg text-body-lg text-secondary">Configure automated scans across Upwork, LinkedIn, and OnlineJobs.ph.</p>
+</div>
+<div class="grid grid-cols-12 gap-gutter">
+<!-- Left Column (Active Scanners & Search Criteria) -->
+<div class="col-span-12 lg:col-span-8 flex flex-col gap-stack-lg">
+<!-- Search Criteria Section (The "What to Crawl") -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter shadow-[0_4px_6px_-1px_rgb(0_0_0_/_0.05),_0_2px_4px_-2px_rgb(0_0_0_/_0.05)]">
+<div class="flex justify-between items-center mb-stack-md">
+<h3 class="font-headline-md text-headline-md text-on-surface">Global Search Criteria</h3>
+<button class="text-primary font-label-md text-label-md hover:underline">Reset</button>
+</div>
+<div class="grid grid-cols-2 gap-stack-md mb-stack-md">
+<div class="col-span-2">
+<label class="block font-label-md text-label-md text-on-surface-variant mb-2">Target Job Titles</label>
+<div class="flex flex-wrap gap-2 p-3 border border-outline-variant rounded-lg bg-surface-container-lowest focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+<span class="bg-surface-container-low text-on-surface px-3 py-1 rounded-DEFAULT font-label-md text-label-md flex items-center gap-1 border border-outline-variant">Senior Frontend Developer <span class="material-symbols-outlined text-[14px] cursor-pointer" data-icon="close">close</span></span>
+<span class="bg-surface-container-low text-on-surface px-3 py-1 rounded-DEFAULT font-label-md text-label-md flex items-center gap-1 border border-outline-variant">React Engineer <span class="material-symbols-outlined text-[14px] cursor-pointer" data-icon="close">close</span></span>
+<input class="bg-transparent border-none outline-none focus:ring-0 font-body-md text-body-md text-on-surface flex-1 min-w-[120px]" placeholder="Add title..." type="text"/>
+</div>
+</div>
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-2">Experience Level</label>
+<select class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md text-on-surface bg-surface-container-lowest focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all">
+<option>Mid-Level to Senior</option>
+<option>Junior to Mid-Level</option>
+<option>Senior/Lead</option>
+</select>
+</div>
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-2">Budget / Salary Range</label>
+<select class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md text-on-surface bg-surface-container-lowest focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all">
+<option>$80k - $120k / yr</option>
+<option>$50k - $80k / yr</option>
+<option>$120k+ / yr</option>
+<option>Hourly: $40+</option>
+</select>
+</div>
+<div class="col-span-2">
+<label class="block font-label-md text-label-md text-on-surface-variant mb-2">Keywords (Must-have)</label>
+<input class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md text-on-surface bg-surface-container-lowest focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" type="text" value="React, TypeScript, Next.js, Tailwind"/>
+</div>
+</div>
+<div class="flex items-center gap-4 border-t border-outline-variant pt-stack-md">
+<div class="flex-1 flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary" data-icon="schedule">schedule</span>
+<span class="font-body-md text-body-md text-on-surface-variant">Scan Frequency:</span>
+<select class="border-none bg-transparent font-body-md text-body-md text-primary font-semibold focus:ring-0 cursor-pointer">
+<option>Every 6 Hours</option>
+<option>Daily</option>
+<option>Weekly</option>
+</select>
+</div>
+<button class="bg-primary text-on-primary font-label-md text-label-md px-6 py-2 h-11 rounded-lg hover:bg-surface-tint transition-colors">Apply Criteria</button>
+</div>
+</section>
+<!-- Active Scanners Section -->
+<section>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-stack-md">Active Scanners</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-stack-md">
+<!-- Scanner Card 1 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex flex-col justify-between h-full relative overflow-hidden group hover:border-primary/50 transition-colors">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-on-surface">
+<span class="font-bold text-headline-md">U</span>
+</div>
+<div>
+<h4 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Upwork Feed</h4>
+<div class="flex items-center gap-1 mt-1">
+<div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+<span class="font-label-md text-label-md text-secondary">Running</span>
+</div>
+</div>
+</div>
+<div class="w-10 h-6 bg-primary rounded-full relative cursor-pointer flex items-center px-1">
+<div class="w-4 h-4 bg-white rounded-full absolute right-1 shadow-sm"></div>
+</div>
+</div>
+<div class="mb-4">
+<p class="font-body-md text-body-md text-secondary mb-1">Keywords: <span class="text-on-surface">React, Next.js</span></p>
+<p class="font-body-md text-body-md text-secondary text-xs">Last scan: 12 mins ago</p>
+</div>
+<button class="w-full py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container transition-colors">Edit Scanner</button>
+</div>
+<!-- Scanner Card 2 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex flex-col justify-between h-full relative overflow-hidden group hover:border-primary/50 transition-colors">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-on-surface text-primary">
+<span class="font-bold text-headline-md">in</span>
+</div>
+<div>
+<h4 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">LinkedIn Alerts</h4>
+<div class="flex items-center gap-1 mt-1">
+<div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+<span class="font-label-md text-label-md text-secondary">Running</span>
+</div>
+</div>
+</div>
+<div class="w-10 h-6 bg-primary rounded-full relative cursor-pointer flex items-center px-1">
+<div class="w-4 h-4 bg-white rounded-full absolute right-1 shadow-sm"></div>
+</div>
+</div>
+<div class="mb-4">
+<p class="font-body-md text-body-md text-secondary mb-1">Titles: <span class="text-on-surface">Frontend Dev</span></p>
+<p class="font-body-md text-body-md text-secondary text-xs">Last scan: 45 mins ago</p>
+</div>
+<button class="w-full py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container transition-colors">Edit Scanner</button>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Column (Status & Integrations) -->
+<div class="col-span-12 lg:col-span-4 flex flex-col gap-stack-lg">
+<!-- Integration Status Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter shadow-[0_4px_6px_-1px_rgb(0_0_0_/_0.05),_0_2px_4px_-2px_rgb(0_0_0_/_0.05)]">
+<div class="flex items-center gap-3 mb-stack-md">
+<span class="material-symbols-outlined text-primary" data-icon="cable">cable</span>
+<h3 class="font-headline-md text-headline-md text-on-surface">Integration Status</h3>
+</div>
+<div class="space-y-4">
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg border border-outline-variant/50">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-surface-container-highest flex items-center justify-center font-bold text-xs">n8n</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">n8n Workflow</p>
+<p class="font-body-md text-body-md text-secondary text-xs">Processing queues</p>
+</div>
+</div>
+<span class="px-2 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded uppercase tracking-wider">Active</span>
+</div>
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg border border-outline-variant/50">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary" data-icon="webhook">webhook</span>
+<div>
+<p class="font-label-md text-label-md text-on-surface">JD Webhook Receiver</p>
+<p class="font-body-md text-body-md text-secondary text-xs">Last payload: 5m ago</p>
+</div>
+</div>
+<span class="px-2 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded uppercase tracking-wider">Listening</span>
+</div>
+</div>
+<div class="mt-stack-md pt-stack-md border-t border-outline-variant">
+<p class="font-body-md text-body-md text-secondary text-sm mb-3">Scans processed today: <span class="font-bold text-on-surface">142</span></p>
+<button class="w-full py-2 bg-surface-container-high text-on-surface font-label-md text-label-md rounded-lg hover:bg-surface-variant transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="refresh">refresh</span> Force Sync Now
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

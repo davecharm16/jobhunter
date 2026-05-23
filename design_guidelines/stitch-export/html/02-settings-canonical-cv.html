@@ -1,0 +1,342 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Canonical CV &amp; Settings - Cv. Builder</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "secondary-container": "#dae2fd",
+                      "on-secondary": "#ffffff",
+                      "surface-dim": "#d8dadc",
+                      "surface-container-lowest": "#ffffff",
+                      "surface": "#f7f9fb",
+                      "on-tertiary-container": "#ffd2be",
+                      "inverse-primary": "#c3c0ff",
+                      "surface-container": "#eceef0",
+                      "primary-fixed-dim": "#c3c0ff",
+                      "inverse-surface": "#2d3133",
+                      "tertiary": "#7e3000",
+                      "on-primary": "#ffffff",
+                      "background": "#f7f9fb",
+                      "on-tertiary-fixed": "#351000",
+                      "on-primary-fixed-variant": "#3323cc",
+                      "secondary": "#565e74",
+                      "on-surface-variant": "#464555",
+                      "on-surface": "#191c1e",
+                      "surface-container-low": "#f2f4f6",
+                      "tertiary-fixed": "#ffdbcc",
+                      "on-tertiary": "#ffffff",
+                      "surface-tint": "#4d44e3",
+                      "on-primary-container": "#dad7ff",
+                      "on-error-container": "#93000a",
+                      "outline": "#777587",
+                      "surface-bright": "#f7f9fb",
+                      "primary": "#3525cd",
+                      "on-secondary-container": "#5c647a",
+                      "tertiary-fixed-dim": "#ffb695",
+                      "surface-container-highest": "#e0e3e5",
+                      "on-error": "#ffffff",
+                      "outline-variant": "#c7c4d8",
+                      "on-secondary-fixed": "#131b2e",
+                      "on-background": "#191c1e",
+                      "surface-container-high": "#e6e8ea",
+                      "on-tertiary-fixed-variant": "#7b2f00",
+                      "surface-variant": "#e0e3e5",
+                      "error": "#ba1a1a",
+                      "tertiary-container": "#a44100",
+                      "error-container": "#ffdad6",
+                      "primary-container": "#4f46e5",
+                      "inverse-on-surface": "#eff1f3",
+                      "primary-fixed": "#e2dfff",
+                      "secondary-fixed": "#dae2fd",
+                      "on-primary-fixed": "#0f0069",
+                      "secondary-fixed-dim": "#bec6e0",
+                      "on-secondary-fixed-variant": "#3f465c"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "container-max": "1440px",
+                      "margin-mobile": "16px",
+                      "sidebar-width": "260px",
+                      "stack-sm": "8px",
+                      "stack-xs": "4px",
+                      "margin-desktop": "40px",
+                      "stack-lg": "24px",
+                      "stack-md": "16px",
+                      "gutter": "24px"
+              },
+              "fontFamily": {
+                      "headline-lg": ["Inter"],
+                      "body-md": ["Inter"],
+                      "label-md": ["Inter"],
+                      "headline-lg-mobile": ["Inter"],
+                      "display": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "headline-md": ["Inter"]
+              },
+              "fontSize": {
+                      "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                      "headline-lg-mobile": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "display": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill { font-variation-settings: 'FILL' 1; }
+        
+        /* Custom scrollbar for editors */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #c7c4d8; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #777587; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased min-h-screen flex flex-col md:flex-row font-body-md">
+<!-- Mobile Nav Header (Visible only on small screens) -->
+<header class="md:hidden flex justify-between items-center h-16 px-margin-mobile w-full sticky top-0 z-40 bg-surface border-b border-outline-variant">
+<div class="text-headline-lg-mobile font-headline-lg-mobile font-bold text-on-surface">Cv. Builder</div>
+<button class="text-on-surface-variant p-2">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</header>
+<!-- SideNavBar (Visible on desktop) -->
+<nav class="hidden md:flex flex-col w-[260px] h-screen sticky left-0 top-0 py-6 bg-surface-container-low border-r border-outline-variant">
+<!-- Brand -->
+<div class="px-6 mb-8">
+<div class="text-headline-lg font-headline-lg font-bold text-on-surface tracking-tight">Job Hunter</div>
+</div>
+<!-- Menu Section Label -->
+<div class="px-6 mb-4">
+<span class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">Menu</span>
+</div>
+<!-- Navigation Links -->
+<ul class="flex-1 space-y-2 px-4">
+<li class="">
+<a class="flex items-center px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 text-on-surface-variant group-hover:text-primary transition-colors">dashboard</span>
+<span class="text-body-md font-body-md">Dashboard</span>
+</a>
+</li>
+<li class="">
+<a class="flex items-center px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 text-on-surface-variant group-hover:text-primary transition-colors">timeline</span>
+<span class="text-body-md font-body-md">JD Pipeline</span>
+</a>
+</li>
+<li class="">
+<a class="flex items-center px-4 py-3 text-primary font-bold border-l-4 border-primary bg-secondary-container rounded-r transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 text-primary icon-fill">edit_document</span>
+<span class="text-body-md font-body-md">CV Tailoring</span>
+</a>
+</li>
+<li class="">
+<a class="flex items-center px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 text-on-surface-variant group-hover:text-primary transition-colors">check_circle</span>
+<span class="text-body-md font-body-md">Drift Checks</span>
+</a>
+</li>
+<li class="">
+<a class="flex items-center px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 text-on-surface-variant group-hover:text-primary transition-colors">notifications</span>
+<span class="text-body-md font-body-md">Job Alerts</span>
+</a>
+</li>
+</ul>
+<!-- Profile Completion Widget -->
+<div class="px-4 mt-auto">
+<div class="bg-surface-container-lowest border border-outline-variant rounded p-4">
+<div class="flex items-center mb-4">
+<img alt="User profile" class="w-10 h-10 rounded-full mr-3 border border-outline-variant" data-alt="A small, circular avatar portrait of a professional male user, smiling subtly against a neutral light grey background. Designed for a modern dashboard UI to represent the user's profile." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC02O_Yx6QDRawJVoslXgTKXiUtDZ6KXoYGjRaDN-DStioyLw3d9Yy6y4Tfq4-DKz_0Pyog8WtrwI8ogSj9n3Ib8oMjWhbQwjtiOnjLjXaYkJwLJUxH4e-ZSfw5QrDGW2k1k0aBz15MGAqi7yIO_WdjuJ76L_Uq5OjA42LGE0VNzjxJTr-6iWj0C6325H3ia1CB12OT7T6EH9jFQ-s6uvQOSjlr7cetCIgaq1bcs-AcJgw9dtg04g_nSjyYWfEX8CKzcPrvh0l43p_D">
+<div>
+<div class="text-body-md font-bold text-on-surface">Tom!</div>
+<div class="text-label-md font-label-md text-on-surface-variant">62% Complete</div>
+</div>
+</div>
+<p class="text-label-md text-on-surface-variant mb-4 leading-relaxed">For better recommendation please provide your details.</p>
+<button class="w-full bg-primary text-on-primary py-2 rounded text-body-md font-bold hover:bg-primary-container transition-colors flex justify-center items-center">
+                    Complete Now <span class="material-symbols-outlined text-sm ml-1">arrow_outward</span>
+</button>
+</div>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col min-w-0 bg-surface">
+<!-- TopAppBar (Desktop) -->
+<header class="hidden md:flex justify-between items-center h-16 px-gutter w-full sticky top-0 z-30 bg-surface border-b border-outline-variant">
+<!-- Search Bar -->
+<div class="flex-1 max-w-md">
+<div class="relative flex items-center w-full h-10 rounded bg-surface-container-low border border-transparent focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+<span class="material-symbols-outlined absolute left-3 text-on-surface-variant">search</span>
+<input class="w-full h-full pl-10 pr-4 bg-transparent text-body-md text-on-surface placeholder-on-surface-variant border-none focus:ring-0 focus:outline-none" placeholder="Search or type a command" type="text">
+</div>
+</div>
+<!-- Actions -->
+<div class="flex items-center space-x-4">
+<button class="bg-primary hover:bg-primary-container text-on-primary text-body-md font-bold py-2 px-4 rounded h-10 flex items-center transition-colors">
+<span class="material-symbols-outlined mr-2 text-[18px]">add_box</span>
+                    Create New CV
+                </button>
+<button class="text-on-surface-variant hover:text-primary transition-colors p-2 rounded hover:bg-surface-container-low flex items-center justify-center h-10 w-10">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<img alt="User profile" class="w-8 h-8 rounded-full border border-outline-variant cursor-pointer" data-alt="A small, circular avatar portrait of a professional male user, smiling subtly against a neutral light grey background. Designed for a modern dashboard UI top bar." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBlpPbCvDgSBKWXvCUri3ljByOTRLN1dWeTOSXh69FTMahxUsa7I8kxxTDKudZds0daqftkOiXVcDOewXlqOOG-mOGOsnmqcMicYMvgu--CBMQk2WYgqT7HX4aVB3-qXxV4U5yWJQMiZdGRaugbcixLX0F-zZZnBnG7fwvonZDaw7zcrELaSdr6taMljfBjPryID-fRJIvKYgM_o7nDqjjMrqC4J8ssEVXrBru3M6yyuMewmC7J_OSuaxennPknsKrAJNluxBvEPKyA">
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="p-margin-mobile md:p-margin-desktop max-w-container-max mx-auto w-full">
+<div class="mb-8">
+<h1 class="text-display font-display text-on-surface mb-2">Settings &amp; Configuration</h1>
+<p class="text-body-lg text-on-surface-variant">Manage your canonical CV source, integrations, and preferences.</p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left Column: Canonical CV Editor (Spans 8 cols on large screens) -->
+<div class="lg:col-span-8 flex flex-col gap-gutter">
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col h-[600px] shadow-sm">
+<div class="border-b border-outline-variant px-6 py-4 flex justify-between items-center bg-surface-container-low">
+<div>
+<h2 class="text-headline-md font-headline-md text-on-surface">Canonical CV Source</h2>
+<p class="text-label-md text-on-surface-variant mt-1">Markdown / YAML format used as the source of truth for generation.</p>
+</div>
+<div class="flex space-x-2">
+<button class="px-3 py-1.5 text-body-md border border-outline-variant rounded hover:bg-surface-container-high transition-colors flex items-center text-on-surface">
+<span class="material-symbols-outlined text-[18px] mr-1">history</span> Revisions
+                                </button>
+<button class="px-3 py-1.5 text-body-md bg-secondary-container text-on-primary-fixed-variant rounded hover:bg-secondary-fixed transition-colors flex items-center font-medium">
+<span class="material-symbols-outlined text-[18px] mr-1">save</span> Save
+                                </button>
+</div>
+</div>
+<!-- Editor Area -->
+<div class="flex-1 bg-[#1e1e1e] p-6 overflow-y-auto text-on-primary font-mono text-[13px] leading-relaxed relative">
+<!-- Line numbers (simulated) -->
+<div class="absolute left-0 top-0 bottom-0 w-10 bg-[#252526] border-r border-[#404040] text-[#858585] text-right pr-2 py-6 select-none opacity-50">
+                                1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12<br>13<br>14<br>15<br>16<br>17<br>18<br>19<br>20
+                            </div>
+<div class="pl-8">
+<pre class="m-0"><span class="text-[#569cd6]">---</span>
+<span class="text-[#9cdcfe]">name</span>: <span class="text-[#ce9178]">Tom Moren</span>
+<span class="text-[#9cdcfe]">title</span>: <span class="text-[#ce9178]">Senior Frontend Developer</span>
+<span class="text-[#9cdcfe]">contact</span>:
+  <span class="text-[#9cdcfe]">email</span>: <span class="text-[#ce9178]">tom.moren@example.com</span>
+  <span class="text-[#9cdcfe]">phone</span>: <span class="text-[#ce9178]">+1 (555) 123-4567</span>
+  <span class="text-[#9cdcfe]">location</span>: <span class="text-[#ce9178]">San Francisco, CA</span>
+  <span class="text-[#9cdcfe]">linkedin</span>: <span class="text-[#ce9178]">linkedin.com/in/tommoren</span>
+<span class="text-[#569cd6]">---</span>
+
+<span class="text-[#4ec9b0]">## Summary</span>
+<span class="text-[#d4d4d4]">Detail-oriented Senior Frontend Developer with 8+ years of experience building scalable, performant web applications. Expert in React ecosystem and modern CSS architecture. Proven track record of leading technical initiatives and mentoring junior developers.</span>
+
+<span class="text-[#4ec9b0]">## Experience</span>
+
+<span class="text-[#dcdcaa]">### Tech Innovations Inc.</span> | <span class="text-[#d4d4d4]">Senior Frontend Developer</span> | <span class="text-[#ce9178]">2020 - Present</span>
+<span class="text-[#d4d4d4]">- Architected and led the migration of a legacy monolithic frontend to a Next.js micro-frontend architecture, improving initial load time by 40%.</span>
+<span class="text-[#d4d4d4]">- Established a comprehensive Design System using Tailwind CSS and Storybook, reducing UI development time across teams by 25%.</span>
+<span class="text-[#d4d4d4]">- Mentored a team of 4 junior developers, conducting regular code reviews and pair programming sessions.</span></pre>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Column: Settings & Config (Spans 4 cols on large screens) -->
+<div class="lg:col-span-4 flex flex-col gap-gutter">
+<!-- API Keys & Secrets -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
+<div class="flex items-center mb-4 pb-4 border-b border-outline-variant">
+<span class="material-symbols-outlined text-primary mr-2">key</span>
+<h2 class="text-headline-md font-headline-md text-on-surface">API Configuration</h2>
+</div>
+<div class="space-y-5">
+<div>
+<label class="block text-label-md font-label-md text-on-surface-variant mb-1">OpenAI API Key (Generation)</label>
+<div class="flex items-center">
+<input class="flex-1 w-full h-10 px-3 bg-surface border border-outline-variant rounded-l text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" readonly="" type="password" value="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+<button class="h-10 px-3 bg-surface-container-high border-y border-r border-outline-variant rounded-r hover:bg-surface-container-highest transition-colors flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+</div>
+<p class="text-[11px] text-on-surface-variant mt-1">Stored securely in environment variables.</p>
+</div>
+<div>
+<label class="block text-label-md font-label-md text-on-surface-variant mb-1">Monthly Spend Cap (USD)</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">$</span>
+<input class="w-full h-10 pl-8 pr-3 bg-surface border border-outline-variant rounded text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="number" value="25.00">
+</div>
+<div class="mt-2 flex items-center justify-between text-label-md">
+<span class="text-on-surface-variant">Current Usage: <span class="font-bold text-on-surface">$12.40</span></span>
+<div class="w-1/2 bg-surface-container-high h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[49.6%]"></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Notifications -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
+<div class="flex items-center justify-between mb-4 pb-4 border-b border-outline-variant">
+<div class="flex items-center">
+<span class="material-symbols-outlined text-primary mr-2">forum</span>
+<h2 class="text-headline-md font-headline-md text-on-surface">Notifications</h2>
+</div>
+<div class="w-10 h-5 bg-primary rounded-full relative cursor-pointer border border-primary">
+<div class="absolute right-1 top-0.5 w-4 h-4 bg-on-primary rounded-full shadow-sm"></div>
+</div>
+</div>
+<div class="space-y-4">
+<div class="p-3 bg-surface border border-outline-variant rounded flex items-start">
+<img alt="Google Chat Logo" class="w-6 h-6 mr-3 mt-0.5" data-alt="The official Google Chat icon logo, featuring a green speech bubble with quotation marks, set against a transparent background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMNfcd4v2dsrUTwcPE5k8kW-Bw-E2SxN-OCTdcImfCuC6MHooJm5hUysh3Q63ZAimGPBrFU6S1jhfVBDozFLg4ZSd9w5oMFt7cxEPWn7XCCA9Czu8Lrk-YbgqPqkgEIQ5icwX83AbRnhaLD32YNpPSkjwoYAhN56JiUFpS9V-Git6M84sMsw_1ZNxcARucb1bub4QK3fbC1Z4XL4eHnhKoNvPAulAqeYJIJ9qNLeyELWzYO27CqZJp3WQV7hrUua4AMjti8ad62Hsp">
+<div class="flex-1">
+<h3 class="text-body-md font-bold text-on-surface">Google Chat Webhook</h3>
+<p class="text-label-md text-on-surface-variant mt-1 break-all">https://chat.googleapis.com/v1/spaces/AAAA.../messages</p>
+<div class="mt-2 flex items-center text-[11px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded w-fit border border-emerald-200">
+<span class="material-symbols-outlined text-[14px] mr-1">check_circle</span> Active
+                                    </div>
+</div>
+</div>
+<div>
+<p class="text-label-md font-medium text-on-surface-variant mb-2">Alert Triggers</p>
+<div class="space-y-2">
+<label class="flex items-center">
+<input checked="" class="w-4 h-4 text-primary bg-surface border-outline-variant rounded focus:ring-primary focus:ring-2" type="checkbox">
+<span class="ml-2 text-body-md text-on-surface">New matching job post found</span>
+</label>
+<label class="flex items-center">
+<input checked="" class="w-4 h-4 text-primary bg-surface border-outline-variant rounded focus:ring-primary focus:ring-2" type="checkbox">
+<span class="ml-2 text-body-md text-on-surface">Tailored CV generation complete</span>
+</label>
+<label class="flex items-center">
+<input class="w-4 h-4 text-primary bg-surface border-outline-variant rounded focus:ring-primary focus:ring-2" type="checkbox">
+<span class="ml-2 text-body-md text-on-surface">Weekly summary report</span>
+</label>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+</div>
+</main>
+
+
+</body></html>
