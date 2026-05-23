@@ -95,6 +95,12 @@ class PackageMetadata:
     error: str | None = None
     held: bool = False
     held_path: str | None = None
+    # Story 6.1: notification outcome recorded after the GChat webhook attempt.
+    # `None` means "no attempt was made" (held packages, no URL configured, or
+    # the metadata sidecar was written before the notifier ran). Successful
+    # delivery sets `{"status": "delivered", "delivered_at": "<iso8601>"}`;
+    # an exhausted retry budget sets `{"status": "delivery_failed", ...}`.
+    notification: dict | None = None
 
 
 def format_cost(value: Decimal) -> str:
@@ -127,6 +133,7 @@ def build_metadata(
     error: str | None = None,
     held: bool = False,
     held_path: str | None = None,
+    notification: dict | None = None,
 ) -> PackageMetadata:
     """Assemble a `PackageMetadata` with the cost totals computed from *calls*.
 
@@ -167,6 +174,7 @@ def build_metadata(
         error=error,
         held=held,
         held_path=held_path,
+        notification=dict(notification) if notification is not None else None,
     )
 
 

@@ -53,6 +53,7 @@ from jobhunter import (
     keyword_stuffing_writer,
     llm_client,
     metadata as metadata_module,
+    notifier,
     prompts,
     semantic_matcher,
     signals_onlinejobs_ph,
@@ -510,6 +511,28 @@ def run_tailoring(
         held_path=held_path_value,
     )
     write_sidecar(out_dir, package_metadata)
+
+    # Story 6.1: pass-only GChat notification. All three drift verdicts must
+    # be `"pass"` (no `"fail"` or `"pending"`) AND `gchat_webhook_url` must
+    # be configured. The webhook call is wrapped so any exception inside
+    # the notifier is logged and swallowed — notification failure is
+    # non-fatal because the package itself is already on disk. On any
+    # outcome (delivered or delivery_failed), the metadata sidecar is
+    # re-written with the `notification` field populated. Story 6.2's
+    # structural guard pins the no-notify-on-fail contract: the held
+    # branch above never reaches this block because `held_path_value`
+    # implies at least one fail verdict.
+    if (
+        held_path_value is None
+        and _all_drift_pass(drift_verdicts)
+        and config.gchat_webhook_url
+    ):
+        package_metadata = _notify_and_update_sidecar(
+            out_dir=out_dir,
+            package_metadata=package_metadata,
+            webhook_url=config.gchat_webhook_url,
+            now=now,
+        )
 
     return TailoringOutcome(
         out_dir=out_dir,
@@ -1071,3 +1094,61 @@ def _write_extraction_timeout_sidecar(
         error="extraction_timeout",
     )
     write_sidecar(out_dir, failure_metadata)
+
+
+# Story 6.1: drift-verdict gate + post-notification sidecar rewrite -------
+
+
+def _all_drift_pass(drift_verdicts: dict[str, str]) -> bool:
+    """True when every required drift verdict is exactly `"pass"` (Story 6.1)."""
+    return all(
+        drift_verdicts.get(check) == "pass"
+        for check in ("fabrication", "content_loss", "keyword_stuffing")
+    )
+
+
+def _notify_and_update_sidecar(
+    *,
+    out_dir: Path,
+    package_metadata: metadata_module.PackageMetadata,
+    webhook_url: str,
+    now: datetime | None,
+) -> metadata_module.PackageMetadata:
+    """Attempt the GChat POST and re-write the sidecar with the outcome (Story 6.1).
+
+    Wraps the notifier in try/except so any failure inside the module is
+    logged at WARNING and swallowed — the pipeline still completes
+    cleanly. On the happy path the metadata sidecar gains a `notification`
+    block matching Story 6.1 AC3's contract (delivered or delivery_failed
+    with attempts + last_error).
+    """
+    try:
+        payload = notifier.build_payload(package_metadata, out_dir)
+        result = notifier.notify(payload, webhook_url=webhook_url)
+    except Exception as exc:  # noqa: BLE001 — notification is non-fatal
+        _log.warning(
+            "jobhunter: notifier raised %s; package at %s is on disk",
+            exc,
+            out_dir,
+        )
+        notification = {
+            "status": "delivery_failed",
+            "attempts": 0,
+            "last_error": f"notifier_exception: {type(exc).__name__}",
+        }
+    else:
+        if result.delivered:
+            notification = {
+                "status": "delivered",
+                "delivered_at": metadata_module.now_iso8601_utc(now),
+            }
+        else:
+            notification = {
+                "status": "delivery_failed",
+                "attempts": result.attempts,
+                "last_error": result.last_error or "unknown_error",
+            }
+
+    updated = dataclasses.replace(package_metadata, notification=notification)
+    write_sidecar(out_dir, updated)
+    return updated
