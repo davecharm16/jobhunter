@@ -36,6 +36,7 @@
 
 generated: 2026-05-19
 last_updated: 2026-05-23
+# 2026-05-23: Story 1-6 (FastAPI port + frontend scaffold + jobhunter launcher) completed via subagent in worktree story/1-6-fastapi-port; FF-merged to main at b430437; 154 tests passing; epic-1 returns to done. Worktree removed; branch deleted post-merge.
 # 2026-05-23: Web-only pivot per DECISIONS.md §6 (supersedes §5). Epic 8 dissolved; UI scattered across feature epics. Added: 1-6 (FastAPI port + frontend scaffold + launcher) to epic-1; 2-13 (Settings/CV editor surface) + 2-14 (JD Pipeline surface) to epic-2; 3-5 (Drift Diagnostics fabrication section) to epic-3; 4-4 (Drift Diagnostics content-loss section) to epic-4; 5-4 (Drift Diagnostics keyword-stuffing section) to epic-5; 7-5 (Scans surface) to epic-7. Stories 6-3 and 6-4 reframed from CLI to web (slugs renamed). Epic 1 reopens as in-progress (1-6 backlog) — 1-1..1-5 retain their done status. Epic 8 block + 8-1..8-6 removed.
 # 2026-05-23: Epic 8 (Local Web UI) added to v1 scope per DECISIONS.md §5 + PRD FR45-FR51; 6 stories appended (8-1 through 8-6); epic-8-retrospective optional — superseded by web-only pivot on the same day.
 # 2026-05-23: Epic 1 retrospective completed (autonomous YOLO mode); epic-1-retrospective optional → done; retro at _bmad-output/implementation-artifacts/epic-1-retro-2026-05-23.md
@@ -64,15 +65,15 @@ story_location: "{project-root}/_bmad-output/implementation-artifacts"
 
 development_status:
   # Epic 1: Walking Skeleton (v0.1) + FastAPI pivot
-  # Reopened in-progress on 2026-05-23 — Story 1.6 added for the web-only pivot (DECISIONS.md §6).
-  # Stories 1-1..1-5 retain done status; their core modules survive the pivot unchanged.
-  epic-1: in-progress
+  # Story 1.6 completed and merged to main at b430437 on 2026-05-23.
+  # Epic 1 returns to done; core modules from 1-1..1-5 survived the pivot unchanged.
+  epic-1: done
   1-1-runtime-language-and-canonical-cv-schema-bootstrap: done
   1-2-cli-scaffold-env-secrets-handling-and-cost-cap-config: done
   1-3-canonical-cv-reader-with-pdf-docx-ingest-rejection: done
   1-4-jobhunter-paste-jd-ingest-from-stdin-or-file-argument: done
   1-5-single-tailoring-llm-call-writes-tailored-cv-cover-letter-to-out-slug: done
-  1-6-fastapi-port-and-frontend-scaffold-and-launcher: backlog
+  1-6-fastapi-port-and-frontend-scaffold-and-launcher: done
   epic-1-retrospective: done
 
   # Epic 2: Paste Pipeline Hardening & Artifact System
