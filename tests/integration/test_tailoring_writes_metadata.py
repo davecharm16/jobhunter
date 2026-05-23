@@ -114,11 +114,14 @@ def test_run_tailoring_writes_metadata_json_with_full_ac1_payload(tmp_path) -> N
     # extraction and overrides `fabrication` from "pending" to a real verdict.
     # This test's canonical CV is `{"basics": {"name": "X"}}` (no work, skills,
     # projects, or education), so the autouse stub's `pytest` claim has no
-    # canonical source -> verdict is "fail". `content_loss` and
-    # `keyword_stuffing` remain "pending" until Epics 4 and 5 land.
+    # canonical source -> verdict is "fail".
+    # Story 4.1: `content_loss` is now overridden by the content-loss matcher;
+    # with no high-impact entries in the canonical CV the must-appear set is
+    # empty and the verdict is `pass`. `keyword_stuffing` remains "pending"
+    # until Epic 5 lands.
     assert data["drift_verdicts"] == {
         "fabrication": "fail",
-        "content_loss": "pending",
+        "content_loss": "pass",
         "keyword_stuffing": "pending",
     }
     assert data["override"] == {"applied": False, "reason": None}
@@ -268,11 +271,15 @@ def test_run_tailoring_metadata_sits_next_to_artifacts(tmp_path) -> None:
     # extractor in `tests/integration/conftest.py` is unsourced and the
     # fabrication matcher emits a `fail` verdict — which now writes
     # `package.held.json` next to the existing artifacts.
+    # Story 4.1: `tailoring.trace.json` lands next to the existing artifacts
+    # as the (initially empty) explicit-omission rationale log consumed by
+    # the content-loss check.
     assert files == {
         "cv.md",
         "cover-letter.md",
         "claims.json",
         "package.drift.json",
         "package.held.json",
+        "tailoring.trace.json",
         "metadata.json",
     }

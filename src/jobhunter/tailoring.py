@@ -14,6 +14,13 @@ Story 2.4 inserts a source-board classify step immediately after the parse
 so the parsed dict carries `source_board ∈ {upwork, onlinejobs_ph, linkedin,
 other}` and the metadata sidecar records the classification.
 
+Story 4.1 inserts the content-loss drift check after the fabrication matcher
++ held-package writer. The check writes `tailoring.trace.json` (empty
+`dropped_entries[]` placeholder for now), runs the pure-rule-based matcher
+against the produced markdown artifacts, and folds the verdict into
+`drift_verdicts["content_loss"]` for `metadata.json`. The `package.drift.json`
+content_loss block and held-package extension land in Story 4.2.
+
 Atomic write strategy (AC5): build into a `<slug>.tmp` sibling directory,
 then `os.replace()` it onto the final path. POSIX guarantees `os.replace()`
 is atomic on the same filesystem. On any failure before the rename, the
@@ -37,6 +44,7 @@ from jobhunter import (
     artifact_selector,
     board_classifier,
     claim_extractor,
+    content_loss_matcher,
     fabrication_matcher,
     held_package,
     jd_parser,
@@ -397,6 +405,24 @@ def run_tailoring(
             unsourced_claims=fabrication_check.unsourced_claims,
             now=now,
         )
+
+    # Story 4.1: content-loss drift check. Pure rule-based (AC5: zero LLM
+    # calls) — projects high-impact canonical-CV entries relevant to the JD,
+    # then scans the just-written artifacts for substring presence. The
+    # `tailoring.trace.json` write must happen FIRST so the check can pick
+    # up any logged drop rationales (AC3). The verdict folds into the
+    # `drift_verdicts` dict below — package persistence
+    # (`package.drift.json` content_loss block, held-package extension)
+    # lands in Story 4.2.
+    _write_tailoring_trace(out_dir)
+    content_loss_check = _run_content_loss_check(
+        out_dir=out_dir,
+        canonical_cv=canonical_cv,
+        parsed_jd_dict=parsed_jd_dict,
+        artifacts_produced=artifacts_produced,
+    )
+    drift_verdicts = dict(drift_verdicts)
+    drift_verdicts["content_loss"] = content_loss_check.verdict
 
     package_metadata = build_metadata(
         slug=slug,
@@ -771,6 +797,92 @@ def _upgrade_unsourced_reasons(
         claims_unsourced=check.claims_unsourced,
         traces=check.traces,
         unsourced_claims=new_unsourced,
+    )
+
+
+# Story 4.1: artifact-name -> on-disk filename mapping used by the
+# content-loss check's presence scan. Kept in fixed insertion order (cv ->
+# cover_letter -> upwork_proposal) so the produced `matched_in` lists in
+# the drift report are diff-stable across runs (Story 4.2 will assert this).
+_CONTENT_LOSS_ARTIFACT_FILENAMES: dict[str, str] = {
+    "cv": "cv.md",
+    "cover_letter": "cover-letter.md",
+    "upwork_proposal": "upwork-proposal.md",
+}
+
+
+def _write_tailoring_trace(out_dir: Path) -> Path:
+    """Write `tailoring.trace.json` with an empty `dropped_entries[]` (Story 4.1 AC3).
+
+    v1 placeholder shape so the content-loss check has a stable file to
+    consume. Future tailoring stories (or manual author edits) can populate
+    `dropped_entries[]` with `{entry_id, reason}` records to suppress
+    `silently_lost` verdicts for intentional drops. Atomic write idiom
+    (tmp + os.replace) matches the rest of the pipeline.
+    """
+    target = out_dir / "tailoring.trace.json"
+    tmp_path = out_dir / ".tailoring.trace.tmp"
+    payload = {"dropped_entries": []}
+    with open(tmp_path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2, sort_keys=False)
+        fh.write("\n")
+    os.replace(tmp_path, target)
+    return target
+
+
+def _read_tailoring_trace(out_dir: Path) -> list[dict[str, Any]]:
+    """Read and parse `tailoring.trace.json`; tolerates missing / malformed files (AC3)."""
+    trace_path = out_dir / "tailoring.trace.json"
+    if not trace_path.is_file():
+        return []
+    try:
+        payload = json.loads(trace_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        _log.warning(
+            "content-loss check: could not parse %s (%s); treating trace as empty",
+            trace_path,
+            exc,
+        )
+        return []
+    if not isinstance(payload, dict):
+        return []
+    dropped = payload.get("dropped_entries")
+    if not isinstance(dropped, list):
+        return []
+    return dropped
+
+
+def _run_content_loss_check(
+    *,
+    out_dir: Path,
+    canonical_cv: dict[str, Any],
+    parsed_jd_dict: dict[str, Any],
+    artifacts_produced: list[str],
+) -> content_loss_matcher.ContentLossCheck:
+    """Run the Story 4.1 content-loss matcher and return its verdict.
+
+    Pure rule-based check — makes ZERO LLM calls (AC5). Inputs:
+    canonical CV (already in scope), parsed JD dict (already in scope), and
+    the just-written tailored markdown artifacts. The verdict reaches
+    `metadata.json` via `drift_verdicts["content_loss"]`; Story 4.2 lands
+    the `package.drift.json` content_loss block and the held-package
+    extension for content-loss-only fails.
+    """
+    artifact_paths: dict[str, Path] = {}
+    for artifact_name in artifacts_produced:
+        filename = _CONTENT_LOSS_ARTIFACT_FILENAMES.get(artifact_name)
+        if filename is None:
+            continue
+        path = out_dir / filename
+        if not path.is_file():
+            continue
+        artifact_paths[filename] = path
+    dropped_trace = _read_tailoring_trace(out_dir)
+    relevant = content_loss_matcher.iter_high_impact_relevant(
+        canonical_cv, parsed_jd_dict
+    )
+    return content_loss_matcher.run_check(
+        relevant, artifact_paths, dropped_trace
     )
 
 

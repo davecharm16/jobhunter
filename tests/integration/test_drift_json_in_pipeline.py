@@ -316,8 +316,12 @@ def test_paste_metadata_records_fabrication_pass_when_every_claim_sourced(
     slug_dir = next(p for p in out_root.iterdir() if p.is_dir())
     metadata = json.loads((slug_dir / "metadata.json").read_text(encoding="utf-8"))
     assert metadata["drift_verdicts"]["fabrication"] == "pass"
-    # AC3: content_loss and keyword_stuffing remain pending until Epics 4/5.
-    assert metadata["drift_verdicts"]["content_loss"] == "pending"
+    # Story 4.1: the content-loss matcher now overrides the "pending"
+    # placeholder. The committed canonical-cv.json (staged via
+    # stage_canonical_cv) carries no `highImpact: true` entries, so the
+    # must-appear set is empty and the verdict is `pass`.
+    assert metadata["drift_verdicts"]["content_loss"] == "pass"
+    # AC3: keyword_stuffing stays "pending" until Epic 5 lands.
     assert metadata["drift_verdicts"]["keyword_stuffing"] == "pending"
 
 
