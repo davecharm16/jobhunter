@@ -170,12 +170,30 @@ development_status:
 
   # Epic 6: Notifications & Held-Package Queue
   # 6-3 and 6-4 reframed from CLI to web-only on 2026-05-23 (slugs renamed).
-  epic-6: backlog
-  6-1-gchat-webhook-notification-on-pass: backlog
-  6-2-silent-hold-on-any-drift-check-fail: backlog
-  6-3-dashboard-surface-and-queue-api-held-packages-recent-verdicts-interview-rate: backlog
-  6-4-override-api-and-approve-action-release-a-held-package-with-structured-metadata: backlog
-  6-5-held-package-ttl-with-auto-discard: backlog
+  # 2026-05-24: Epic 6 done via sequential layered fan-out.
+  #   L0: 6-1 (580635e; GChat webhook on pass; 903 passing)
+  #   L1: 6-2 (6cb8485; no-notify-on-fail guard + drift-report.md;
+  #        930 passing). Documented architectural deviation: held
+  #        packages stay co-located at ./out/<slug>/ (NOT a separate
+  #        ./out/_held/ tree).
+  #   L2: 6-3 (81d33bd; GET /api/queue + Dashboard composition;
+  #        945 passing) — agent stalled at final-verify; orchestrator
+  #        finished from full context.
+  #   L3: 6-4 (96feb1b; POST /api/override/<slug> + Approve modal;
+  #        966 passing) — same stall pattern; orchestrator finished.
+  #   L4: 6-5 (1d8004f; held_package_ttl_days top-level config +
+  #        extended audit log; 988 passing) — agent stalled at venv
+  #        verify; orchestrator finished. Note: orchestrator
+  #        accidentally ran git add -A from main's cwd (vs worktree),
+  #        committing the worktree as a submodule reference;
+  #        recovered via git reset HEAD^ + re-commit from inside the
+  #        worktree before merge.
+  epic-6: done
+  6-1-gchat-webhook-notification-on-pass: done
+  6-2-silent-hold-on-any-drift-check-fail: done
+  6-3-dashboard-surface-and-queue-api-held-packages-recent-verdicts-interview-rate: done
+  6-4-override-api-and-approve-action-release-a-held-package-with-structured-metadata: done
+  6-5-held-package-ttl-with-auto-discard: done
   epic-6-retrospective: optional
 
   # Epic 7: Automated Job Ingestion (n8n Scheduled Flows)
