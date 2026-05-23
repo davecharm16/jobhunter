@@ -25,7 +25,9 @@ from jobhunter.config import CONFIG_YAML_PATH
 
 __all__ = [
     "ClaimExtractionConfig",
+    "ContentLossConfig",
     "CostConfig",
+    "DriftConfig",
     "FabricationConfig",
     "OnlineJobsPhRedFlags",
     "OutputConfig",
@@ -47,6 +49,14 @@ _SECRET_KEY_PATTERN = re.compile(
 )
 
 _REQUIRED_TOP_LEVEL_SECTIONS = ("cost", "output", "prompts", "red_flags")
+
+# Story 4.3: enumerated matcher modes for the content-loss check. Validated at
+# config-load time so a typo in `config.yaml` fails fast rather than surfacing
+# as an opaque dispatch error mid-pipeline.
+_VALID_RELEVANCE_MATCHERS: frozenset[str] = frozenset(
+    {"tag_overlap", "keyword_overlap", "embedding_distance"}
+)
+_VALID_PRESENCE_MATCHERS: frozenset[str] = frozenset({"substring", "semantic"})
 
 
 class YamlConfigError(ValueError):
@@ -118,6 +128,39 @@ class FabricationConfig:
 
 
 @dataclass(frozen=True)
+class ContentLossConfig:
+    """Story 4.3 tunables for the Epic-4 content-loss drift check."""
+
+    # Matcher-mode dispatch keys. Enum-validated at config-load time so a
+    # typo doesn't sneak through to the matcher. Names are stable — Story 4.4
+    # consumes the same strings via `config_snapshot` in `package.drift.json`.
+    relevance_matcher: str
+    presence_matcher: str
+    # Tag-overlap mode threshold (the v1 default-path tunable).
+    tag_overlap_min: int
+    # Keyword-overlap mode threshold; consulted only when
+    # `relevance_matcher == "keyword_overlap"`.
+    keyword_overlap_pct: float
+    # Embedding-distance mode threshold; consulted only when
+    # `relevance_matcher == "embedding_distance"` (v1 raises before use).
+    embedding_distance_max: float
+    # Semantic-presence cosine cutoff; consulted only when
+    # `presence_matcher == "semantic"` (v1 raises before use).
+    presence_semantic_threshold: float
+    # Story 4.3 AC1 retains the reason-code enumeration in yaml so a future
+    # story can extend the set without a code change (the matcher's
+    # `VALID_DROP_REASONS` is the source of truth for v1).
+    reason_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class DriftConfig:
+    """Top-level `drift` section (Story 4.3); future drift dimensions nest here."""
+
+    content_loss: ContentLossConfig
+
+
+@dataclass(frozen=True)
 class YamlConfig:
     cost: CostConfig
     output: OutputConfig
@@ -125,6 +168,7 @@ class YamlConfig:
     red_flags: RedFlagsConfig
     proposal: ProposalConfig
     fabrication: FabricationConfig
+    drift: DriftConfig
 
 
 _DEFAULTS: dict[str, dict[str, Any]] = {
@@ -159,6 +203,17 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "semantic_method": "rule_based",
         "semantic_threshold": Decimal("0.65"),
         "held_retention_days": 7,
+    },
+    "drift": {
+        "content_loss": {
+            "relevance_matcher": "tag_overlap",
+            "tag_overlap_min": 1,
+            "keyword_overlap_pct": 0.20,
+            "embedding_distance_max": 0.35,
+            "presence_matcher": "substring",
+            "presence_semantic_threshold": 0.80,
+            "reason_codes": ["irrelevant_to_jd", "silently_lost"],
+        },
     },
 }
 
@@ -208,6 +263,7 @@ def load_yaml_config(path: Path | None = None) -> YamlConfig:
     red_flags = _parse_red_flags(parsed["red_flags"])
     proposal = _parse_proposal(parsed.get("proposal"))
     fabrication = _parse_fabrication(parsed.get("fabrication"))
+    drift = _parse_drift(parsed.get("drift"))
 
     return YamlConfig(
         cost=cost,
@@ -216,6 +272,7 @@ def load_yaml_config(path: Path | None = None) -> YamlConfig:
         red_flags=red_flags,
         proposal=proposal,
         fabrication=fabrication,
+        drift=drift,
     )
 
 
@@ -348,6 +405,95 @@ def _parse_proposal(node: Any) -> ProposalConfig:
             node.get("max_words", defaults["max_words"]),
             "proposal.max_words",
         ),
+    )
+
+
+def _parse_drift(node: Any) -> DriftConfig:
+    """Build the Story 4.3 `drift.content_loss` section, applying defaults."""
+    content_loss_defaults = _DEFAULTS["drift"]["content_loss"]
+
+    if node is None:
+        return DriftConfig(
+            content_loss=ContentLossConfig(
+                relevance_matcher=str(content_loss_defaults["relevance_matcher"]),
+                presence_matcher=str(content_loss_defaults["presence_matcher"]),
+                tag_overlap_min=int(content_loss_defaults["tag_overlap_min"]),
+                keyword_overlap_pct=float(content_loss_defaults["keyword_overlap_pct"]),
+                embedding_distance_max=float(content_loss_defaults["embedding_distance_max"]),
+                presence_semantic_threshold=float(
+                    content_loss_defaults["presence_semantic_threshold"]
+                ),
+                reason_codes=tuple(content_loss_defaults["reason_codes"]),
+            )
+        )
+
+    node = _require_mapping(node, "drift")
+    _reject_unknown_keys(node, frozenset({"content_loss"}), "drift")
+    cl_node = node.get("content_loss", content_loss_defaults)
+    cl_node = _require_mapping(cl_node, "drift.content_loss")
+    _reject_unknown_keys(
+        cl_node, frozenset(content_loss_defaults.keys()), "drift.content_loss"
+    )
+
+    relevance_matcher = _coerce_non_empty_str(
+        cl_node.get("relevance_matcher", content_loss_defaults["relevance_matcher"]),
+        "drift.content_loss.relevance_matcher",
+    )
+    if relevance_matcher not in _VALID_RELEVANCE_MATCHERS:
+        raise YamlConfigError(
+            f"drift.content_loss.relevance_matcher must be one of "
+            f"{sorted(_VALID_RELEVANCE_MATCHERS)}, got {relevance_matcher!r}"
+        )
+    presence_matcher = _coerce_non_empty_str(
+        cl_node.get("presence_matcher", content_loss_defaults["presence_matcher"]),
+        "drift.content_loss.presence_matcher",
+    )
+    if presence_matcher not in _VALID_PRESENCE_MATCHERS:
+        raise YamlConfigError(
+            f"drift.content_loss.presence_matcher must be one of "
+            f"{sorted(_VALID_PRESENCE_MATCHERS)}, got {presence_matcher!r}"
+        )
+
+    reason_codes_value = cl_node.get(
+        "reason_codes", content_loss_defaults["reason_codes"]
+    )
+    if not isinstance(reason_codes_value, list) or not all(
+        isinstance(rc, str) and rc for rc in reason_codes_value
+    ):
+        raise YamlConfigError(
+            "drift.content_loss.reason_codes must be a list of non-empty strings"
+        )
+
+    return DriftConfig(
+        content_loss=ContentLossConfig(
+            relevance_matcher=relevance_matcher,
+            presence_matcher=presence_matcher,
+            tag_overlap_min=_coerce_positive_int(
+                cl_node.get("tag_overlap_min", content_loss_defaults["tag_overlap_min"]),
+                "drift.content_loss.tag_overlap_min",
+            ),
+            keyword_overlap_pct=_coerce_positive_float(
+                cl_node.get(
+                    "keyword_overlap_pct", content_loss_defaults["keyword_overlap_pct"]
+                ),
+                "drift.content_loss.keyword_overlap_pct",
+            ),
+            embedding_distance_max=_coerce_positive_float(
+                cl_node.get(
+                    "embedding_distance_max",
+                    content_loss_defaults["embedding_distance_max"],
+                ),
+                "drift.content_loss.embedding_distance_max",
+            ),
+            presence_semantic_threshold=_coerce_positive_float(
+                cl_node.get(
+                    "presence_semantic_threshold",
+                    content_loss_defaults["presence_semantic_threshold"],
+                ),
+                "drift.content_loss.presence_semantic_threshold",
+            ),
+            reason_codes=tuple(reason_codes_value),
+        )
     )
 
 

@@ -69,6 +69,8 @@ def write_content_loss_block(
     *,
     ran_at: datetime | None = None,
     check_version: str = "v1",
+    config_snapshot: dict[str, Any] | None = None,
+    error: str | None = None,
 ) -> Path:
     """Write the `content_loss` block to `package.drift.json` atomically.
 
@@ -76,13 +78,21 @@ def write_content_loss_block(
     `content_loss` top-level key with this run's results, writes back via
     tmp + os.replace. Sibling keys (e.g. `fabrication_check` from Story 3.2)
     are preserved byte-for-byte unchanged. AC4 idempotency: the `content_loss`
-    block is replaced wholesale on re-run — preserved/dropped arrays from a
-    previous run never bleed into this one.
+    block is replaced wholesale on re-run.
+
+    Story 4.3 additions: `config_snapshot` is recorded under the
+    `content_loss` block when provided (AC4 traceability); `error`
+    captures the EmbeddingMatcherUnavailable / partial-fail path so the
+    drift report stays writable even when the matcher couldn't run.
     """
     target = out_dir / DRIFT_REPORT_NAME
     document = _load_existing_document(target)
     document[CONTENT_LOSS_KEY] = _build_content_loss_payload(
-        check, ran_at=ran_at, check_version=check_version
+        check,
+        ran_at=ran_at,
+        check_version=check_version,
+        config_snapshot=config_snapshot,
+        error=error,
     )
     _atomic_write_json(target, document)
     return target
@@ -118,10 +128,12 @@ def _build_content_loss_payload(
     *,
     ran_at: datetime | None,
     check_version: str,
+    config_snapshot: dict[str, Any] | None = None,
+    error: str | None = None,
 ) -> dict[str, Any]:
     """Project a `ContentLossCheck` into the documented on-disk shape (AC1)."""
     moment = ran_at if ran_at is not None else datetime.now(timezone.utc)
-    return {
+    payload: dict[str, Any] = {
         "verdict": check.verdict,
         "check_version": check_version,
         "ran_at": now_iso8601_utc(moment),
@@ -145,6 +157,11 @@ def _build_content_loss_payload(
             for entry in check.dropped_entries
         ],
     }
+    if config_snapshot is not None:
+        payload["config_snapshot"] = dict(config_snapshot)
+    if error is not None:
+        payload["error"] = error
+    return payload
 
 
 def _atomic_write_json(target: Path, document: dict[str, Any]) -> None:

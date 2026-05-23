@@ -37,3 +37,18 @@ fabrication:
   semantic_method: rule_based
   semantic_threshold: 0.65
   held_retention_days: 7
+
+# Story 4.3 — content-loss drift check tunables. Defaults skew conservative
+# (high recall, more flags); the author tightens after 20+ apps if overrides
+# dominate. The matcher mode + threshold land in package.drift.json's
+# content_loss.config_snapshot so historical drift logs stay correlatable
+# with config changes.
+drift:
+  content_loss:
+    relevance_matcher: tag_overlap     # one of: tag_overlap | keyword_overlap | embedding_distance. tag_overlap is the v1 default — pure rule-based, no LLM call.
+    tag_overlap_min: 1                 # min count of overlapping tags between entry.tags and (must_haves + nice_to_haves). lower = more flags, higher recall.
+    keyword_overlap_pct: 0.20          # used when relevance_matcher == keyword_overlap. token-overlap fraction between entry text and JD requirements.
+    embedding_distance_max: 0.35       # cosine cutoff when relevance_matcher == embedding_distance. v1 raises EmbeddingMatcherUnavailable until an embeddings client is wired.
+    presence_matcher: substring        # one of: substring | semantic. substring is strictest; semantic requires an embeddings client (v1 raises).
+    presence_semantic_threshold: 0.80  # cosine similarity cutoff when presence_matcher == semantic.
+    reason_codes: ["irrelevant_to_jd", "silently_lost"]  # enumerated drop reasons; future codes can be appended without code changes.

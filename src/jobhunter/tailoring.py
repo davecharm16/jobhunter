@@ -403,13 +403,38 @@ def run_tailoring(
     # `fabrication_check`) and extends the held-package writer below so a
     # content-loss-only fail also produces a `package.held.json`.
     _write_tailoring_trace(out_dir)
-    content_loss_check = _run_content_loss_check(
-        out_dir=out_dir,
-        canonical_cv=canonical_cv,
-        parsed_jd_dict=parsed_jd_dict,
-        artifacts_produced=artifacts_produced,
-    )
-    content_loss_writer.write_content_loss_block(out_dir, content_loss_check)
+    # Story 4.3: load the content-loss config + build the snapshot once so
+    # both the matcher dispatch and the on-disk record reflect the same
+    # effective settings for this run.
+    content_loss_config = yaml_config.load_yaml_config().drift.content_loss
+    content_loss_snapshot = _build_content_loss_snapshot(content_loss_config)
+    try:
+        content_loss_check = _run_content_loss_check(
+            out_dir=out_dir,
+            canonical_cv=canonical_cv,
+            parsed_jd_dict=parsed_jd_dict,
+            artifacts_produced=artifacts_produced,
+            config=content_loss_config,
+        )
+        content_loss_writer.write_content_loss_block(
+            out_dir,
+            content_loss_check,
+            config_snapshot=content_loss_snapshot,
+        )
+    except content_loss_matcher.EmbeddingMatcherUnavailable as exc:
+        # AC2: write a fail-with-error block + verdict; pipeline continues
+        # so the package still surfaces a verdict in metadata.
+        content_loss_check = content_loss_matcher.ContentLossCheck(
+            verdict="fail",
+            preserved_entries=[],
+            dropped_entries=[],
+        )
+        content_loss_writer.write_content_loss_block(
+            out_dir,
+            content_loss_check,
+            config_snapshot=content_loss_snapshot,
+            error=str(exc),
+        )
     drift_verdicts = dict(drift_verdicts)
     drift_verdicts["content_loss"] = content_loss_check.verdict
 
@@ -879,15 +904,13 @@ def _run_content_loss_check(
     canonical_cv: dict[str, Any],
     parsed_jd_dict: dict[str, Any],
     artifacts_produced: list[str],
+    config: yaml_config.ContentLossConfig | None = None,
 ) -> content_loss_matcher.ContentLossCheck:
-    """Run the Story 4.1 content-loss matcher and return its verdict.
+    """Run the Story 4.1 content-loss matcher (Story 4.3 config-aware) and return its verdict.
 
-    Pure rule-based check — makes ZERO LLM calls (AC5). Inputs:
-    canonical CV (already in scope), parsed JD dict (already in scope), and
-    the just-written tailored markdown artifacts. The verdict reaches
-    `metadata.json` via `drift_verdicts["content_loss"]`; Story 4.2 lands
-    the `package.drift.json` content_loss block and the held-package
-    extension for content-loss-only fails.
+    Pure rule-based check — makes ZERO LLM calls (AC5) on the default
+    matcher modes. `embedding_distance` and `semantic` raise
+    `EmbeddingMatcherUnavailable` (no embeddings client wired in v1).
     """
     artifact_paths: dict[str, Path] = {}
     for artifact_name in artifacts_produced:
@@ -900,11 +923,35 @@ def _run_content_loss_check(
         artifact_paths[filename] = path
     dropped_trace = _read_tailoring_trace(out_dir)
     relevant = content_loss_matcher.iter_high_impact_relevant(
-        canonical_cv, parsed_jd_dict
+        canonical_cv, parsed_jd_dict, config=config
     )
     return content_loss_matcher.run_check(
-        relevant, artifact_paths, dropped_trace
+        relevant, artifact_paths, dropped_trace, config=config
     )
+
+
+def _build_content_loss_snapshot(
+    config: yaml_config.ContentLossConfig,
+) -> dict[str, Any]:
+    """Project the effective content-loss config into the drift.json snapshot (Story 4.3 AC4).
+
+    Only the fields relevant to the chosen matcher mode are surfaced —
+    e.g. `keyword_overlap_pct` is omitted unless `relevance_matcher` is
+    `keyword_overlap`.
+    """
+    snapshot: dict[str, Any] = {
+        "relevance_matcher": config.relevance_matcher,
+        "presence_matcher": config.presence_matcher,
+    }
+    if config.relevance_matcher == "tag_overlap":
+        snapshot["tag_overlap_min"] = config.tag_overlap_min
+    elif config.relevance_matcher == "keyword_overlap":
+        snapshot["keyword_overlap_pct"] = config.keyword_overlap_pct
+    elif config.relevance_matcher == "embedding_distance":
+        snapshot["embedding_distance_max"] = config.embedding_distance_max
+    if config.presence_matcher == "semantic":
+        snapshot["presence_semantic_threshold"] = config.presence_semantic_threshold
+    return snapshot
 
 
 def _write_extraction_timeout_sidecar(

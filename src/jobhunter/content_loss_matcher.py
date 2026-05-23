@@ -25,12 +25,18 @@ requires concrete textual presence. Story 4.3 will move these to `config.yaml`.
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+
+if TYPE_CHECKING:
+    from jobhunter.yaml_config import ContentLossConfig
 
 
 __all__ = [
+    "EmbeddingMatcherUnavailable",
     "VALID_DROP_REASONS",
     "ContentLossCheck",
     "DroppedEntry",
@@ -39,6 +45,17 @@ __all__ = [
     "iter_high_impact_relevant",
     "run_check",
 ]
+
+
+class EmbeddingMatcherUnavailable(ValueError):
+    """Raised when embedding_distance / semantic mode is selected but no embeddings client is wired (Story 4.3 AC2)."""
+
+    # TODO(embedding-cap-check): when an embeddings client lands in a future
+    # story (voyageai / openai / local sentence-transformers), the per-call
+    # cost-cap check (NFR15, FR43) MUST run BEFORE the embeddings call is
+    # attempted. The v1 raise sits before any client is constructed, so
+    # cost-cap is moot today; this comment exists so future-Dave doesn't
+    # silently bypass NFR15 when wiring the real path.
 
 
 # Enumerated set of drop-reason codes recognised as logged-rationale drops
@@ -104,16 +121,35 @@ class ContentLossCheck:
 def iter_high_impact_relevant(
     canonical_cv: dict[str, Any],
     parsed_jd: dict[str, Any],
+    config: "ContentLossConfig | None" = None,
 ) -> list[HighImpactEntry]:
     """Project high-impact entries relevant to the JD's must-haves / nice-to-haves (AC1).
 
     Walks `work`, `projects`, `skills` in the order `high_impact_entries`
-    walks them (FR3) so each entry_id's index portion is stable. An entry is
-    relevant when its `tags` overlap (case-insensitive normalized) the JD's
-    `must_haves + nice_to_haves` by at least `_TAG_OVERLAP_MIN` tags. No LLM
-    call (AC5); the matcher is purely structural.
+    walks them (FR3) so each entry_id's index portion is stable. Relevance
+    dispatch is config-driven (Story 4.3): default `tag_overlap` uses an
+    integer-count threshold; `keyword_overlap` falls back to a Jaccard-ish
+    token overlap on the primary text; `embedding_distance` raises
+    `EmbeddingMatcherUnavailable` since v1 has no embeddings client.
+    No LLM call when default (AC5).
     """
+    relevance_matcher = config.relevance_matcher if config is not None else "tag_overlap"
+    tag_overlap_min = config.tag_overlap_min if config is not None else _TAG_OVERLAP_MIN
+    keyword_overlap_pct = (
+        config.keyword_overlap_pct if config is not None else 0.20
+    )
+
+    if relevance_matcher == "embedding_distance":
+        raise EmbeddingMatcherUnavailable(
+            "embedding matcher selected but no embeddings client configured"
+        )
+
     jd_requirements_lower = _normalize_requirements(parsed_jd)
+    jd_keyword_set = (
+        _tokenize(" ".join(jd_requirements_lower))
+        if relevance_matcher == "keyword_overlap"
+        else None
+    )
     relevant: list[HighImpactEntry] = []
 
     for section in _HIGH_IMPACT_SECTIONS:
@@ -124,11 +160,23 @@ def iter_high_impact_relevant(
                 continue
             tags = _coerce_string_list(entry.get("tags"))
             overlap = _tag_overlap(tags, jd_requirements_lower)
-            if len(overlap) < _TAG_OVERLAP_MIN:
-                continue
+
             primary_text = _build_primary_text(section, entry)
             if not primary_text:
                 continue
+
+            if relevance_matcher == "tag_overlap":
+                if len(overlap) < tag_overlap_min:
+                    continue
+            else:  # keyword_overlap
+                entry_tokens = _tokenize(primary_text)
+                if not entry_tokens or not jd_keyword_set:
+                    continue
+                shared = entry_tokens & jd_keyword_set
+                ratio = len(shared) / max(len(entry_tokens), 1)
+                if ratio < keyword_overlap_pct:
+                    continue
+
             relevant.append(
                 HighImpactEntry(
                     entry_id=_entry_id(section, index, primary_text),
@@ -141,6 +189,11 @@ def iter_high_impact_relevant(
     return relevant
 
 
+def _tokenize(text: str) -> set[str]:
+    """Lower-cased alphanumeric word set used by the keyword_overlap matcher."""
+    return {tok for tok in re.findall(r"[a-z0-9]+", text.lower()) if len(tok) > 1}
+
+
 # ---- public check ---------------------------------------------------------
 
 
@@ -148,6 +201,7 @@ def run_check(
     high_impact_entries: list[HighImpactEntry],
     artifact_paths: dict[str, Path],
     dropped_trace: list[dict[str, Any]],
+    config: "ContentLossConfig | None" = None,
 ) -> ContentLossCheck:
     """Verify every must-appear entry is preserved or has a logged drop rationale.
 
@@ -156,7 +210,17 @@ def run_check(
     `tailoring.trace.json` `dropped_entries[]` list (may be empty or absent —
     callers pass `[]` when the file is missing). The check is purely
     rule-based — no LLM call (AC5).
+
+    Presence-matcher dispatch (Story 4.3): default `substring` is unchanged
+    from Story 4.1; `semantic` raises `EmbeddingMatcherUnavailable` (no
+    embeddings client in v1).
     """
+    presence_matcher = config.presence_matcher if config is not None else "substring"
+    if presence_matcher == "semantic":
+        raise EmbeddingMatcherUnavailable(
+            "embedding matcher selected but no embeddings client configured"
+        )
+
     artifact_texts = _read_artifact_texts(artifact_paths)
     trace_reasons = _index_trace_reasons(dropped_trace)
 

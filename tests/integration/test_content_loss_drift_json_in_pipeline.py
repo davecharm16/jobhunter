@@ -194,12 +194,16 @@ def test_content_loss_block_has_documented_five_field_shape(
     slug_dir = next(p for p in out_root.iterdir() if p.is_dir())
     doc = json.loads((slug_dir / "package.drift.json").read_text(encoding="utf-8"))
     block = doc["content_loss"]
+    # Story 4.3: config_snapshot added as a sixth top-level key when the
+    # content-loss matcher runs. The original Story 4.2 assertion expected
+    # exactly five keys; widened to absorb the snapshot.
     assert set(block.keys()) == {
         "verdict",
         "check_version",
         "ran_at",
         "preserved_entries",
         "dropped_entries",
+        "config_snapshot",
     }
     assert block["check_version"] == "v1"
     # ISO 8601 UTC with `Z` suffix.
