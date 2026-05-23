@@ -269,7 +269,16 @@ def test_paste_drift_json_records_unsourced_claim_when_no_match(
     doc = json.loads((slug_dir / "package.drift.json").read_text(encoding="utf-8"))
     unsourced = doc["fabrication_check"]["unsourced_claims"]
     assert len(unsourced) == 1
-    assert unsourced[0]["reason"] == "no_canonical_match"
+    # Story 3.3: the semantic step now upgrades the generic
+    # `no_canonical_match` reason. This claim has the quantifier `47-person`
+    # plus generic tokens that score below the 0.65 rule_based threshold,
+    # so the quantifier guard fires first and the reason carries the
+    # offending quantifier token. The structural-failure invariant
+    # (unsourced claim exists, source_artifact and line_number are pinned)
+    # is preserved.
+    assert unsourced[0]["reason"].startswith(
+        ("semantic_below_threshold", "quantifier_not_in_source", "no_canonical_match")
+    )
     assert unsourced[0]["source_artifact"] == "cv"
     assert unsourced[0]["line_number"] == 9
 

@@ -99,13 +99,94 @@ the following conditions hold. The first four conditions are inherited from
    granularity. In that case the prompt-template revision route lands
    first; provider switch lands only if prompt revision fails to recover.
 
-## Story 3.3 placeholder
+## Story 3.3: Semantic Equivalence
 
-Story 3.3 will extend this artifact with:
-- The chosen `fabrication.semantic_method` (`embedding_cosine` vs
-  `rule_based`) and the rationale.
-- The configured threshold (default `0.82` for `embedding_cosine`, default
-  `0.65` for `rule_based`) and why those defaults were picked.
+The semantic-equivalence step (`src/jobhunter/semantic_matcher.py`) replaces
+the Story-3.2 no-match stub the structural matcher hands unmatched claims
+to. Two methods are configurable under `fabrication.semantic_method`:
 
-Until Story 3.3 lands, `config.yaml` ships those keys with the documented
-defaults; see `src/jobhunter/yaml_config.py` `FabricationConfig`.
+- **`rule_based`** — Jaccard similarity over lowercased, stemmed tokens
+  with a small stopword set. Default threshold `0.65`. **This is the v1
+  default.**
+- **`embedding_cosine`** — Embedding-vector cosine similarity. Default
+  threshold `0.82`. Reserved; raises `NotImplementedError` in v1 (see
+  "Anthropic deviation" below).
+
+### Chosen default: `rule_based` at threshold `0.65`
+
+**Why rule_based.** The locked-in LLM provider (Anthropic, per §4 above)
+does not currently expose an embeddings endpoint via the official Python
+SDK — only message completions. Wiring `embedding_cosine` against the
+locked-in provider would require adding a second SDK pin
+(`voyageai`, `openai`-embeddings, or local sentence-transformers), which
+the v1 dependency budget does not include and which contradicts the
+single-SDK constraint (NFR-Integration). `rule_based` is dependency-free,
+deterministic, and observable (scores are inspectable floats), so v1
+ships it as the default while preserving `embedding_cosine` as a
+configurable upgrade path with a clear `NotImplementedError` message
+naming the required next step.
+
+**Why Jaccard + an in-house stemmer.** Jaccard over tokens is the
+simplest similarity that captures bag-of-words paraphrase ("led the
+team" ↔ "led the engineering team" scores `0.667` against the canonical
+"led the team", above threshold). The stemmer strips a small fixed set
+of common suffixes (`ing`, `es`, `ed`, `ly`, `s`) so "shipped" and
+"shipping" collide, but it is intentionally lossy and dependency-free —
+no NLTK, no `snowballstemmer`. Determinism beats accuracy here: the
+author can inspect a borderline score and reason about it without
+re-running an opaque model.
+
+**Why threshold `0.65`.** Picked by inspection against the spec's
+fixture pairs and the Story 3.2 test corpus:
+
+| Claim (tailored) | Canonical | Score | Quantifier guard | Verdict |
+|---|---|---:|---|---|
+| `led the engineering team` | `led the team` | `0.667` | OK | sourced (honest paraphrase) |
+| `led a 3-person engineering team` | `led the team` | `0.500` | n/a (below threshold) | unsourced (`semantic_below_threshold`) |
+| `led a 3-person engineering team` | `led the engineering team` | `0.750` | catches `3-person` | unsourced (`quantifier_not_in_source (quantifier=3-person)`) |
+| `Built a FastAPI service` | `Designed and built a FastAPI service` | `0.750` | OK | sourced |
+| `Shipped a JSON-schema-validated ingestion layer` | `Shipped a JSON-schema ingestion layer` | `0.600` | OK | unsourced (just below) |
+
+`0.65` leaves a small honest-paraphrase corridor while the quantifier
+guard handles the embellishment case from below independently of the
+similarity score.
+
+### Anthropic deviation (one-SDK constraint)
+
+The Story 3.3 AC1 wording — "computed via the locked-in LLM provider's
+embeddings endpoint" — does not hold in v1 because Anthropic does not
+ship one. The deviation is handled by:
+
+1. Implementing `embedding_cosine_similarity` as a function that raises
+   `NotImplementedError` with a message naming the future work
+   (`voyageai` / `openai` / local sentence-transformers).
+2. Defaulting `config.yaml` to `rule_based` so a fresh install does not
+   trip the `NotImplementedError`.
+3. Pinning this rationale here so a future Dave does not silently flip
+   the default back to `embedding_cosine` without wiring up a real
+   embeddings provider first.
+
+### Hybrid fallback (AC4) — not in v1
+
+The PRD's risk-mitigation section calls out a hybrid LLM-as-judge
+fallback for skill / tool claims after exact + substring + semantic all
+fail. Story 3.3 AC4 explicitly defers it: the claim fails cleanly. An
+inline `# TODO(hybrid-fallback):` comment in `semantic_matcher.py`
+references the PRD option so a future story can wire it in.
+
+### Revisit if
+
+This Story-3.3 sub-decision must be revisited if any of:
+
+1. The false-positive rate on `rule_based` exceeds ~5% on the author's
+   own paste history (the same threshold §6 of the parent revisit list
+   uses for claim-extraction). In that case the first lever is the
+   stopword set + stemmer (tune in place); the second lever is wiring
+   `embedding_cosine` against a real embeddings provider.
+2. Anthropic ships an embeddings endpoint that satisfies criterion 4
+   above. The `embedding_cosine` path then becomes a one-function
+   implementation against the same `LLM_API_KEY` env var.
+3. The user explicitly opts in via `pyproject.toml` to a separate
+   embeddings dependency (`voyageai`, `openai`, or local
+   sentence-transformers). At that point flip `config.yaml`'s default
+   and implement `embedding_cosine_similarity` properly.

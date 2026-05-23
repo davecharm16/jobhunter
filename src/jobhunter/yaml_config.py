@@ -102,12 +102,14 @@ class ClaimExtractionConfig:
 
 @dataclass(frozen=True)
 class FabricationConfig:
-    """Story 3.1 owns `claim_extraction`; Story 3.3 will populate `semantic_*` keys."""
+    """Story 3.1 owns `claim_extraction`; Story 3.3 populates `semantic_*` keys."""
 
     claim_extraction: ClaimExtractionConfig
-    # TODO(Story 3.3): wire `semantic_method` (`embedding_cosine` | `rule_based`)
-    # and `semantic_threshold` (default 0.82 / 0.65) once the semantic matcher
-    # lands. Stubbed strings for now so the yaml schema is forward-compatible.
+    # Story 3.3: `semantic_method` ∈ {"rule_based", "embedding_cosine"}.
+    # v1 default is `rule_based` (threshold 0.65) because the locked-in
+    # provider (Anthropic) does not expose an embeddings endpoint. See
+    # `_bmad-output/decisions/llm-provider.md` "Story 3.3" for the rationale
+    # and the upgrade path.
     semantic_method: str
     semantic_threshold: Decimal
 
@@ -151,8 +153,8 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "claim_extraction": {
             "timeout_seconds": Decimal("60.0"),
         },
-        "semantic_method": "embedding_cosine",
-        "semantic_threshold": Decimal("0.82"),
+        "semantic_method": "rule_based",
+        "semantic_threshold": Decimal("0.65"),
     },
 }
 

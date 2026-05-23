@@ -42,6 +42,7 @@ from jobhunter import (
     llm_client,
     metadata as metadata_module,
     prompts,
+    semantic_matcher,
     signals_onlinejobs_ph,
     signals_upwork,
     spend_tracker,
@@ -374,7 +375,7 @@ def run_tailoring(
     # HELD state. Held vs passed is a metadata distinction, not a control-flow
     # branch: there is exactly one code path through run_tailoring.
     drift_verdicts = _run_fabrication_matcher(
-        out_dir=out_dir, canonical_cv=canonical_cv
+        out_dir=out_dir, canonical_cv=canonical_cv, config=config
     )
 
     package_metadata = build_metadata(
@@ -610,14 +611,16 @@ def _run_fabrication_matcher(
     *,
     out_dir: Path,
     canonical_cv: dict[str, Any],
+    config: RuntimeConfig,
 ) -> dict[str, str]:
     """Run the Story 3.2 structural matcher and write `package.drift.json`.
 
     Reads `claims.json` from disk (already written by the Story 3.1 step),
-    rebuilds typed `Claim` dataclasses, hands them to `run_matcher`, writes
-    the drift report, and returns the `drift_verdicts` dict the metadata
-    sidecar consumes. `content_loss` and `keyword_stuffing` stay "pending"
-    until Epics 4 and 5 land their checks.
+    rebuilds typed `Claim` dataclasses, hands them to `run_matcher` (with
+    Story 3.3's semantic step injected), writes the drift report, and
+    returns the `drift_verdicts` dict the metadata sidecar consumes.
+    `content_loss` and `keyword_stuffing` stay "pending" until Epics 4
+    and 5 land their checks.
     """
     claims_path = out_dir / "claims.json"
     raw = json.loads(claims_path.read_text(encoding="utf-8"))
@@ -631,13 +634,68 @@ def _run_fabrication_matcher(
         )
         for item in raw
     ]
-    check = fabrication_matcher.run_matcher(claims, canonical_cv)
+    # Story 3.3: build the semantic step from yaml-configured method +
+    # threshold, with a `rejection_reasons` side-channel so the specific
+    # `semantic_below_threshold` / `quantifier_not_in_source` reasons can
+    # override `run_matcher`'s generic `no_canonical_match` fallback.
+    yaml = yaml_config.load_yaml_config()
+    rejection_reasons: dict[str, str] = {}
+    semantic_step = semantic_matcher.make_semantic_step(
+        method=yaml.fabrication.semantic_method,
+        threshold=float(yaml.fabrication.semantic_threshold),
+        api_key=config.llm_api_key,
+        rejection_reasons=rejection_reasons,
+    )
+    check = fabrication_matcher.run_matcher(
+        claims, canonical_cv, semantic_step=semantic_step
+    )
+    check = _upgrade_unsourced_reasons(check, rejection_reasons)
     fabrication_matcher.write_drift_report(out_dir, check)
     return {
         "fabrication": check.verdict,
         "content_loss": "pending",
         "keyword_stuffing": "pending",
     }
+
+
+def _upgrade_unsourced_reasons(
+    check: fabrication_matcher.FabricationCheck,
+    rejection_reasons: dict[str, str],
+) -> fabrication_matcher.FabricationCheck:
+    """Replace generic `no_canonical_match` reasons with Story-3.3 specifics.
+
+    `fabrication_matcher.run_matcher` (frozen in Story 3.3) hard-codes
+    `reason="no_canonical_match"` whenever the semantic step returns None.
+    The semantic step recorded the specific reason
+    (`semantic_below_threshold (...)` or `quantifier_not_in_source (...)`)
+    in *rejection_reasons* keyed by claim_id; this pass swaps in those
+    reasons so the drift report carries the AC2/AC3 wording.
+    """
+    if not rejection_reasons:
+        return check
+    new_unsourced = []
+    for entry in check.unsourced_claims:
+        specific = rejection_reasons.get(entry.claim_id)
+        if specific is None or entry.reason != "no_canonical_match":
+            new_unsourced.append(entry)
+            continue
+        new_unsourced.append(
+            fabrication_matcher.UnsourcedClaim(
+                claim_id=entry.claim_id,
+                claim_text=entry.claim_text,
+                source_artifact=entry.source_artifact,
+                line_number=entry.line_number,
+                reason=specific,
+            )
+        )
+    return fabrication_matcher.FabricationCheck(
+        verdict=check.verdict,
+        claims_total=check.claims_total,
+        claims_sourced=check.claims_sourced,
+        claims_unsourced=check.claims_unsourced,
+        traces=check.traces,
+        unsourced_claims=new_unsourced,
+    )
 
 
 def _write_extraction_timeout_sidecar(
