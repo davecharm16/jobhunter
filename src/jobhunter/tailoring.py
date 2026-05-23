@@ -37,7 +37,9 @@ from jobhunter import (
     llm_client,
     metadata as metadata_module,
     prompts,
+    signals_upwork,
     spend_tracker,
+    yaml_config,
 )
 from jobhunter.board_classifier import Classification
 from jobhunter.config import PROJECT_ROOT
@@ -108,11 +110,27 @@ def run_tailoring(
         parsed,
         explicit_override=source_board,
     )
+    # Story 2.5: when the classifier tags an Upwork JD, run the heuristic
+    # signal extractor and surface budget-floor / vague-scope red flags.
+    if classification.source_board == "upwork":
+        yaml = yaml_config.load_yaml_config()
+        upwork_signals = signals_upwork.extract(jd_text)
+        parsed.signals["upwork"] = dataclasses.asdict(upwork_signals)
+        if signals_upwork.detect_budget_below_floor(
+            jd_text,
+            hourly_floor=yaml.red_flags.upwork.budget_floor_usd_hourly,
+            fixed_floor=yaml.red_flags.upwork.budget_floor_usd_fixed,
+        ):
+            parsed.red_flags.append(signals_upwork.RED_FLAG_BUDGET_BELOW_FLOOR)
+        if signals_upwork.detect_vague_scope(jd_text):
+            parsed.red_flags.append(signals_upwork.RED_FLAG_VAGUE_SCOPE)
     # `source_board` lives at the metadata top-level (Story 2.10 placeholder slot).
     # `parsed_jd_dict` stays at Story 2.3's 6-field shape so the structured-parse
-    # contract is not mixed with the board-classification concern.
+    # contract is not mixed with the board-classification concern. `signals` is
+    # likewise carried in-memory only (Story 2.5) for the proposal stage (Story 2.7).
     parsed_jd_dict = dataclasses.asdict(parsed)
     parsed_jd_dict.pop("source_board", None)
+    parsed_jd_dict.pop("signals", None)
 
     cv_template = prompts.load_prompt("cv")
     cover_letter_template = prompts.load_prompt("cover_letter")

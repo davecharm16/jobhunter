@@ -14,7 +14,7 @@ plus the in-repo LLM client and prompt loader.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from jobhunter import llm_client
 from jobhunter.llm_client import (
@@ -51,6 +51,7 @@ class ParsedJD:
     red_flags: list[str]
     raw_text_length: int
     source_board: str = "unknown"
+    signals: dict = field(default_factory=dict)
 
 
 def parse_jd(
