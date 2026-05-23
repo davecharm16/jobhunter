@@ -143,6 +143,19 @@
               "type": "string",
               "description": "e.g. Increased profits by 20% from 2011-2012 through viral advertising"
             }
+          },
+          "tags": {
+            "type": "array",
+            "description": "jobhunter extension (Story 2.1, FR2). Optional relevance labels used by the JD-tailoring router. Absent means absent — no implicit empty array.",
+            "additionalItems": false,
+            "items": {
+              "type": "string",
+              "description": "e.g. node, typescript, fintech"
+            }
+          },
+          "highImpact": {
+            "type": "boolean",
+            "description": "jobhunter extension (Story 2.1, FR3). Optional. true marks the entry as protected from silent drop by the Epic 4 content-loss drift check. Absent is equivalent to false."
           }
         }
       }
@@ -345,6 +358,19 @@
               "type": "string",
               "description": "e.g. HTML"
             }
+          },
+          "tags": {
+            "type": "array",
+            "description": "jobhunter extension (Story 2.1, FR2). Optional relevance labels used by the JD-tailoring router. Absent means absent — no implicit empty array.",
+            "additionalItems": false,
+            "items": {
+              "type": "string",
+              "description": "e.g. node, typescript, fintech"
+            }
+          },
+          "highImpact": {
+            "type": "boolean",
+            "description": "jobhunter extension (Story 2.1, FR3). Optional. true marks the entry as protected from silent drop by the Epic 4 content-loss drift check. Absent is equivalent to false."
           }
         }
       }
@@ -470,6 +496,19 @@
           "type": {
             "type": "string",
             "description": " e.g. 'volunteering', 'presentation', 'talk', 'application', 'conference'"
+          },
+          "tags": {
+            "type": "array",
+            "description": "jobhunter extension (Story 2.1, FR2). Optional relevance labels used by the JD-tailoring router. Absent means absent — no implicit empty array.",
+            "additionalItems": false,
+            "items": {
+              "type": "string",
+              "description": "e.g. node, typescript, fintech"
+            }
+          },
+          "highImpact": {
+            "type": "boolean",
+            "description": "jobhunter extension (Story 2.1, FR3). Optional. true marks the entry as protected from silent drop by the Epic 4 content-loss drift check. Absent is equivalent to false."
           }
         }
       }

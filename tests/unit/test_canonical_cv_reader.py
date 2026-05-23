@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from jobhunter.canonical_cv import (
+    CanonicalCVMalformed,
     CanonicalCVMissing,
     UnsupportedCanonicalCVFormat,
     read_canonical_cv,
@@ -173,20 +174,20 @@ def test_rejection_precedes_existence_check(
     assert str(nonexistent_pdf_canonical_cv) in message
 
 
-def test_reader_does_not_validate_jsonresume_schema(
+def test_reader_validates_jsonresume_schema(
     tmp_canonical_cv: Path,
 ) -> None:
-    """AC10: schema validation lives in scripts/validate_canonical_cv.py — NOT here.
+    """Story 2.1 AC3: the reader validates at the boundary and refuses malformed docs.
 
-    A JSON dict that does not conform to JSON Resume must still be returned as-is
-    by the runtime reader; the reader is a thin loader, not a validator.
+    Supersedes the Story 1.1 "thin loader" stance: a JSON dict that does not
+    conform to JSON Resume v1.0.0 must now raise `CanonicalCVMalformed` rather
+    than being returned as-is, so downstream stages can trust the dict shape.
     """
     arbitrary = {"hello": "world", "not_jsonresume": True}
     tmp_canonical_cv.write_text(json.dumps(arbitrary), encoding="utf-8")
 
-    result = read_canonical_cv()
-
-    assert result == arbitrary
+    with pytest.raises(CanonicalCVMalformed):
+        read_canonical_cv()
 
 
 def test_canonical_cv_missing_chains_from_file_not_found(

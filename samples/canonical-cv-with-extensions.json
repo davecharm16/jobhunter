@@ -1,0 +1,69 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jsonresume/resume-schema/v1.0.0/schema.json",
+  "basics": {
+    "name": "Sample Author",
+    "label": "Backend Engineer",
+    "email": "sample@example.com",
+    "summary": "Sample canonical CV demonstrating the Story 2.1 tags + highImpact extensions."
+  },
+  "work": [
+    {
+      "name": "Acme Fintech",
+      "position": "Senior Backend Engineer",
+      "startDate": "2023-01-01",
+      "summary": "Owned the payments-ingest pipeline.",
+      "highlights": [
+        "Cut ingest latency p95 from 4s to 350ms by switching to a streaming consumer.",
+        "Designed the idempotency-key contract that eliminated a class of duplicate-charge bugs."
+      ],
+      "tags": ["node", "typescript", "fintech", "payments"],
+      "highImpact": true
+    },
+    {
+      "name": "Generalist Web Studio",
+      "position": "Full-Stack Engineer",
+      "startDate": "2020-06-01",
+      "endDate": "2022-12-31",
+      "summary": "Built client projects across a small product team.",
+      "highlights": [
+        "Shipped 6 client projects on time across one calendar year."
+      ],
+      "tags": ["react", "general"]
+    }
+  ],
+  "skills": [
+    {
+      "name": "Backend",
+      "level": "Advanced",
+      "keywords": ["Python", "FastAPI", "PostgreSQL"],
+      "tags": ["backend", "api"],
+      "highImpact": true
+    },
+    {
+      "name": "Frontend",
+      "level": "Intermediate",
+      "keywords": ["React", "TypeScript"],
+      "tags": ["frontend"]
+    }
+  ],
+  "projects": [
+    {
+      "name": "drift-checker",
+      "description": "Solo project that flags fabricated claims in LLM-tailored CVs.",
+      "highlights": [
+        "Three independent drift checks (fabrication, content-loss, keyword-stuffing) gating notifications."
+      ],
+      "keywords": ["LLM", "automation"],
+      "startDate": "2026-05-17",
+      "tags": ["llm", "automation", "side-project"],
+      "highImpact": true
+    },
+    {
+      "name": "warmup-cli",
+      "description": "Small CLI for repeating practice problems.",
+      "highlights": ["Tiny single-file tool with deterministic output."],
+      "tags": ["cli"],
+      "highImpact": false
+    }
+  ]
+}
