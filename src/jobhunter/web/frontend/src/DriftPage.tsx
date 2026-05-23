@@ -8,10 +8,15 @@ import {
   ContentLossSection,
   type ContentLossBlock,
 } from "./components/ContentLossSection";
+import {
+  KeywordStuffingSection,
+  type KeywordStuffingBlock,
+} from "./components/KeywordStuffingSection";
 
 // The drift.json shape mirrors `jobhunter.fabrication_matcher.FabricationCheck`
-// at the wire. Stories 4.4 + 5.4 will add sibling keys (`content_loss`,
-// `keyword_stuffing`); the type permits but does not require them today.
+// at the wire. Stories 4.4 + 5.4 added sibling keys (`content_loss`,
+// `keyword_stuffing`); each is optional so older drift.json (pre-Epic-4/5
+// runs) still render gracefully through the absent-block placeholder.
 type Trace = {
   claim_id: string;
   claim_text: string;
@@ -40,7 +45,7 @@ type FabricationCheck = {
 type DriftDocument = {
   fabrication_check?: FabricationCheck;
   content_loss?: ContentLossBlock;
-  keyword_stuffing?: unknown;
+  keyword_stuffing?: KeywordStuffingBlock;
 };
 
 type FetchState =
@@ -69,6 +74,25 @@ function contentLossSubtitle(doc: DriftDocument): string | undefined {
     return "No high-impact entries to verify";
   }
   return `${preserved} preserved · ${dropped} dropped`;
+}
+
+function keywordStuffingVerdict(doc: DriftDocument): DriftVerdict {
+  const ks = doc.keyword_stuffing;
+  if (!ks) return "pending";
+  return ks.verdict;
+}
+
+function keywordStuffingSubtitle(doc: DriftDocument): string | undefined {
+  const ks = doc.keyword_stuffing;
+  if (!ks) return undefined;
+  const densityCount = ks.density_violations.length;
+  const dumpCount = ks.dump_paragraph_locations.length;
+  if (densityCount === 0 && dumpCount === 0) {
+    return "No keyword-stuffing signals";
+  }
+  return `${densityCount} density · ${dumpCount} dump-paragraph${
+    dumpCount === 1 ? "" : "s"
+  }`;
 }
 
 function FabricationContent({ check }: { check: FabricationCheck }) {
@@ -327,8 +351,16 @@ export function DriftPage() {
           )}
         </DriftSection>
 
-        <DriftSection title="Keyword Stuffing" verdict="pending">
-          <PlaceholderContent label="Keyword-stuffing diagnostics (Story 5.4)" />
+        <DriftSection
+          title="Keyword Stuffing"
+          verdict={keywordStuffingVerdict(payload)}
+          subtitle={keywordStuffingSubtitle(payload)}
+        >
+          {payload.keyword_stuffing ? (
+            <KeywordStuffingSection block={payload.keyword_stuffing} />
+          ) : (
+            <PlaceholderContent label="Keyword-stuffing block not present in this drift report." />
+          )}
         </DriftSection>
       </div>
     </div>
