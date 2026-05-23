@@ -952,14 +952,17 @@ def _run_keyword_stuffing_check(
     parsed_jd_dict: dict[str, Any],
     artifacts_produced: list[str],
 ) -> keyword_stuffing_matcher.KeywordStuffingCheck:
-    """Run the Story 5.1 keyword-stuffing density check and return its verdict.
+    """Run the keyword-stuffing density + placement check and return the verdict.
 
     Pure rule-based check — makes ZERO LLM calls (AC8). Reads each
-    produced markdown artifact, tokenizes, counts each must-have keyword,
-    and flags per-keyword density / repetition breaches. Thresholds are
-    the hard-coded Story 5.1 defaults (`max_density_pct=1.5`,
-    `max_repetitions_per_artifact=3`); Story 5.3 will move them to
-    `config.yaml` and add per-channel overrides.
+    produced markdown artifact, tokenizes, counts each must-have keyword
+    (Story 5.1 density / repetition dimension), and additionally splits
+    each artifact into paragraphs to flag dump paragraphs and comma-run
+    violations (Story 5.2 placement dimension). The two dimensions are
+    OR-ed into the verdict: a package fails if EITHER density OR
+    placement reports a violation. Thresholds are the hard-coded
+    Story 5.1/5.2 defaults; Story 5.3 will move them to `config.yaml`
+    and add per-channel overrides.
     """
     must_haves = parsed_jd_dict.get("must_haves") or []
     if not isinstance(must_haves, list):
@@ -973,7 +976,7 @@ def _run_keyword_stuffing_check(
         if not path.is_file():
             continue
         artifact_paths[filename] = path
-    return keyword_stuffing_matcher.run_density_check(
+    return keyword_stuffing_matcher.run_keyword_stuffing_check(
         artifact_paths, must_haves
     )
 
