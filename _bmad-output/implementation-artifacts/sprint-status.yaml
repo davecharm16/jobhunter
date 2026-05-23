@@ -88,7 +88,7 @@ development_status:
   2-1-canonical-cv-tagging-schema-and-high-impact-flag: done
   2-2-config-yaml-separation-of-tunables-from-secrets: done
   2-3-structured-jd-parser: done
-  2-4-source-board-classifier: backlog
+  2-4-source-board-classifier: done
   2-5-upwork-specific-signal-extraction-and-red-flags: backlog
   2-6-onlinejobs-ph-specific-signal-extraction: backlog
   2-7-upwork-proposal-as-a-first-class-artifact-type: backlog
@@ -96,9 +96,9 @@ development_status:
   2-9-prompt-template-versioning: done
   2-10-per-application-metadata-sidecar-and-per-request-cost-logging: done
   2-11-internal-post-paste-endpoint-with-shared-token-auth: done
-  2-12-stats-api-and-dashboard-stats-card: backlog
+  2-12-stats-api-and-dashboard-stats-card: done
   2-13-settings-and-canonical-cv-editor-surface: done
-  2-14-jd-pipeline-and-tailoring-surface-staged-package-viewer: backlog
+  2-14-jd-pipeline-and-tailoring-surface-staged-package-viewer: done
   epic-2-retrospective: optional
 
   # Epic 3: Fabrication Drift Check
