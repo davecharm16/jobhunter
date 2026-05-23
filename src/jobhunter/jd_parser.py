@@ -51,7 +51,7 @@ class ParsedJD:
     red_flags: list[str]
     raw_text_length: int
     source_board: str = "unknown"
-    signals: dict = field(default_factory=dict)
+    signals: dict[str, dict] = field(default_factory=dict)
 
 
 def parse_jd(

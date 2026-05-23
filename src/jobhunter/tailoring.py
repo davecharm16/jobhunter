@@ -37,6 +37,7 @@ from jobhunter import (
     llm_client,
     metadata as metadata_module,
     prompts,
+    signals_onlinejobs_ph,
     signals_upwork,
     spend_tracker,
     yaml_config,
@@ -48,6 +49,12 @@ from jobhunter.llm_client import MODEL_NAME, TailoringResult
 from jobhunter.metadata import CallLog, build_metadata, write_sidecar
 from jobhunter.runtime_config import RuntimeConfig
 from jobhunter.slug import make_slug
+
+
+# PHP → USD conversion for the OJ.ph rate-floor check. Source: Bangko Sentral
+# ng Pilipinas reference rate, May 2026 (~PHP 56 per USD). Static here for v1;
+# a future story can promote this to config.yaml.
+_PHP_PER_USD: Decimal = Decimal("56")
 
 
 __all__ = ["TailoringOutcome", "run_tailoring"]
@@ -124,10 +131,12 @@ def run_tailoring(
             parsed.red_flags.append(signals_upwork.RED_FLAG_BUDGET_BELOW_FLOOR)
         if signals_upwork.detect_vague_scope(jd_text):
             parsed.red_flags.append(signals_upwork.RED_FLAG_VAGUE_SCOPE)
+    # Story 2.6: OJ.ph extractor + rate-below-floor red flag.
+    if classification.source_board == "onlinejobs_ph":
+        _apply_onlinejobs_ph_signals(parsed, jd_text)
     # `source_board` lives at the metadata top-level (Story 2.10 placeholder slot).
-    # `parsed_jd_dict` stays at Story 2.3's 6-field shape so the structured-parse
-    # contract is not mixed with the board-classification concern. `signals` is
-    # likewise carried in-memory only (Story 2.5) for the proposal stage (Story 2.7).
+    # `signals` is a board-specific sidecar (Stories 2.5, 2.6) — kept off the
+    # `parsed_jd` dict so Story 2.3's 6-field shape is preserved end-to-end.
     parsed_jd_dict = dataclasses.asdict(parsed)
     parsed_jd_dict.pop("source_board", None)
     parsed_jd_dict.pop("signals", None)
@@ -233,6 +242,23 @@ def _write_parse_failure_sidecar(
         error=error,
     )
     write_sidecar(out_dir, failure_metadata)
+
+
+def _apply_onlinejobs_ph_signals(parsed: ParsedJD, jd_text: str) -> None:
+    """Populate `parsed.signals['onlinejobs_ph']` and append rate-below-floor red flag (Story 2.6)."""
+    signals = signals_onlinejobs_ph.extract(jd_text)
+    parsed.signals["onlinejobs_ph"] = dataclasses.asdict(signals)
+    rate = signals.rate_range
+    if rate is None or rate.min is None:
+        return
+    floor_usd = yaml_config.load_yaml_config().red_flags.onlinejobs_ph.rate_floor_usd_monthly
+    min_usd = (
+        Decimal(rate.min)
+        if rate.currency == "USD"
+        else Decimal(rate.min) / _PHP_PER_USD
+    )
+    if min_usd < Decimal(floor_usd):
+        parsed.red_flags.append("rate_below_floor")
 
 
 def _cleanup_tmp(tmp_dir: Path) -> None:
