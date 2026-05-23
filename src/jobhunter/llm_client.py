@@ -20,6 +20,8 @@ from typing import Any
 
 import anthropic
 
+from jobhunter.prompts import PromptTemplate
+
 
 __all__ = [
     "DEFAULT_TIMEOUT_SECONDS",
@@ -163,23 +165,31 @@ def tailor(
     api_key: str,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     client_factory: Any = None,
+    prompts: dict[str, PromptTemplate] | None = None,
 ) -> TailoringResult:
     """Call the LLM once and return a validated `TailoringResult`.
 
     `client_factory` is a test seam: a callable returning a pre-built client
     object whose `.messages.create(...)` matches the Anthropic SDK shape. In
     production it defaults to `anthropic.Anthropic`.
+
+    `prompts`, when provided, is a map of artifact name -> `PromptTemplate`;
+    the `cv` entry's content replaces the baked-in `SYSTEM_PROMPT`. The v1
+    `cv` and `cover_letter` templates are identical (one combined prompt
+    drives both artifacts); the `cover_letter` entry is loaded for
+    metadata-version tracking (Story 2.10) and is unused by this call.
     """
     factory = client_factory or anthropic.Anthropic
     client = factory(api_key=api_key, timeout=timeout_seconds)
 
     user_prompt = _build_user_prompt(canonical_cv, jd_text)
+    system_prompt = prompts["cv"].content if prompts is not None else SYSTEM_PROMPT
 
     try:
         response = client.messages.create(
             model=MODEL_NAME,
             max_tokens=4096,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
             tools=[TAILORING_TOOL],
             tool_choice={"type": "tool", "name": "emit_tailored_artifacts"},

@@ -19,7 +19,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable
 
-from jobhunter import llm_client, metadata as metadata_module, spend_tracker
+from jobhunter import llm_client, metadata as metadata_module, prompts, spend_tracker
 from jobhunter.config import PROJECT_ROOT
 from jobhunter.llm_client import MODEL_NAME, TailoringResult
 from jobhunter.metadata import CallLog, build_metadata, write_sidecar
@@ -38,6 +38,7 @@ class TailoringOutcome:
     out_dir: Path
     result: TailoringResult
     spend_before: Decimal
+    prompt_versions: dict[str, str]
 
 
 def run_tailoring(
@@ -51,19 +52,29 @@ def run_tailoring(
     ledger_path: Path | None = None,
 ) -> TailoringOutcome:
     """Orchestrate the cap check, LLM call, and atomic artifact write."""
+    using_real_tailor = llm_tailor is None
     tailor = llm_tailor or llm_client.tailor
     root = out_root or (PROJECT_ROOT / "out")
+
+    cv_template = prompts.load_prompt("cv")
+    cover_letter_template = prompts.load_prompt("cover_letter")
+    loaded_prompts = {"cv": cv_template, "cover_letter": cover_letter_template}
+    prompt_versions = {
+        "cv": cv_template.version,
+        "cover_letter": cover_letter_template.version,
+    }
 
     spend_before = spend_tracker.check_cap_or_raise(
         config.monthly_spend_cap_usd, now=now, ledger_path=ledger_path
     )
 
-    result = tailor(
-        canonical_cv,
-        jd_text,
-        api_key=config.llm_api_key,
-        timeout_seconds=config.llm_call_timeout_seconds,
-    )
+    tailor_kwargs: dict[str, Any] = {
+        "api_key": config.llm_api_key,
+        "timeout_seconds": config.llm_call_timeout_seconds,
+    }
+    if using_real_tailor:
+        tailor_kwargs["prompts"] = loaded_prompts
+    result = tailor(canonical_cv, jd_text, **tailor_kwargs)
 
     spend_tracker.record_call(result.cost_usd, now=now, ledger_path=ledger_path)
 
@@ -104,7 +115,10 @@ def run_tailoring(
     write_sidecar(out_dir, package_metadata)
 
     return TailoringOutcome(
-        out_dir=out_dir, result=result, spend_before=spend_before
+        out_dir=out_dir,
+        result=result,
+        spend_before=spend_before,
+        prompt_versions=prompt_versions,
     )
 
 
