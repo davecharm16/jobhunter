@@ -45,6 +45,7 @@ from jobhunter import (
     board_classifier,
     claim_extractor,
     content_loss_matcher,
+    content_loss_writer,
     fabrication_matcher,
     held_package,
     jd_parser,
@@ -393,27 +394,14 @@ def run_tailoring(
         out_dir=out_dir, canonical_cv=canonical_cv, config=config
     )
 
-    # Story 3.4 AC1 + AC2: on fabrication=fail, write `package.held.json` and
-    # record `held=true` + `held_path` on the metadata sidecar. The held-
-    # package writer is the ONLY post-matcher branch — there is no
-    # notification call here, structurally enforcing the no-notify contract
-    # (AC2). Notifications land in Epic 6.
-    held_path_value: str | None = None
-    if fabrication_check.verdict == "fail":
-        held_path_value = _run_held_package_writer(
-            out_dir=out_dir,
-            unsourced_claims=fabrication_check.unsourced_claims,
-            now=now,
-        )
-
     # Story 4.1: content-loss drift check. Pure rule-based (AC5: zero LLM
     # calls) — projects high-impact canonical-CV entries relevant to the JD,
     # then scans the just-written artifacts for substring presence. The
     # `tailoring.trace.json` write must happen FIRST so the check can pick
-    # up any logged drop rationales (AC3). The verdict folds into the
-    # `drift_verdicts` dict below — package persistence
-    # (`package.drift.json` content_loss block, held-package extension)
-    # lands in Story 4.2.
+    # up any logged drop rationales (AC3). Story 4.2 persists the verdict
+    # to `package.drift.json` under the `content_loss` key (sibling to
+    # `fabrication_check`) and extends the held-package writer below so a
+    # content-loss-only fail also produces a `package.held.json`.
     _write_tailoring_trace(out_dir)
     content_loss_check = _run_content_loss_check(
         out_dir=out_dir,
@@ -421,8 +409,32 @@ def run_tailoring(
         parsed_jd_dict=parsed_jd_dict,
         artifacts_produced=artifacts_produced,
     )
+    content_loss_writer.write_content_loss_block(out_dir, content_loss_check)
     drift_verdicts = dict(drift_verdicts)
     drift_verdicts["content_loss"] = content_loss_check.verdict
+
+    # Story 3.4 AC1 + AC2 (extended by Story 4.2 AC6): on fabrication=fail
+    # OR content_loss=fail, write `package.held.json` and record `held=true`
+    # + `held_path` on the metadata sidecar. The combined sidecar carries
+    # `failed_claims[]` (fabrication side) and `dropped_high_impact_entries[]`
+    # (content-loss side) so a future `GET /api/queue` can enumerate the
+    # fail-cause without re-parsing `package.drift.json`. The held-package
+    # writer remains the ONLY post-matcher branch — there is no
+    # notification call here, structurally enforcing the no-notify contract.
+    held_path_value: str | None = None
+    fabrication_failed = fabrication_check.verdict == "fail"
+    content_loss_failed = content_loss_check.verdict == "fail"
+    if fabrication_failed or content_loss_failed:
+        held_path_value = _run_held_package_writer(
+            out_dir=out_dir,
+            unsourced_claims=(
+                fabrication_check.unsourced_claims if fabrication_failed else []
+            ),
+            dropped_entries=(
+                content_loss_check.dropped_entries if content_loss_failed else []
+            ),
+            now=now,
+        )
 
     package_metadata = build_metadata(
         slug=slug,
@@ -713,9 +725,17 @@ def _run_held_package_writer(
     *,
     out_dir: Path,
     unsourced_claims: list[fabrication_matcher.UnsourcedClaim],
+    dropped_entries: list[content_loss_matcher.DroppedEntry] | None = None,
     now: datetime | None,
 ) -> str:
-    """Compose + atomically write `package.held.json`; return its path string (Story 3.4 AC1)."""
+    """Compose + atomically write `package.held.json`; return its path string (Story 3.4 AC1).
+
+    Story 4.2 AC6 extends the signature with *dropped_entries*: when the
+    content-loss check contributes to the held verdict, its `silently_lost`
+    drops are persisted under `dropped_high_impact_entries[]` on the same
+    sidecar. The argument is keyword-only and defaults to `None` so Story
+    3.4's call sites stay source-compatible.
+    """
     retention_days = _resolve_held_retention_days()
     moment = now or datetime.now(timezone.utc)
     record = held_package.compose_held_record(
@@ -723,6 +743,7 @@ def _run_held_package_writer(
         out_dir,
         now=moment,
         retention_days=retention_days,
+        dropped_entries=dropped_entries,
     )
     held_path = held_package.write_held_sidecar(out_dir, record)
     return str(held_path)

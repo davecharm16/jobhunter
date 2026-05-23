@@ -143,15 +143,20 @@ def test_held_json_carries_documented_top_level_fields(tmp_path, monkeypatch) ->
         cover_claims=[],
     )
     data = json.loads((slug_dir / "package.held.json").read_text(encoding="utf-8"))
+    # Story 4.2: `dropped_high_impact_entries` is additive (AC6 path b) so
+    # the held sidecar can also carry the content-loss check's `silently_lost`
+    # drops. Fabrication-only fails (this test) leave it empty.
     assert set(data.keys()) == {
         "held_at",
         "held_by_check",
         "failed_claims",
         "retention_expires_at",
         "recoverable",
+        "dropped_high_impact_entries",
     }
     assert data["held_by_check"] == "fabrication"
     assert data["recoverable"] is True
+    assert data["dropped_high_impact_entries"] == []
     # ISO 8601 UTC with `Z` suffix.
     assert data["held_at"].endswith("Z")
     assert data["retention_expires_at"].endswith("Z")

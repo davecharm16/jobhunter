@@ -37,6 +37,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
+from jobhunter.content_loss_matcher import DroppedEntry
 from jobhunter.fabrication_matcher import UnsourcedClaim
 from jobhunter.metadata import now_iso8601_utc
 
@@ -47,9 +48,11 @@ _log = logging.getLogger(__name__)
 __all__ = [
     "AUDIT_LOG_NAME",
     "HELD_SIDECAR_NAME",
+    "DroppedHighImpactEntry",
     "FailedClaim",
     "HeldPackageRecord",
     "compose_held_record",
+    "iter_dropped_high_impact_entries",
     "sweep_expired",
     "write_held_sidecar",
 ]
@@ -83,14 +86,43 @@ class FailedClaim:
 
 
 @dataclass(frozen=True)
+class DroppedHighImpactEntry:
+    """One high-impact canonical-CV entry dropped from every tailored artifact (Story 4.2 AC6).
+
+    Mirrors `content_loss_matcher.DroppedEntry` but lives on `package.held.json`
+    so a future `GET /api/queue` can enumerate content-loss holds without
+    re-parsing `package.drift.json`. The `reason` field is the same enumerated
+    set as the drift report (`silently_lost` is the fail-discriminating value).
+    """
+
+    entry_id: str
+    section: str
+    primary_text: str
+    jd_requirements_addressed: list[str]
+    reason: str
+
+
+@dataclass(frozen=True)
 class HeldPackageRecord:
-    """`package.held.json` payload (AC1 field list, verbatim)."""
+    """`package.held.json` payload (AC1 field list, verbatim).
+
+    Story 4.2 AC6 adds `dropped_high_impact_entries` (additive, defaults to
+    `[]`) so a content-loss-only fail can write a held sidecar without a
+    `failed_claims[]` entry — and a combined fabrication + content-loss fail
+    populates both lists. The `held_by_check` field stays `"fabrication"` for
+    backward compatibility with Story 3.4's tests; the on-disk presence of a
+    non-empty `dropped_high_impact_entries[]` is the structural marker that
+    the content-loss check contributed to the held verdict.
+    """
 
     held_at: str
     held_by_check: Literal["fabrication"]
     failed_claims: list[FailedClaim] = field(default_factory=list)
     retention_expires_at: str = ""
     recoverable: bool = True
+    dropped_high_impact_entries: list[DroppedHighImpactEntry] = field(
+        default_factory=list
+    )
 
 
 def compose_held_record(
@@ -99,6 +131,7 @@ def compose_held_record(
     *,
     now: datetime,
     retention_days: int,
+    dropped_entries: list[DroppedEntry] | None = None,
 ) -> HeldPackageRecord:
     """Build a `HeldPackageRecord` from the matcher's unsourced claims.
 
@@ -107,19 +140,51 @@ def compose_held_record(
     an editor integration (or the author manually) can jump straight to the
     fabricated text. When the claim text cannot be located on the recorded
     line a WARNING is logged and a `(0, len(claim_text))` span is used.
+
+    Story 4.2 AC6: when *dropped_entries* is supplied (the content-loss
+    matcher's `silently_lost` drops), each one is projected into a
+    `DroppedHighImpactEntry` and stored under `dropped_high_impact_entries`.
+    The argument is keyword-only and defaults to `None` so Story 3.4's
+    existing callers continue to work without modification.
     """
     held_at_dt = _ensure_utc(now)
     retention_dt = held_at_dt + timedelta(days=retention_days)
     failed_claims = [
         _build_failed_claim(claim, out_dir) for claim in unsourced_claims
     ]
+    dropped_high_impact = list(iter_dropped_high_impact_entries(dropped_entries or []))
     return HeldPackageRecord(
         held_at=now_iso8601_utc(held_at_dt),
         held_by_check="fabrication",
         failed_claims=failed_claims,
         retention_expires_at=now_iso8601_utc(retention_dt),
         recoverable=True,
+        dropped_high_impact_entries=dropped_high_impact,
     )
+
+
+def iter_dropped_high_impact_entries(
+    dropped_entries: list[DroppedEntry],
+) -> list[DroppedHighImpactEntry]:
+    """Project content-loss `DroppedEntry`s into the held-sidecar shape (Story 4.2 AC6).
+
+    Only `silently_lost` drops contribute to the held state — `irrelevant_to_jd`
+    drops carry a logged rationale and do not fail the check (Story 4.1 AC3 +
+    Story 4.2 AC2), so they must not appear on `package.held.json` either or
+    the held sidecar would mis-report the fail-cause to a future
+    `GET /api/queue`.
+    """
+    return [
+        DroppedHighImpactEntry(
+            entry_id=entry.entry_id,
+            section=entry.section,
+            primary_text=entry.primary_text,
+            jd_requirements_addressed=list(entry.jd_requirements_addressed),
+            reason=entry.reason,
+        )
+        for entry in dropped_entries
+        if entry.reason == "silently_lost"
+    ]
 
 
 def write_held_sidecar(out_dir: Path, record: HeldPackageRecord) -> Path:
