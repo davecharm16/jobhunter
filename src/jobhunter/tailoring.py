@@ -19,9 +19,10 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable
 
-from jobhunter import llm_client, spend_tracker
+from jobhunter import llm_client, metadata as metadata_module, spend_tracker
 from jobhunter.config import PROJECT_ROOT
-from jobhunter.llm_client import TailoringResult
+from jobhunter.llm_client import MODEL_NAME, TailoringResult
+from jobhunter.metadata import CallLog, build_metadata, write_sidecar
 from jobhunter.runtime_config import RuntimeConfig
 from jobhunter.slug import make_slug
 
@@ -85,6 +86,22 @@ def run_tailoring(
     except Exception:
         _cleanup_tmp(tmp_dir)
         raise
+
+    call_log = CallLog(
+        model=MODEL_NAME,
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
+        usd_cost=metadata_module.format_cost(result.cost_usd),
+        purpose="tailor_cv_and_cover_letter",
+    )
+    package_metadata = build_metadata(
+        slug=slug,
+        jd_source="paste",
+        artifacts_produced=["cv", "cover_letter"],
+        calls=[call_log],
+        now=now,
+    )
+    write_sidecar(out_dir, package_metadata)
 
     return TailoringOutcome(
         out_dir=out_dir, result=result, spend_before=spend_before
