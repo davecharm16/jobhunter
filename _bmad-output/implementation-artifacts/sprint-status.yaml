@@ -84,14 +84,14 @@ development_status:
   #   Stories 2-3 and 2-13 hit Anthropic session limits mid-report; their
   #   worktree implementations were complete (verified by orchestrator pytest
   #   + frontend build) before merge. 321 tests passing on main.
-  epic-2: in-progress
+  epic-2: done
   2-1-canonical-cv-tagging-schema-and-high-impact-flag: done
   2-2-config-yaml-separation-of-tunables-from-secrets: done
   2-3-structured-jd-parser: done
   2-4-source-board-classifier: done
   2-5-upwork-specific-signal-extraction-and-red-flags: done
   2-6-onlinejobs-ph-specific-signal-extraction: done
-  2-7-upwork-proposal-as-a-first-class-artifact-type: backlog
+  2-7-upwork-proposal-as-a-first-class-artifact-type: done
   2-8-per-board-artifact-set-selector: done
   2-9-prompt-template-versioning: done
   2-10-per-application-metadata-sidecar-and-per-request-cost-logging: done
