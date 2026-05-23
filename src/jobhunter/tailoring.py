@@ -23,7 +23,9 @@ final `./out/<slug>/` directory is never created.
 from __future__ import annotations
 
 import dataclasses
+import logging
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
@@ -45,10 +47,19 @@ from jobhunter import (
 from jobhunter.board_classifier import Classification
 from jobhunter.config import PROJECT_ROOT
 from jobhunter.jd_parser import ParseTimedOut, ParsedJD
-from jobhunter.llm_client import MODEL_NAME, TailoringResult
+from jobhunter.llm_client import (
+    MODEL_NAME,
+    TailoringResult,
+    UpworkProposalOverLength,
+    UpworkProposalResult,
+    count_words,
+)
 from jobhunter.metadata import CallLog, build_metadata, write_sidecar
 from jobhunter.runtime_config import RuntimeConfig
 from jobhunter.slug import make_slug
+
+
+_log = logging.getLogger(__name__)
 
 
 # PHP → USD conversion for the OJ.ph rate-floor check. Source: Bangko Sentral
@@ -61,8 +72,26 @@ __all__ = ["TailoringOutcome", "run_tailoring"]
 
 
 TailorCallable = Callable[..., TailoringResult]
+TailorUpworkProposalCallable = Callable[..., UpworkProposalResult]
 ParseCallable = Callable[..., ParsedJD]
 ClassifyCallable = Callable[..., Classification]
+
+
+# Heuristic keyword extractor for the screening-question smoke check (AC3).
+# A "keyword" is the longest non-stopword token in the question; we log a
+# WARNING when none of the question's content words appear in the proposal.
+_QUESTION_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "a", "an", "and", "are", "as", "at", "be", "by", "can", "did", "do",
+        "does", "for", "from", "have", "how", "i", "if", "in", "is", "it",
+        "of", "on", "or", "should", "than", "that", "the", "their", "them",
+        "they", "this", "to", "us", "was", "we", "were", "what", "when",
+        "where", "which", "who", "why", "will", "with", "would", "you",
+        "your", "yours", "have", "any", "more", "much", "many", "some",
+        "yes", "no",
+    }
+)
+_QUESTION_TOKEN_PATTERN = re.compile(r"[a-zA-Z][a-zA-Z0-9_-]+")
 
 
 @dataclass(frozen=True)
@@ -72,6 +101,7 @@ class TailoringOutcome:
     spend_before: Decimal
     prompt_versions: dict[str, str]
     parsed_jd: dict = field(default_factory=dict)
+    upwork_proposal_path: str | None = None
 
 
 def run_tailoring(
@@ -81,6 +111,7 @@ def run_tailoring(
     config: RuntimeConfig,
     now: datetime | None = None,
     llm_tailor: TailorCallable | None = None,
+    llm_tailor_upwork_proposal: TailorUpworkProposalCallable | None = None,
     llm_parse: ParseCallable | None = None,
     classify: ClassifyCallable | None = None,
     source_board: str | None = None,
@@ -90,7 +121,15 @@ def run_tailoring(
 ) -> TailoringOutcome:
     """Orchestrate parse → classify → cap check → tailor → atomic artifact write."""
     using_real_tailor = llm_tailor is None
+    # Back-compat shim: when the caller injected `llm_tailor` (test mode) but
+    # did not inject `llm_tailor_upwork_proposal`, default the proposal call
+    # to an in-memory stub so existing Epic 2 tests that pre-date Story 2.7
+    # continue to pass without an outbound LLM call.
+    if llm_tailor_upwork_proposal is None and llm_tailor is not None:
+        llm_tailor_upwork_proposal = _stub_upwork_proposal_tailor
+    using_real_proposal_tailor = llm_tailor_upwork_proposal is None
     tailor = llm_tailor or llm_client.tailor
+    proposal_tailor = llm_tailor_upwork_proposal or llm_client.tailor_upwork_proposal
     parse = llm_parse or jd_parser.parse_jd
     classifier = classify or board_classifier.classify_board
     root = out_root or (PROJECT_ROOT / "out")
@@ -141,6 +180,12 @@ def run_tailoring(
     parsed_jd_dict.pop("source_board", None)
     parsed_jd_dict.pop("signals", None)
 
+    artifacts_produced = artifact_selector.select(
+        classification.source_board,
+        explicit_override=artifacts_override,
+    )
+    needs_upwork_proposal = "upwork_proposal" in artifacts_produced
+
     cv_template = prompts.load_prompt("cv")
     cover_letter_template = prompts.load_prompt("cover_letter")
     loaded_prompts = {"cv": cv_template, "cover_letter": cover_letter_template}
@@ -148,6 +193,11 @@ def run_tailoring(
         "cv": cv_template.version,
         "cover_letter": cover_letter_template.version,
     }
+    upwork_proposal_template = None
+    if needs_upwork_proposal:
+        # Story 2.9 fail-fast contract: missing template raises before any LLM call.
+        upwork_proposal_template = prompts.load_prompt("upwork_proposal")
+        prompt_versions["upwork_proposal"] = upwork_proposal_template.version
 
     spend_before = spend_tracker.check_cap_or_raise(
         config.monthly_spend_cap_usd, now=now, ledger_path=ledger_path
@@ -172,38 +222,104 @@ def run_tailoring(
     if tmp_dir.exists():
         raise FileExistsError(tmp_dir)
 
-    # Story 2.8 seam: cv.md + cover-letter.md are still written unconditionally
-    # here (Stories 1.5/1.6); the selector below decides what `artifacts_produced`
-    # records. When source_board="upwork" the list will say "upwork_proposal"
-    # even though that file is not written yet — Story 2.7 closes this gap by
-    # gating each artifact write on the selector's output.
+    max_words = (
+        yaml_config.load_yaml_config().proposal.max_words
+        if needs_upwork_proposal
+        else 0
+    )
+
     tmp_dir.mkdir(parents=True, exist_ok=False)
+    calls: list[CallLog] = [
+        CallLog(
+            model=MODEL_NAME,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            usd_cost=metadata_module.format_cost(result.cost_usd),
+            purpose="tailor_cv_and_cover_letter",
+        )
+    ]
+    proposal_result: UpworkProposalResult | None = None
     try:
         (tmp_dir / "cv.md").write_text(result.cv_markdown, encoding="utf-8")
         (tmp_dir / "cover-letter.md").write_text(
             result.cover_letter_markdown, encoding="utf-8"
         )
+
+        # Story 2.7: proposal generation lands inside the same tmp_dir so the
+        # single os.replace below is atomic across every artifact in the package.
+        if needs_upwork_proposal:
+            # Second cap check between calls (NFR15) — cap could have been
+            # breached by the CV+cover-letter call's own spend record above.
+            spend_tracker.check_cap_or_raise(
+                config.monthly_spend_cap_usd, now=now, ledger_path=ledger_path
+            )
+
+            screening_questions = list(
+                parsed.signals.get("upwork", {}).get("screening_questions", [])
+            )
+            proposal_kwargs: dict[str, Any] = {
+                "api_key": config.llm_api_key,
+                "timeout_seconds": config.llm_call_timeout_seconds,
+                "screening_questions": screening_questions,
+                "max_words": max_words,
+            }
+            if using_real_proposal_tailor and upwork_proposal_template is not None:
+                proposal_kwargs["prompt"] = upwork_proposal_template
+            proposal_result = proposal_tailor(
+                canonical_cv, jd_text, **proposal_kwargs
+            )
+            spend_tracker.record_call(
+                proposal_result.cost_usd, now=now, ledger_path=ledger_path
+            )
+            calls.append(
+                CallLog(
+                    model=MODEL_NAME,
+                    input_tokens=proposal_result.input_tokens,
+                    output_tokens=proposal_result.output_tokens,
+                    usd_cost=metadata_module.format_cost(proposal_result.cost_usd),
+                    purpose="tailor_upwork_proposal",
+                )
+            )
+
+            word_count = count_words(proposal_result.proposal_markdown)
+            if word_count > max_words:
+                raise UpworkProposalOverLength(
+                    word_count=word_count, max_words=max_words
+                )
+
+            _emit_screening_question_warnings(
+                proposal_result.proposal_markdown, screening_questions, slug=slug
+            )
+            (tmp_dir / "upwork-proposal.md").write_text(
+                proposal_result.proposal_markdown, encoding="utf-8"
+            )
+
         os.replace(tmp_dir, out_dir)
+    except UpworkProposalOverLength:
+        _cleanup_tmp(tmp_dir)
+        _write_overlength_failure_sidecar(
+            root=root,
+            slug=slug,
+            parsed_jd=parsed_jd_dict,
+            source_board=classification.source_board,
+            prompt_versions=prompt_versions,
+            calls=calls,
+            now=now,
+        )
+        raise
     except Exception:
         _cleanup_tmp(tmp_dir)
         raise
 
-    call_log = CallLog(
-        model=MODEL_NAME,
-        input_tokens=result.input_tokens,
-        output_tokens=result.output_tokens,
-        usd_cost=metadata_module.format_cost(result.cost_usd),
-        purpose="tailor_cv_and_cover_letter",
-    )
-    artifacts_produced = artifact_selector.select(
-        classification.source_board,
-        explicit_override=artifacts_override,
-    )
+    upwork_proposal_path: str | None = None
+    if needs_upwork_proposal and proposal_result is not None:
+        upwork_proposal_path = str(out_dir / "upwork-proposal.md")
+
     package_metadata = build_metadata(
         slug=slug,
         jd_source="paste",
         artifacts_produced=artifacts_produced,
-        calls=[call_log],
+        calls=calls,
         prompt_templates=prompt_versions,
         parsed_jd=parsed_jd_dict,
         source_board=classification.source_board,
@@ -217,6 +333,7 @@ def run_tailoring(
         spend_before=spend_before,
         prompt_versions=prompt_versions,
         parsed_jd=parsed_jd_dict,
+        upwork_proposal_path=upwork_proposal_path,
     )
 
 
@@ -259,6 +376,92 @@ def _apply_onlinejobs_ph_signals(parsed: ParsedJD, jd_text: str) -> None:
     )
     if min_usd < Decimal(floor_usd):
         parsed.red_flags.append("rate_below_floor")
+
+
+def _stub_upwork_proposal_tailor(
+    canonical_cv: dict[str, Any],
+    jd_text: str,
+    *,
+    api_key: str,
+    timeout_seconds: float,
+    screening_questions: list[str] | None = None,
+    max_words: int,
+    **_: Any,
+) -> UpworkProposalResult:
+    """Back-compat in-memory stub for tests that pre-date Story 2.7's proposal call.
+
+    Engaged only when the caller injected `llm_tailor` (signalling test mode)
+    but did not yet inject `llm_tailor_upwork_proposal`. Production callers
+    (where `llm_tailor is None`) bypass this and hit the real LLM client.
+    """
+    return UpworkProposalResult(
+        proposal_markdown="# Proposal (back-compat stub)\n",
+        cost_usd=Decimal("0"),
+        input_tokens=0,
+        output_tokens=0,
+    )
+
+
+def _write_overlength_failure_sidecar(
+    *,
+    root: Path,
+    slug: str,
+    parsed_jd: dict,
+    source_board: str,
+    prompt_versions: dict[str, str],
+    calls: list[CallLog],
+    now: datetime | None,
+) -> None:
+    """Write a failure sidecar after an over-length proposal verdict (AC2)."""
+    out_dir = root / slug
+    if out_dir.exists():
+        return
+    out_dir.mkdir(parents=True, exist_ok=False)
+    failure_metadata = build_metadata(
+        slug=slug,
+        jd_source="paste",
+        artifacts_produced=[],
+        calls=list(calls),
+        prompt_templates=prompt_versions,
+        parsed_jd=parsed_jd,
+        source_board=source_board,
+        now=now,
+        error="over_length",
+    )
+    write_sidecar(out_dir, failure_metadata)
+
+
+def _emit_screening_question_warnings(
+    proposal_markdown: str, screening_questions: list[str], *, slug: str
+) -> None:
+    """Log a WARNING per screening question whose keyword is absent (AC3)."""
+    if not screening_questions:
+        return
+    haystack = proposal_markdown.lower()
+    for question in screening_questions:
+        keyword = _pick_question_keyword(question)
+        if keyword is None:
+            continue
+        if keyword.lower() not in haystack:
+            _log.warning(
+                "upwork_proposal smoke check: screening question keyword "
+                "%r not found in proposal (slug=%s, question=%r)",
+                keyword,
+                slug,
+                question,
+            )
+
+
+def _pick_question_keyword(question: str) -> str | None:
+    """Return the longest non-stopword token in *question*, or None if there is none."""
+    candidates = [
+        token
+        for token in _QUESTION_TOKEN_PATTERN.findall(question)
+        if token.lower() not in _QUESTION_STOPWORDS and len(token) > 2
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=len)
 
 
 def _cleanup_tmp(tmp_dir: Path) -> None:

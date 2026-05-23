@@ -20,3 +20,6 @@ red_flags:
     budget_floor_usd_fixed: 500
   onlinejobs_ph:
     rate_floor_usd_monthly: 600
+
+proposal:
+  max_words: 250

@@ -28,6 +28,7 @@ __all__ = [
     "YamlConfig",
     "CostConfig",
     "OutputConfig",
+    "ProposalConfig",
     "PromptsConfig",
     "RedFlagsConfig",
     "UpworkRedFlags",
@@ -86,11 +87,17 @@ class RedFlagsConfig:
 
 
 @dataclass(frozen=True)
+class ProposalConfig:
+    max_words: int
+
+
+@dataclass(frozen=True)
 class YamlConfig:
     cost: CostConfig
     output: OutputConfig
     prompts: PromptsConfig
     red_flags: RedFlagsConfig
+    proposal: ProposalConfig
 
 
 _DEFAULTS: dict[str, dict[str, Any]] = {
@@ -114,6 +121,9 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "onlinejobs_ph": {
             "rate_floor_usd_monthly": 600,
         },
+    },
+    "proposal": {
+        "max_words": 250,
     },
 }
 
@@ -161,8 +171,15 @@ def load_yaml_config(path: Path | None = None) -> YamlConfig:
     output = _parse_output(parsed["output"])
     prompts = _parse_prompts(parsed["prompts"])
     red_flags = _parse_red_flags(parsed["red_flags"])
+    proposal = _parse_proposal(parsed.get("proposal"))
 
-    return YamlConfig(cost=cost, output=output, prompts=prompts, red_flags=red_flags)
+    return YamlConfig(
+        cost=cost,
+        output=output,
+        prompts=prompts,
+        red_flags=red_flags,
+        proposal=proposal,
+    )
 
 
 def _reject_secret_keys(node: Any, *, path_prefix: str) -> None:
@@ -281,6 +298,20 @@ def _parse_red_flags(node: Any) -> RedFlagsConfig:
     )
 
     return RedFlagsConfig(upwork=upwork, onlinejobs_ph=onlinejobs_ph)
+
+
+def _parse_proposal(node: Any) -> ProposalConfig:
+    defaults = _DEFAULTS["proposal"]
+    if node is None:
+        return ProposalConfig(max_words=int(defaults["max_words"]))
+    node = _require_mapping(node, "proposal")
+    _reject_unknown_keys(node, frozenset(defaults.keys()), "proposal")
+    return ProposalConfig(
+        max_words=_coerce_positive_int(
+            node.get("max_words", defaults["max_words"]),
+            "proposal.max_words",
+        ),
+    )
 
 
 def _coerce_positive_decimal(value: Any, key_path: str) -> Decimal:

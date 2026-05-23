@@ -217,7 +217,7 @@ def test_cv_and_cover_letter_md_still_written_for_upwork_board(
 ) -> None:
     """Story 2.8 seam: artifacts_produced advertises upwork_proposal but the
     actual write path is unchanged — cv.md + cover-letter.md ship until Story 2.7
-    introduces the upwork_proposal.md write.
+    introduces the upwork-proposal.md write.
     """
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")

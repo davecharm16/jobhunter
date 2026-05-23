@@ -281,6 +281,7 @@ def test_non_loopback_with_token_and_spec_body_shape_succeeds(
         "cost_usd",
         "status",
         "metadata_path",
+        "upwork_proposal_path",
     }
     assert body["cost_usd"] == str(FAKE_COST_USD)
 

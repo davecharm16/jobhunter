@@ -24,7 +24,11 @@ from jobhunter.canonical_cv import (
     read_canonical_cv,
 )
 from jobhunter.config import PROJECT_ROOT
-from jobhunter.llm_client import LLMCallFailed, LLMResponseInvalid
+from jobhunter.llm_client import (
+    LLMCallFailed,
+    LLMResponseInvalid,
+    UpworkProposalOverLength,
+)
 from jobhunter.runtime_config import (
     ConfigurationError,
     load_ingest_token,
@@ -91,6 +95,7 @@ class PasteResponse(BaseModel):
     cost_usd: str
     status: Literal["passed", "held", "failed"]
     metadata_path: str
+    upwork_proposal_path: str | None = None
 
 
 def create_app() -> FastAPI:
@@ -146,12 +151,25 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=500, detail=f"Spend ledger error: {exc}") from exc
         except FileExistsError as exc:
             raise HTTPException(status_code=409, detail=f"Output slug already exists: {exc}") from exc
+        except UpworkProposalOverLength as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "upwork_proposal_over_length",
+                    "word_count": exc.word_count,
+                    "max_words": exc.max_words,
+                },
+            ) from exc
         except LLMCallFailed as exc:
             raise HTTPException(status_code=502, detail=f"LLM call failed: {exc}") from exc
         except LLMResponseInvalid as exc:
             raise HTTPException(status_code=502, detail=f"LLM response was unusable: {exc}") from exc
         except OSError as exc:
             raise HTTPException(status_code=500, detail=f"Failed to write artifacts: {exc}") from exc
+
+        proposal_path: str | None = None
+        if outcome.upwork_proposal_path is not None:
+            proposal_path = str(_relative(Path(outcome.upwork_proposal_path)))
 
         return PasteResponse(
             slug=outcome.out_dir.name,
@@ -160,6 +178,7 @@ def create_app() -> FastAPI:
             cost_usd=format(outcome.result.cost_usd, "f"),
             status="passed",
             metadata_path=str(_relative(outcome.out_dir / "metadata.json")),
+            upwork_proposal_path=proposal_path,
         )
 
     app.include_router(canonical_cv_router)

@@ -16,13 +16,17 @@ from typing import Any, Callable
 from jobhunter.board_classifier import Classification
 from jobhunter.config import PROJECT_ROOT
 from jobhunter.jd_parser import ParsedJD
-from jobhunter.llm_client import TailoringResult
+from jobhunter.llm_client import TailoringResult, UpworkProposalResult
 
 
 FAKE_CV_MARKDOWN = "# Tailored CV (test stub)\n\n- Skill: pytest\n"
 FAKE_COVER_LETTER_MARKDOWN = (
     "Dear hiring manager,\n\nI am a fit for this role (test stub).\n"
 )
+FAKE_UPWORK_PROPOSAL_MARKDOWN = (
+    "I read your job description and built similar systems using pytest.\n"
+)
+FAKE_PROPOSAL_COST_USD = Decimal("0.002100")
 FAKE_COST_USD = Decimal("0.004200")
 FAKE_INPUT_TOKENS = 1234
 FAKE_OUTPUT_TOKENS = 567
@@ -103,6 +107,30 @@ def make_fake_tailor(
     return fake_tailor
 
 
+def make_fake_upwork_proposal_tailor(
+    *,
+    proposal: str = FAKE_UPWORK_PROPOSAL_MARKDOWN,
+    cost: Decimal = FAKE_PROPOSAL_COST_USD,
+) -> Callable[..., UpworkProposalResult]:
+    def fake_proposal_tailor(
+        canonical_cv: dict[str, Any],
+        jd_text: str,
+        *,
+        api_key: str,
+        timeout_seconds: float,
+        screening_questions: list[str] | None = None,
+        max_words: int,
+    ) -> UpworkProposalResult:
+        return UpworkProposalResult(
+            proposal_markdown=proposal,
+            cost_usd=cost,
+            input_tokens=FAKE_INPUT_TOKENS,
+            output_tokens=FAKE_OUTPUT_TOKENS,
+        )
+
+    return fake_proposal_tailor
+
+
 def stage_canonical_cv(tmp_path: Path, monkeypatch) -> Path:
     cv_path = tmp_path / "canonical-cv.json"
     shutil.copyfile(PROJECT_ROOT / "canonical-cv.json", cv_path)
@@ -121,6 +149,7 @@ def stage_tailoring(
     fake_tailor=None,
     fake_parse=None,
     fake_classify=None,
+    fake_upwork_proposal_tailor=None,
 ):
     """Wire the FastAPI route's `run_tailoring` to write into tmp_path.
 
@@ -135,6 +164,7 @@ def stage_tailoring(
     tailor = fake_tailor or make_fake_tailor()
     parser = fake_parse or make_fake_parse()
     classifier = fake_classify
+    proposal_tailor = fake_upwork_proposal_tailor or make_fake_upwork_proposal_tailor()
     original_run = tailoring_module.run_tailoring
 
     def patched_run(
@@ -144,6 +174,7 @@ def stage_tailoring(
         config,
         now=None,
         llm_tailor=None,
+        llm_tailor_upwork_proposal=None,
         llm_parse=None,
         classify=None,
         source_board=None,
@@ -157,6 +188,7 @@ def stage_tailoring(
             config=config,
             now=now,
             llm_tailor=tailor,
+            llm_tailor_upwork_proposal=proposal_tailor,
             llm_parse=parser,
             classify=classify or classifier,
             source_board=source_board,
