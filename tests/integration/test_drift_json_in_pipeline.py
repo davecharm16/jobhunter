@@ -321,8 +321,13 @@ def test_paste_metadata_records_fabrication_pass_when_every_claim_sourced(
     # stage_canonical_cv) carries no `highImpact: true` entries, so the
     # must-appear set is empty and the verdict is `pass`.
     assert metadata["drift_verdicts"]["content_loss"] == "pass"
-    # AC3: keyword_stuffing stays "pending" until Epic 5 lands.
-    assert metadata["drift_verdicts"]["keyword_stuffing"] == "pending"
+    # Story 5.1: the keyword-stuffing density matcher now overrides the
+    # "pending" placeholder. This test stages a deliberately stuffed cv
+    # ("Python\npytest\n" -> 1/2 tokens are "python", 50% density) so
+    # the verdict is `fail`. The fabrication-pass invariant under test
+    # is unrelated to the density check; the third dimension is asserted
+    # separately by test_keyword_stuffing_in_pipeline.py.
+    assert metadata["drift_verdicts"]["keyword_stuffing"] == "fail"
 
 
 def test_paste_metadata_records_fabrication_fail_when_any_claim_unsourced(

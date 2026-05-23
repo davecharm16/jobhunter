@@ -117,12 +117,14 @@ def test_run_tailoring_writes_metadata_json_with_full_ac1_payload(tmp_path) -> N
     # canonical source -> verdict is "fail".
     # Story 4.1: `content_loss` is now overridden by the content-loss matcher;
     # with no high-impact entries in the canonical CV the must-appear set is
-    # empty and the verdict is `pass`. `keyword_stuffing` remains "pending"
-    # until Epic 5 lands.
+    # empty and the verdict is `pass`.
+    # Story 5.1: `keyword_stuffing` is now overridden by the density matcher.
+    # The autouse `_stub_llm_parse_jd` fixture returns must_haves=["Python"];
+    # the FAKE_CV_MARKDOWN body is short, so 0 occurrences of "Python" -> pass.
     assert data["drift_verdicts"] == {
         "fabrication": "fail",
         "content_loss": "pass",
-        "keyword_stuffing": "pending",
+        "keyword_stuffing": "pass",
     }
     assert data["override"] == {"applied": False, "reason": None}
     assert data["created_at"] == "2026-05-24T03:15:30Z"

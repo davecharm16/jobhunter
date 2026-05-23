@@ -49,6 +49,7 @@ from jobhunter import (
     fabrication_matcher,
     held_package,
     jd_parser,
+    keyword_stuffing_matcher,
     llm_client,
     metadata as metadata_module,
     prompts,
@@ -437,6 +438,21 @@ def run_tailoring(
         )
     drift_verdicts = dict(drift_verdicts)
     drift_verdicts["content_loss"] = content_loss_check.verdict
+
+    # Story 5.1: keyword-stuffing density check. Pure rule-based (AC8: zero
+    # LLM calls) — tokenizes each produced markdown artifact, counts each
+    # must-have keyword's occurrences, and flags per-keyword density /
+    # repetition breaches. The verdict folds into
+    # `drift_verdicts["keyword_stuffing"]` for `metadata.json` only —
+    # Story 5.3 owns the full `package.drift.json` keyword_stuffing block
+    # and the held-package extension. Defaults are hard-coded here; Story
+    # 5.3 will read them from `config.yaml` under `keyword_stuffing.*`.
+    keyword_stuffing_check = _run_keyword_stuffing_check(
+        out_dir=out_dir,
+        parsed_jd_dict=parsed_jd_dict,
+        artifacts_produced=artifacts_produced,
+    )
+    drift_verdicts["keyword_stuffing"] = keyword_stuffing_check.verdict
 
     # Story 3.4 AC1 + AC2 (extended by Story 4.2 AC6): on fabrication=fail
     # OR content_loss=fail, write `package.held.json` and record `held=true`
@@ -927,6 +943,38 @@ def _run_content_loss_check(
     )
     return content_loss_matcher.run_check(
         relevant, artifact_paths, dropped_trace, config=config
+    )
+
+
+def _run_keyword_stuffing_check(
+    *,
+    out_dir: Path,
+    parsed_jd_dict: dict[str, Any],
+    artifacts_produced: list[str],
+) -> keyword_stuffing_matcher.KeywordStuffingCheck:
+    """Run the Story 5.1 keyword-stuffing density check and return its verdict.
+
+    Pure rule-based check — makes ZERO LLM calls (AC8). Reads each
+    produced markdown artifact, tokenizes, counts each must-have keyword,
+    and flags per-keyword density / repetition breaches. Thresholds are
+    the hard-coded Story 5.1 defaults (`max_density_pct=1.5`,
+    `max_repetitions_per_artifact=3`); Story 5.3 will move them to
+    `config.yaml` and add per-channel overrides.
+    """
+    must_haves = parsed_jd_dict.get("must_haves") or []
+    if not isinstance(must_haves, list):
+        must_haves = []
+    artifact_paths: dict[str, Path] = {}
+    for artifact_name in artifacts_produced:
+        filename = _CONTENT_LOSS_ARTIFACT_FILENAMES.get(artifact_name)
+        if filename is None:
+            continue
+        path = out_dir / filename
+        if not path.is_file():
+            continue
+        artifact_paths[filename] = path
+    return keyword_stuffing_matcher.run_density_check(
+        artifact_paths, must_haves
     )
 
 
