@@ -8,10 +8,11 @@ function signatures from `jobhunter.tailoring`, `jobhunter.canonical_cv`, and
 
 from __future__ import annotations
 
+import secrets
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -24,12 +25,48 @@ from jobhunter.canonical_cv import (
 )
 from jobhunter.config import PROJECT_ROOT
 from jobhunter.llm_client import LLMCallFailed, LLMResponseInvalid
-from jobhunter.runtime_config import ConfigurationError, load_runtime_config
+from jobhunter.runtime_config import (
+    ConfigurationError,
+    load_ingest_token,
+    load_runtime_config,
+)
 from jobhunter.spend_tracker import SpendCapExceeded, SpendLedgerCorrupt
 from jobhunter.tailoring import run_tailoring
 
 
 FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
+
+# DECISIONS.md §6 — the FastAPI app binds to 127.0.0.1, so browser-origin
+# requests are already gated by the loopback bind and bypass the token check.
+# `testclient` is FastAPI's in-process TestClient default and is functionally
+# loopback (no real network); it is treated as loopback so existing browser-
+# path tests continue to exercise the route without a token.
+_LOOPBACK_CLIENT_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
+
+
+def _is_loopback_request(request: Request) -> bool:
+    client = request.client
+    return client is not None and client.host in _LOOPBACK_CLIENT_HOSTS
+
+
+def require_ingest_token(request: Request) -> None:
+    if _is_loopback_request(request):
+        return
+
+    expected = load_ingest_token()
+    if not expected:
+        raise HTTPException(
+            status_code=401,
+            detail="ingest_token_not_configured_on_server",
+        )
+
+    header = request.headers.get("authorization", "")
+    scheme, _, presented = header.partition(" ")
+    if scheme.lower() != "bearer" or not presented:
+        raise HTTPException(status_code=401, detail="missing_ingest_token")
+
+    if not secrets.compare_digest(presented, expected):
+        raise HTTPException(status_code=401, detail="invalid_ingest_token")
 
 
 class HealthResponse(BaseModel):
@@ -40,6 +77,8 @@ class HealthResponse(BaseModel):
 class PasteRequest(BaseModel):
     jd_text: str = Field(min_length=1)
     source: str = Field(min_length=1)
+    source_board: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class PasteResponse(BaseModel):
@@ -47,6 +86,8 @@ class PasteResponse(BaseModel):
     cv_path: str
     cover_letter_path: str
     cost_usd: str
+    status: Literal["passed", "held", "failed"]
+    metadata_path: str
 
 
 def create_app() -> FastAPI:
@@ -56,7 +97,11 @@ def create_app() -> FastAPI:
     def healthz() -> HealthResponse:
         return HealthResponse(status="ok", version=__version__)
 
-    @app.post("/api/paste", response_model=PasteResponse)
+    @app.post(
+        "/api/paste",
+        response_model=PasteResponse,
+        dependencies=[Depends(require_ingest_token)],
+    )
     def paste(payload: PasteRequest) -> PasteResponse:
         if not payload.jd_text.strip():
             raise HTTPException(status_code=400, detail="jd_text is empty or whitespace-only")
@@ -100,6 +145,8 @@ def create_app() -> FastAPI:
             cv_path=str(_relative(outcome.out_dir / "cv.md")),
             cover_letter_path=str(_relative(outcome.out_dir / "cover-letter.md")),
             cost_usd=format(outcome.result.cost_usd, "f"),
+            status="passed",
+            metadata_path=str(_relative(outcome.out_dir / "metadata.json")),
         )
 
     if FRONTEND_DIST.is_dir():
