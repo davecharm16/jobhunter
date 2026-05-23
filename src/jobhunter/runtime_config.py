@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -19,10 +20,14 @@ class ConfigurationError(RuntimeError):
     """Raised when required runtime configuration is missing or invalid."""
 
 
+DEFAULT_LLM_CALL_TIMEOUT_SECONDS = 60.0
+
+
 @dataclass(frozen=True)
 class RuntimeConfig:
     llm_api_key: str
     monthly_spend_cap_usd: Decimal
+    llm_call_timeout_seconds: float = DEFAULT_LLM_CALL_TIMEOUT_SECONDS
 
 
 def load_runtime_config(env_path: Path | None = None) -> RuntimeConfig:
@@ -35,10 +40,15 @@ def load_runtime_config(env_path: Path | None = None) -> RuntimeConfig:
 
     llm_api_key = _required_env("LLM_API_KEY")
     monthly_spend_cap_usd = _required_decimal("MONTHLY_SPEND_CAP_USD")
+    llm_call_timeout_seconds = _optional_positive_float(
+        "LLM_CALL_TIMEOUT_SECONDS",
+        default=DEFAULT_LLM_CALL_TIMEOUT_SECONDS,
+    )
 
     return RuntimeConfig(
         llm_api_key=llm_api_key,
         monthly_spend_cap_usd=monthly_spend_cap_usd,
+        llm_call_timeout_seconds=llm_call_timeout_seconds,
     )
 
 
@@ -59,4 +69,19 @@ def _required_decimal(name: str) -> Decimal:
     if not value.is_finite() or value <= 0:
         raise ConfigurationError(f"{name} must be a finite positive number")
 
+    return value
+
+
+def _optional_positive_float(name: str, *, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = float(raw.strip())
+    except ValueError as exc:
+        raise ConfigurationError(f"{name} must be a finite positive number") from exc
+    # Reject NaN, +/-inf, zero, and negatives in one finite-positive guard so
+    # the float branch matches `_required_decimal`'s `is_finite()` behavior.
+    if not math.isfinite(value) or value <= 0:
+        raise ConfigurationError(f"{name} must be a finite positive number")
     return value

@@ -10,8 +10,11 @@ from pathlib import Path
 
 from jobhunter.config import PROJECT_ROOT
 from tests.integration._cli_helpers import (
+    FAKE_COVER_LETTER_MARKDOWN,
+    FAKE_CV_MARKDOWN,
     _cli_env,
     _isolated_cli_env,
+    _isolated_cli_env_with_fake_llm,
     _pythonpath_with_src,
     _run_module_cli,
 )
@@ -74,7 +77,7 @@ def test_jobhunter_help_documents_no_auto_submit_boundary() -> None:
     assert "never submits" in help_text
     assert "upwork" in help_text
     assert "linkedin" in help_text
-    assert "onlinejobs.ph" in help_text
+    assert "onlinejobs" in help_text
     assert "job board" in help_text
 
 
@@ -147,28 +150,42 @@ def test_paste_subprocess_invalid_monthly_cap_fails_before_pipeline_work(
     assert not output_dir.exists()
 
 
-def test_paste_subprocess_valid_env_stdin_stops_at_story_1_5_boundary(
+def test_paste_subprocess_valid_env_stdin_writes_tailored_package(
     tmp_path,
 ) -> None:
+    """Story 1.5 AC1 happy path (subprocess, stdin): writes ./out/<slug>/ files."""
     output_dir = tmp_path / "out"
 
     result = _run_module_cli(
         "paste",
         cwd=tmp_path,
         input_text="Senior Python role at Acme. Must have FastAPI.\n",
-        env=_isolated_cli_env(
+        env=_isolated_cli_env_with_fake_llm(
             tmp_path,
             LLM_API_KEY="test-key",
             MONTHLY_SPEND_CAP_USD="25.00",
         ),
     )
 
-    assert result.returncode == 1
+    assert result.returncode == 0, (
+        f"expected exit 0, got {result.returncode}\nstderr: {result.stderr}"
+    )
     assert result.stdout == ""
-    assert "Story 1.5" in result.stderr
-    assert "stdin" in result.stderr
+    assert "Tailored package written to" in result.stderr
+    assert "/out/" in result.stderr
+    assert "$0." in result.stderr
     assert "Story 1.4" not in result.stderr
-    assert not output_dir.exists()
+
+    # Both artifact files exist with the stub's content.
+    assert output_dir.is_dir()
+    slug_dirs = [p for p in output_dir.iterdir() if p.is_dir()]
+    assert len(slug_dirs) == 1
+    slug_dir = slug_dirs[0]
+    assert (slug_dir / "cv.md").read_text(encoding="utf-8") == FAKE_CV_MARKDOWN
+    assert (
+        (slug_dir / "cover-letter.md").read_text(encoding="utf-8")
+        == FAKE_COVER_LETTER_MARKDOWN
+    )
 
 
 def test_cli_main_no_args_returns_int_two(capsys) -> None:
@@ -193,23 +210,67 @@ def test_cli_paste_fails_before_pipeline_work_when_env_missing(monkeypatch, caps
     assert captured.out == ""
 
 
-def test_cli_paste_reaches_story_1_5_boundary_with_valid_env_and_stdin(
-    monkeypatch, capsys, tmp_canonical_cv
+def test_cli_paste_writes_tailored_package_in_process_with_stdin(
+    monkeypatch, capsys, tmp_canonical_cv, tmp_path
 ) -> None:
+    """Story 1.5 AC1 happy path (in-process, stdin) via the llm_tailor= seam."""
     import io
+    from decimal import Decimal
 
+    import jobhunter.cli as cli_module
+    import jobhunter.tailoring as tailoring_module
     from jobhunter.cli import main
+    from jobhunter.llm_client import TailoringResult
 
+    fake_result = TailoringResult(
+        cv_markdown="# In-process tailored CV\n",
+        cover_letter_markdown="Dear team,\n\nIn-process cover letter.\n",
+        cost_usd=Decimal("0.0042"),
+        input_tokens=100,
+        output_tokens=50,
+    )
+
+    def fake_tailor(canonical_cv, jd_text, *, api_key, timeout_seconds):
+        return fake_result
+
+    out_root = tmp_path / "out"
+    ledger_path = tmp_path / ".cost-ledger.json"
+
+    original_run = tailoring_module.run_tailoring
+
+    def patched_run(canonical_cv, jd_text, *, config, now=None, llm_tailor=None,
+                    out_root=None, ledger_path=None):
+        return original_run(
+            canonical_cv,
+            jd_text,
+            config=config,
+            now=now,
+            llm_tailor=fake_tailor,
+            out_root=out_root or (tmp_path / "out"),
+            ledger_path=ledger_path or (tmp_path / ".cost-ledger.json"),
+        )
+
+    monkeypatch.setattr(cli_module, "run_tailoring", patched_run)
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
     monkeypatch.setattr(sys, "stdin", io.StringIO("JD text from a fixture"))
 
-    assert main(["paste"]) == 1
+    assert main(["paste"]) == 0
     captured = capsys.readouterr()
-    assert "Story 1.5" in captured.err
+    assert "Tailored package written to" in captured.err
+    assert "/out/" in captured.err
     assert "stdin" in captured.err
     assert "Story 1.4" not in captured.err
     assert captured.out == ""
+    assert out_root.is_dir()
+    slug_dirs = [p for p in out_root.iterdir() if p.is_dir()]
+    assert len(slug_dirs) == 1
+    assert (slug_dirs[0] / "cv.md").read_text(encoding="utf-8") == fake_result.cv_markdown
+    assert (
+        (slug_dirs[0] / "cover-letter.md").read_text(encoding="utf-8")
+        == fake_result.cover_letter_markdown
+    )
+    assert ledger_path.exists()
 
 
 # --- Story 1.3: reader-driven rejection paths --------------------------------
@@ -527,9 +588,10 @@ def test_cli_paste_does_not_create_out_directory_on_rejection(
 # --- Story 1.4: JD ingest paths ---------------------------------------------
 
 
-def test_paste_subprocess_with_file_succeeds_at_story_1_5_boundary(
+def test_paste_subprocess_with_file_writes_tailored_package(
     tmp_path,
 ) -> None:
+    """Story 1.5 AC1 happy path (subprocess, --file branch)."""
     jd_path = tmp_path / "jd.txt"
     jd_path.write_text(
         "Senior Python role at Acme. Must have FastAPI.\n",
@@ -543,24 +605,30 @@ def test_paste_subprocess_with_file_succeeds_at_story_1_5_boundary(
         str(jd_path),
         cwd=tmp_path,
         # No stdin piped — exercising the --file path alone.
-        env=_isolated_cli_env(
+        env=_isolated_cli_env_with_fake_llm(
             tmp_path,
             LLM_API_KEY="test-key",
             MONTHLY_SPEND_CAP_USD="25.00",
         ),
     )
 
-    assert result.returncode == 1
+    assert result.returncode == 0, (
+        f"expected exit 0; got {result.returncode}\nstderr: {result.stderr}"
+    )
     assert result.stdout == ""
-    assert "Story 1.5" in result.stderr
+    assert "Tailored package written to" in result.stderr
     assert "--file" in result.stderr
     assert "Story 1.4" not in result.stderr
-    assert not output_dir.exists()
+    assert output_dir.is_dir()
+    slug_dirs = [p for p in output_dir.iterdir() if p.is_dir()]
+    assert len(slug_dirs) == 1
 
 
 def test_paste_subprocess_file_precedence_over_stdin(tmp_path) -> None:
+    """AC3: `--file` wins over piped stdin (Story 1.5 happy path version)."""
     jd_path = tmp_path / "from-file.txt"
     jd_path.write_text("FROM FILE: senior python role.\n", encoding="utf-8")
+    output_dir = tmp_path / "out"
 
     result = _run_module_cli(
         "paste",
@@ -568,19 +636,20 @@ def test_paste_subprocess_file_precedence_over_stdin(tmp_path) -> None:
         str(jd_path),
         cwd=tmp_path,
         input_text="FROM STDIN: should be ignored.\n",
-        env=_isolated_cli_env(
+        env=_isolated_cli_env_with_fake_llm(
             tmp_path,
             LLM_API_KEY="test-key",
             MONTHLY_SPEND_CAP_USD="25.00",
         ),
     )
 
-    assert result.returncode == 1
+    assert result.returncode == 0
     assert result.stdout == ""
-    assert "Story 1.5" in result.stderr
+    assert "Tailored package written to" in result.stderr
     assert "--file" in result.stderr
-    # The boundary message names the file as the source, not stdin.
+    # The success message names the file as the source, not stdin.
     assert "from stdin" not in result.stderr
+    assert output_dir.is_dir()
 
 
 def test_paste_subprocess_missing_file_exits_two_with_path_in_stderr(
@@ -676,10 +745,47 @@ def test_paste_subprocess_file_pointing_at_directory_exits_two(
     assert "Story 1.5" not in result.stderr
 
 
-def test_cli_paste_with_file_in_process_reaches_story_1_5_boundary(
+def _install_in_process_fake_llm(monkeypatch, tmp_path):
+    """Wire `cli.run_tailoring` to a fake-LLM-backed run inside tmp_path."""
+    from decimal import Decimal
+
+    import jobhunter.cli as cli_module
+    import jobhunter.tailoring as tailoring_module
+    from jobhunter.llm_client import TailoringResult
+
+    def fake_tailor(canonical_cv, jd_text, *, api_key, timeout_seconds):
+        return TailoringResult(
+            cv_markdown="# in-process tailored\n",
+            cover_letter_markdown="cover\n",
+            cost_usd=Decimal("0.0042"),
+            input_tokens=10,
+            output_tokens=5,
+        )
+
+    original_run = tailoring_module.run_tailoring
+
+    def patched_run(canonical_cv, jd_text, *, config, now=None, llm_tailor=None,
+                    out_root=None, ledger_path=None):
+        return original_run(
+            canonical_cv,
+            jd_text,
+            config=config,
+            now=now,
+            llm_tailor=fake_tailor,
+            out_root=out_root or (tmp_path / "out"),
+            ledger_path=ledger_path or (tmp_path / ".cost-ledger.json"),
+        )
+
+    monkeypatch.setattr(cli_module, "run_tailoring", patched_run)
+
+
+def test_cli_paste_with_file_in_process_writes_tailored_package(
     monkeypatch, capsys, tmp_path, tmp_canonical_cv
 ) -> None:
+    """Story 1.5 AC1 happy path (in-process, --file branch)."""
     from jobhunter.cli import main
+
+    _install_in_process_fake_llm(monkeypatch, tmp_path)
 
     jd_path = tmp_path / "jd.txt"
     jd_path.write_text("In-process JD content", encoding="utf-8")
@@ -687,29 +793,34 @@ def test_cli_paste_with_file_in_process_reaches_story_1_5_boundary(
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
 
-    assert main(["paste", "--file", str(jd_path)]) == 1
+    assert main(["paste", "--file", str(jd_path)]) == 0
     captured = capsys.readouterr()
-    assert "Story 1.5" in captured.err
+    assert "Tailored package written to" in captured.err
     assert "--file" in captured.err
     assert captured.out == ""
+    assert (tmp_path / "out").is_dir()
 
 
-def test_cli_paste_with_stdin_in_process_reaches_story_1_5_boundary(
-    monkeypatch, capsys, tmp_canonical_cv
+def test_cli_paste_with_stdin_in_process_writes_tailored_package(
+    monkeypatch, capsys, tmp_canonical_cv, tmp_path
 ) -> None:
+    """Story 1.5 AC1 happy path (in-process, stdin branch)."""
     import io
 
     from jobhunter.cli import main
+
+    _install_in_process_fake_llm(monkeypatch, tmp_path)
 
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
     monkeypatch.setattr(sys, "stdin", io.StringIO("JD content via stdin"))
 
-    assert main(["paste"]) == 1
+    assert main(["paste"]) == 0
     captured = capsys.readouterr()
-    assert "Story 1.5" in captured.err
+    assert "Tailored package written to" in captured.err
     assert "stdin" in captured.err
     assert captured.out == ""
+    assert (tmp_path / "out").is_dir()
 
 
 def test_cli_paste_no_input_tty_exits_two_without_blocking(
@@ -755,28 +866,62 @@ def test_cli_paste_missing_file_in_process_exits_two(
     assert captured.out == ""
 
 
-def test_cli_paste_does_not_write_jd_to_disk(
+def test_cli_paste_writes_only_artifact_files_into_slug_dir(
     monkeypatch, capsys, tmp_path, tmp_canonical_cv
 ) -> None:
-    """AC10: Story 1.4 must not persist the JD anywhere."""
+    """Story 1.5 inversion of the Story 1.4 'no disk write' guard:
+
+    Story 1.5 persists the tailored CV + cover letter under ./out/<slug>/, and
+    nothing else — no JD copy, no transient artifact. This test asserts the
+    slug dir contains exactly those two files.
+    """
+    from decimal import Decimal
+
+    import jobhunter.cli as cli_module
+    import jobhunter.tailoring as tailoring_module
     from jobhunter.cli import main
+    from jobhunter.llm_client import TailoringResult
+
+    def fake_tailor(canonical_cv, jd_text, *, api_key, timeout_seconds):
+        return TailoringResult(
+            cv_markdown="# tailored\n",
+            cover_letter_markdown="cover\n",
+            cost_usd=Decimal("0.0042"),
+            input_tokens=10,
+            output_tokens=5,
+        )
+
+    original_run = tailoring_module.run_tailoring
+
+    def patched_run(canonical_cv, jd_text, *, config, now=None, llm_tailor=None,
+                    out_root=None, ledger_path=None):
+        return original_run(
+            canonical_cv,
+            jd_text,
+            config=config,
+            now=now,
+            llm_tailor=fake_tailor,
+            out_root=out_root or (tmp_path / "out"),
+            ledger_path=ledger_path or (tmp_path / ".cost-ledger.json"),
+        )
+
+    monkeypatch.setattr(cli_module, "run_tailoring", patched_run)
 
     jd_path = tmp_path / "jd.txt"
     jd_path.write_text("disk-write guard JD", encoding="utf-8")
 
-    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
 
-    # Snapshot allowed paths before invocation. tmp_canonical_cv lives outside
-    # tmp_path (under its own monkeypatch-controlled location), so the only
-    # file inside tmp_path is jd.txt.
-    before = {p.resolve() for p in tmp_path.iterdir()}
-    assert main(["paste", "--file", str(jd_path)]) == 1
-    after = {p.resolve() for p in tmp_path.iterdir()}
+    assert main(["paste", "--file", str(jd_path)]) == 0
 
-    assert after == before, f"Story 1.4 wrote unexpected files: {after - before}"
-    assert not (tmp_path / "out").exists()
+    out_root = tmp_path / "out"
+    slug_dirs = [p for p in out_root.iterdir() if p.is_dir()]
+    assert len(slug_dirs) == 1
+    slug_dir = slug_dirs[0]
+    # Exactly two files — cv.md + cover-letter.md — and no JD copy.
+    artifact_names = {p.name for p in slug_dir.iterdir()}
+    assert artifact_names == {"cv.md", "cover-letter.md"}
 
 
 def test_paste_help_documents_file_flag_and_stdin_contract(

@@ -12,6 +12,7 @@ authors = [{ name = "dave" }]
 dependencies = [
     "jsonschema>=4.21",
     "python-dotenv>=1.2.2",
+    "anthropic>=0.40.0",
 ]
 
 [project.optional-dependencies]

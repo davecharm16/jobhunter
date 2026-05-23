@@ -11,19 +11,23 @@ from jobhunter.canonical_cv import (
     UnsupportedCanonicalCVFormat,
     read_canonical_cv,
 )
+from jobhunter.llm_client import LLMCallFailed, LLMResponseInvalid
 from jobhunter.runtime_config import ConfigurationError, load_runtime_config
+from jobhunter.spend_tracker import SpendCapExceeded, SpendLedgerCorrupt
+from jobhunter.tailoring import run_tailoring
 
 
 NO_AUTO_SUBMIT_STATEMENT = (
     "Job Hunter only writes local files and never submits to Upwork, LinkedIn, "
-    "OnlineJobs.ph, or any job board."
+    "OnlineJobs PH, or any job board."
 )
 
 
 PASTE_DESCRIPTION = (
     "Read a job description from stdin (pipe) or from --file PATH, then run "
-    "the runtime safety gates. If both --file and a piped stdin are provided, "
-    "--file wins (stdin is ignored). Tailoring lands in Story 1.5."
+    "the runtime safety gates and the tailoring step. If both --file and a "
+    "piped stdin are provided, --file wins (stdin is ignored). On success, "
+    "writes a tailored CV and cover letter to ./out/<slug>/."
 )
 
 
@@ -36,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     paste_parser = subparsers.add_parser(
         "paste",
-        help="Ingest a JD from stdin or --file and run runtime safety gates.",
+        help="Ingest a JD from stdin or --file and tailor against the canonical CV.",
         description=PASTE_DESCRIPTION,
     )
     paste_parser.add_argument(
@@ -55,13 +59,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def handle_paste(jd_file: Path | None = None) -> int:
     try:
-        load_runtime_config()
+        config = load_runtime_config()
     except ConfigurationError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 2
 
     try:
-        read_canonical_cv()
+        canonical_cv = read_canonical_cv()
     except (UnsupportedCanonicalCVFormat, CanonicalCVMissing) as exc:
         print(f"Canonical CV error: {exc}", file=sys.stderr)
         return 2
@@ -70,12 +74,42 @@ def handle_paste(jd_file: Path | None = None) -> int:
     if jd_text is None:
         return 2
 
+    try:
+        outcome = run_tailoring(canonical_cv, jd_text, config=config)
+    except SpendLedgerCorrupt as exc:
+        print(f"Spend ledger error: {exc}", file=sys.stderr)
+        return 2
+    except SpendCapExceeded as exc:
+        print(
+            f"Monthly LLM spend cap reached: ${exc.current_usd} of ${exc.cap_usd}. "
+            "Refusing to run; raise the cap or wait until next month.",
+            file=sys.stderr,
+        )
+        return 2
+    except FileExistsError as exc:
+        print(f"Output slug already exists: {exc}", file=sys.stderr)
+        return 2
+    except LLMCallFailed as exc:
+        print(f"LLM call failed: {exc}", file=sys.stderr)
+        return 1
+    except LLMResponseInvalid as exc:
+        print(f"LLM response was unusable: {exc}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        # Disk-full / permission failures during the atomic write land here.
+        # FileExistsError (slug collision) was matched above; this catches the
+        # remaining OSError subclasses listed in the Story 1.5 error matrix.
+        print(f"Failed to write artifacts: {exc}", file=sys.stderr)
+        return 1
+
+    total_spend = outcome.spend_before + outcome.result.cost_usd
     print(
-        f"jobhunter paste ingested JD ({len(jd_text)} chars from {jd_source}); "
-        "tailoring lands in Story 1.5.",
+        f"Tailored package written to {outcome.out_dir} "
+        f"(cost ${outcome.result.cost_usd}; monthly spend ${total_spend} of "
+        f"${config.monthly_spend_cap_usd}; JD from {jd_source}).",
         file=sys.stderr,
     )
-    return 1
+    return 0
 
 
 def _read_jd(jd_file: Path | None) -> tuple[str | None, str]:

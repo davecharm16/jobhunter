@@ -47,4 +47,24 @@ A future story should reopen the decisions above (and prepend a new dated entry,
 
 ---
 
-*Last updated: 2026-05-23 (Story 1.3 — binary-format rejection clause added under §2).*
+## 4. LLM Provider
+
+**Decision:** Anthropic Claude via the official `anthropic` Python SDK, model `claude-haiku-4-5`. The provider boundary is encapsulated in `src/jobhunter/llm_client.py` — `tailor()` is the only public entry, and the pricing constants (`INPUT_PRICE_PER_MTOK = $1.00`, `OUTPUT_PRICE_PER_MTOK = $5.00`) are pinned at the module level. Per-call cost is computed from the SDK's reported `Usage(input_tokens, output_tokens)` and quantized to six decimal places using `Decimal` (never float). Pricing captured on 2026-05-23; revisit if Anthropic publishes new public list prices.
+
+**Rationale.** Tied to PRD constraints:
+- **NFR-Cost (< $0.25 per application).** Haiku 4.5 is well below the per-application target for a single tailoring call: a typical run (1–2KB canonical CV + 2–4KB JD + 3–5KB tailored output) lands well under a cent. The hard monthly cap (`MONTHLY_SPEND_CAP_USD`) plus the pre-call cap check in `spend_tracker.check_cap_or_raise()` (Story 1.5 AC3) backstops the math.
+- **NFR-Performance (< 60s per-call timeout).** Haiku's typical first-byte and end-to-end latency on a ~5–10KB total payload is well below the 60s timeout. The timeout is wired to the SDK's `timeout=` constructor kwarg and overridable via the `LLM_CALL_TIMEOUT_SECONDS` env var.
+- **Reliability path for AC6 (structured output).** Anthropic's tool-use API with `tool_choice={"type": "tool", "name": "emit_tailored_artifacts"}` forces the model to emit a strict JSON schema (two required string fields). This is the load-bearing reliability mechanism — free-form JSON in prose is a known parsing-failure mode.
+- **NFR-Integration ("provider switch must be a config change, not a code rewrite").** Isolating the SDK to a single ~120-LoC module (`llm_client.py`) with one public function means an OpenAI swap is a single-file rewrite + a `pyproject.toml` pin change, not a multi-file refactor.
+
+**Rejected alternative.** OpenAI `gpt-4o-mini` via the `openai` SDK. Comparable cost and quality. Rejected because there is no strong technical signal to prefer one over the other for this workload, and the author's pre-existing toolchain leans Anthropic. **One provider at a time** (PRD NFR-Integration): the project must never carry pins for two LLM SDKs simultaneously.
+
+**Revisit if:**
+- Anthropic raises Haiku pricing >2× during walking-skeleton work or removes the model.
+- The chosen model fails AC6 (malformed/missing tool-use response) at greater than ~5% of calls during smoke testing.
+- Epic 2's prompt-template versioning (Story 2.9) surfaces a feature gap (e.g. another provider gains a notably stronger structured-output mode or significantly cheaper tier for our payload shape).
+- The Anthropic SDK becomes incompatible with the pinned Python 3.11+ runtime.
+
+---
+
+*Last updated: 2026-05-23 (Story 1.5 — §4 LLM provider added).*

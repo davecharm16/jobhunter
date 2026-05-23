@@ -112,3 +112,98 @@ def test_load_runtime_config_rejects_invalid_monthly_cap(
 
     with pytest.raises(ConfigurationError, match=expected_message):
         load_runtime_config(tmp_path / ".env")
+
+
+# --- Story 1.5 AC7: LLM_CALL_TIMEOUT_SECONDS env loading + validation -------
+
+
+def test_load_runtime_config_defaults_timeout_when_env_unset(
+    monkeypatch, tmp_path
+) -> None:
+    """AC7: with the env var unset, `llm_call_timeout_seconds` is 60.0."""
+    monkeypatch.setenv("LLM_API_KEY", "k")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+    monkeypatch.delenv("LLM_CALL_TIMEOUT_SECONDS", raising=False)
+
+    config = load_runtime_config(tmp_path / ".env")
+
+    assert config.llm_call_timeout_seconds == 60.0
+
+
+def test_load_runtime_config_reads_positive_timeout_override(
+    monkeypatch, tmp_path
+) -> None:
+    """AC7: a positive numeric LLM_CALL_TIMEOUT_SECONDS overrides the default."""
+    monkeypatch.setenv("LLM_API_KEY", "k")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+    monkeypatch.setenv("LLM_CALL_TIMEOUT_SECONDS", "30")
+
+    config = load_runtime_config(tmp_path / ".env")
+
+    assert config.llm_call_timeout_seconds == 30.0
+
+
+def test_load_runtime_config_reads_fractional_timeout(
+    monkeypatch, tmp_path
+) -> None:
+    """AC7: float values like `0.5` are accepted (Decimal-style strings)."""
+    monkeypatch.setenv("LLM_API_KEY", "k")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+    monkeypatch.setenv("LLM_CALL_TIMEOUT_SECONDS", "0.5")
+
+    config = load_runtime_config(tmp_path / ".env")
+
+    assert config.llm_call_timeout_seconds == 0.5
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["abc", "not-a-number", "1.2.3", "12s"],
+)
+def test_load_runtime_config_rejects_non_numeric_timeout(
+    monkeypatch, tmp_path, value: str
+) -> None:
+    """AC7: non-numeric LLM_CALL_TIMEOUT_SECONDS raises ConfigurationError."""
+    monkeypatch.setenv("LLM_API_KEY", "k")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+    monkeypatch.setenv("LLM_CALL_TIMEOUT_SECONDS", value)
+
+    with pytest.raises(ConfigurationError, match="LLM_CALL_TIMEOUT_SECONDS"):
+        load_runtime_config(tmp_path / ".env")
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["0", "-1", "-0.5"],
+)
+def test_load_runtime_config_rejects_non_positive_timeout(
+    monkeypatch, tmp_path, value: str
+) -> None:
+    """AC7: zero or negative LLM_CALL_TIMEOUT_SECONDS raises ConfigurationError."""
+    monkeypatch.setenv("LLM_API_KEY", "k")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+    monkeypatch.setenv("LLM_CALL_TIMEOUT_SECONDS", value)
+
+    with pytest.raises(ConfigurationError, match="LLM_CALL_TIMEOUT_SECONDS"):
+        load_runtime_config(tmp_path / ".env")
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["inf", "-inf", "Infinity", "nan", "NaN"],
+)
+def test_load_runtime_config_rejects_non_finite_timeout(
+    monkeypatch, tmp_path, value: str
+) -> None:
+    """AC7 (review): LLM_CALL_TIMEOUT_SECONDS must reject non-finite floats.
+
+    Without an explicit `math.isfinite` guard, `float("inf")` would pass the
+    `value > 0` check and silently disable the per-call timeout — defeating
+    the NFR-Performance budget. Mirrors `_required_decimal`'s `is_finite()`.
+    """
+    monkeypatch.setenv("LLM_API_KEY", "k")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+    monkeypatch.setenv("LLM_CALL_TIMEOUT_SECONDS", value)
+
+    with pytest.raises(ConfigurationError, match="LLM_CALL_TIMEOUT_SECONDS"):
+        load_runtime_config(tmp_path / ".env")

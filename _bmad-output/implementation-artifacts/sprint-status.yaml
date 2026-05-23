@@ -36,6 +36,9 @@
 
 generated: 2026-05-19
 last_updated: 2026-05-23
+# 2026-05-23: Story 1-5 moved review → done (story-automator-review pass 2 auto-fixed HIGH H1 ledger type validation + HIGH H2 LLM usage validation + MEDIUM M2 CLI slug-collision coverage; 0 CRITICAL; pytest 189 passed / 1 skipped)
+# 2026-05-23: Story 1-5 moved in-progress → review (dev-story workflow)
+# 2026-05-23: Story 1-5 moved ready-for-dev → in-progress (dev-story workflow)
 # 2026-05-23: Story 1-1 moved ready-for-dev → in-progress → review (dev-story workflow)
 # 2026-05-23: Story 1-1 moved review → done (story-automator-review auto-fixed all HIGH/MEDIUM findings; 0 CRITICAL)
 # 2026-05-23: Story 1-2 moved backlog → ready-for-dev (create-story workflow)
@@ -50,6 +53,7 @@ last_updated: 2026-05-23
 # 2026-05-23: Story 1-4 moved ready-for-dev → in-progress (dev-story workflow)
 # 2026-05-23: Story 1-4 moved in-progress → review (dev-story workflow)
 # 2026-05-23: Story 1-4 moved review → done (story-automator-review auto-fixed HIGH-1 UnicodeDecodeError handling + MEDIUM-2 helper duplication; 0 CRITICAL)
+# 2026-05-23: Story 1-5 moved backlog → ready-for-dev (create-story workflow)
 project: job_hunter
 project_key: NOKEY
 tracking_system: file-system
@@ -62,7 +66,7 @@ development_status:
   1-2-cli-scaffold-env-secrets-handling-and-cost-cap-config: done
   1-3-canonical-cv-reader-with-pdf-docx-ingest-rejection: done
   1-4-jobhunter-paste-jd-ingest-from-stdin-or-file-argument: done
-  1-5-single-tailoring-llm-call-writes-tailored-cv-cover-letter-to-out-slug: backlog
+  1-5-single-tailoring-llm-call-writes-tailored-cv-cover-letter-to-out-slug: done
   epic-1-retrospective: optional
 
   # Epic 2: Paste Pipeline Hardening & Artifact System

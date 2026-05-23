@@ -1,4 +1,9 @@
-"""Story 1.4 gap-closure tests for `jobhunter paste` JD ingest.
+"""Gap-closure tests for `jobhunter paste` JD ingest.
+
+Story 1.5 updates: tests that used to assert exit `1` + `"Story 1.5"` stderr
+boundary message have been rewritten or replaced because Story 1.5 produces
+the actual tailored artifacts on the happy path. The rejection-path tests
+that short-circuit before the LLM client are unchanged.
 
 These tests target ACs that the Story 1.4 dev pass already covered at a high
 level, but that left specific contract details untested. Each test is annotated
@@ -22,7 +27,10 @@ import sys
 
 from jobhunter.config import PROJECT_ROOT
 from tests.integration._cli_helpers import (
+    FAKE_COVER_LETTER_MARKDOWN,
+    FAKE_CV_MARKDOWN,
     _isolated_cli_env,
+    _isolated_cli_env_with_fake_llm,
     _run_module_cli,
 )
 
@@ -31,16 +39,12 @@ from tests.integration._cli_helpers import (
 
 
 def test_cli_module_does_not_import_forbidden_runtime_deps() -> None:
-    """AC11: stdlib only — no LLM SDK, HTTP client, or CLI-framework imports.
-
-    Story 1.4 explicitly forbids adding `click`, `typer`, `rich`, `requests`,
-    `httpx`, `urllib.request`, an LLM SDK (`openai`, `anthropic`), or a
-    job-board client. Catching this at the source level prevents an accidental
-    `import` from sneaking through code review.
+    """AC11 (Story 1.5): the chosen LLM SDK (`anthropic`) is allowed in
+    `llm_client.py` only — every other `src/jobhunter/` source file remains
+    stdlib-only with respect to HTTP clients, CLI frameworks, and a second
+    LLM SDK.
     """
-    cli_src = (PROJECT_ROOT / "src" / "jobhunter" / "cli.py").read_text(
-        encoding="utf-8"
-    )
+    jobhunter_src_root = PROJECT_ROOT / "src" / "jobhunter"
     forbidden = [
         "import click",
         "from click",
@@ -56,41 +60,93 @@ def test_cli_module_does_not_import_forbidden_runtime_deps() -> None:
         "from urllib.request",
         "import openai",
         "from openai",
-        "import anthropic",
-        "from anthropic",
     ]
-    for needle in forbidden:
-        assert needle not in cli_src, (
-            f"cli.py must not contain `{needle}` — AC11 forbids new runtime "
-            f"dependencies and HTTP/LLM/job-board clients in Story 1.4."
-        )
+
+    for py_path in sorted(jobhunter_src_root.glob("*.py")):
+        src = py_path.read_text(encoding="utf-8")
+        for needle in forbidden:
+            assert needle not in src, (
+                f"{py_path.name} must not contain `{needle}` — Story 1.5 "
+                "AC11 forbids HTTP clients, CLI frameworks, and a second LLM "
+                "SDK from any module in src/jobhunter/."
+            )
+
+        if py_path.name == "llm_client.py":
+            # The single permitted SDK home.
+            continue
+        for needle in ("import anthropic", "from anthropic"):
+            assert needle not in src, (
+                f"{py_path.name} must not contain `{needle}` — the LLM SDK "
+                "is permitted only in llm_client.py (Story 1.5 AC11)."
+            )
 
 
-def test_pyproject_runtime_dependencies_did_not_grow_in_story_1_4() -> None:
-    """AC11: `pyproject.toml` runtime deps must stay at Stories 1.1+1.2 pins.
-
-    The Story 1.4 dev note is explicit: no addition to `dependencies = [...]`.
-    Pinning the dep list verbatim is the cheapest possible guard against a
-    future dev quietly adding `requests`, `httpx`, an LLM SDK, etc.
+def test_pyproject_runtime_dependencies_match_story_1_5_pinning() -> None:
+    """AC11 (Story 1.5): pyproject.toml grew by exactly one new runtime entry
+    (`anthropic>=0.40.0`). Other forbidden HTTP/CLI/LLM clients stay out.
     """
     pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    # The Story 1.1 + 1.2 pins. Story 1.4 must not extend this block.
+    # The Story 1.1 + 1.2 pins, plus the single new Story 1.5 entry.
     assert 'jsonschema>=4.21' in pyproject
     assert 'python-dotenv>=1.2.2' in pyproject
-    # No HTTP/LLM client was added.
+    assert 'anthropic>=0.40.0' in pyproject
+    # No other HTTP / LLM / CLI-framework client was added.
     for forbidden in (
         '"requests',
         '"httpx',
         '"openai',
-        '"anthropic',
         '"click',
         '"typer',
         '"rich',
     ):
         assert forbidden not in pyproject, (
             f"pyproject.toml grew an unexpected runtime dependency containing "
-            f"`{forbidden}` — Story 1.4 must add none."
+            f"`{forbidden}` — Story 1.5 must add only `anthropic`."
         )
+
+
+def test_no_job_board_hostnames_in_jobhunter_source() -> None:
+    """AC8 (FR44/FR11): no job-board hostname appears in any jobhunter source.
+
+    String-grep guard — catches an accidental URL even before it could
+    plausibly be wired into a runtime call.
+    """
+    jobhunter_src_root = PROJECT_ROOT / "src" / "jobhunter"
+    forbidden_hosts = ("upwork.com", "linkedin.com", "onlinejobs.ph")
+
+    for py_path in sorted(jobhunter_src_root.glob("*.py")):
+        src = py_path.read_text(encoding="utf-8").lower()
+        for host in forbidden_hosts:
+            assert host not in src, (
+                f"{py_path.name} contains forbidden job-board hostname "
+                f"`{host}` — Story 1.5 AC8 (FR44/FR11) forbids any job-board "
+                "URL in source."
+            )
+
+
+def test_gitignore_excludes_cost_ledger_and_out_directory() -> None:
+    """AC12: `.gitignore` must list both `out/` and `.cost-ledger.json` so
+    neither the per-application packages nor the cumulative spend ledger
+    can be accidentally committed.
+
+    These are load-bearing privacy + integrity guards: `.cost-ledger.json`
+    contains running spend data, and `out/<slug>/` directories contain
+    tailored CVs that include the candidate's full work history.
+    """
+    gitignore_path = PROJECT_ROOT / ".gitignore"
+    assert gitignore_path.is_file(), ".gitignore must exist at repo root"
+
+    content = gitignore_path.read_text(encoding="utf-8")
+    lines = {line.strip() for line in content.splitlines() if line.strip()}
+
+    assert ".cost-ledger.json" in lines, (
+        "`.gitignore` must contain `.cost-ledger.json` on its own line "
+        "(Story 1.5 AC12)."
+    )
+    assert "out/" in lines, (
+        "`.gitignore` must contain `out/` on its own line so tailored "
+        "artifacts are not committed (Story 1.5 AC12)."
+    )
 
 
 # --- Gap 2: UTF-8 encoding via --file ----------------------------------------
@@ -101,10 +157,9 @@ def test_paste_subprocess_file_with_utf8_unicode_content_succeeds(
 ) -> None:
     """`--file` reads with `encoding="utf-8"` — non-ASCII content must round-trip.
 
-    Many real JDs contain en-dashes, curly quotes, accented characters, or
-    emoji. Reading them with the wrong codec would either crash or corrupt
-    the byte count in the boundary message. Verifies the explicit
-    `encoding="utf-8"` argument in `_read_jd()` is doing its job.
+    Verifies the explicit `encoding="utf-8"` argument in `_read_jd()` is doing
+    its job: a unicode JD reaches the (stubbed) LLM and emerges as an artifact
+    file on disk without a UnicodeDecodeError.
     """
     jd_path = tmp_path / "jd-unicode.txt"
     jd_text = (
@@ -112,31 +167,31 @@ def test_paste_subprocess_file_with_utf8_unicode_content_succeeds(
         "Compensation: €80k–€100k. Café-style team.\n"
     )
     jd_path.write_text(jd_text, encoding="utf-8")
+    output_dir = tmp_path / "out"
 
     result = _run_module_cli(
         "paste",
         "--file",
         str(jd_path),
         cwd=tmp_path,
-        env=_isolated_cli_env(
+        env=_isolated_cli_env_with_fake_llm(
             tmp_path,
             LLM_API_KEY="test-key",
             MONTHLY_SPEND_CAP_USD="25.00",
         ),
     )
 
-    assert result.returncode == 1, (
+    assert result.returncode == 0, (
         f"unicode JD via --file should succeed; got rc={result.returncode}\n"
         f"stderr: {result.stderr}"
     )
-    assert "Story 1.5" in result.stderr
+    assert "Tailored package written to" in result.stderr
     assert "--file" in result.stderr
-    # Char-count in the boundary message should equal len(jd_text) — proves
-    # the file was decoded as UTF-8, not bytes or latin-1.
-    assert f"{len(jd_text)} chars" in result.stderr, (
-        f"Boundary message must report {len(jd_text)} chars; got: "
-        f"{result.stderr!r}"
-    )
+    assert output_dir.is_dir()
+    slug_dirs = [p for p in output_dir.iterdir() if p.is_dir()]
+    assert len(slug_dirs) == 1
+    assert (slug_dirs[0] / "cv.md").exists()
+    assert (slug_dirs[0] / "cover-letter.md").exists()
 
 
 # --- Gap 3: Empty --file (symmetric to AC5 empty stdin) ----------------------
@@ -260,16 +315,11 @@ def test_paste_subprocess_missing_cap_does_not_read_provided_file(
 # --- Gap 5: Boundary message contract (AC9 strict shape) ---------------------
 
 
-def test_paste_subprocess_boundary_message_includes_char_count_and_file_path(
+def test_paste_subprocess_success_message_names_slug_path_cost_and_cap(
     tmp_path,
 ) -> None:
-    """AC9: boundary message names char count AND the actual file path.
-
-    The Story 1.4 contract says the success message is
-    `f"jobhunter paste ingested JD ({len(jd_text)} chars from {jd_source}); "
-    "tailoring lands in Story 1.5."` — where `jd_source` is `f"--file {path}"`
-    on the file branch. Existing tests only check that literal "--file"
-    substring appears. This pins the full contract: byte count + actual path.
+    """Story 1.5 AC1: success stderr names the out path, the per-call cost,
+    and the monthly cap — file branch.
     """
     jd_path = tmp_path / "jd-contract.txt"
     jd_text = "Senior Python role with FastAPI experience required.\n"
@@ -280,74 +330,69 @@ def test_paste_subprocess_boundary_message_includes_char_count_and_file_path(
         "--file",
         str(jd_path),
         cwd=tmp_path,
-        env=_isolated_cli_env(
+        env=_isolated_cli_env_with_fake_llm(
             tmp_path,
             LLM_API_KEY="test-key",
             MONTHLY_SPEND_CAP_USD="25.00",
         ),
     )
 
-    assert result.returncode == 1
-    assert "Story 1.5" in result.stderr
-    # Char count appears verbatim.
-    assert f"{len(jd_text)} chars" in result.stderr, (
-        f"Expected '{len(jd_text)} chars' in stderr; got: {result.stderr!r}"
+    assert result.returncode == 0, (
+        f"expected exit 0; got {result.returncode}\nstderr: {result.stderr}"
     )
-    # The actual file path appears in the boundary message (provenance).
-    assert str(jd_path) in result.stderr, (
-        f"Expected file path '{jd_path}' in stderr; got: {result.stderr!r}"
-    )
+    assert "Tailored package written to" in result.stderr
+    # Per-call cost (dollar) is visible.
+    assert "$0." in result.stderr
+    # The cap is named in the success summary.
+    assert "$25.00" in result.stderr
+    assert "--file" in result.stderr
 
 
-def test_paste_subprocess_boundary_message_for_stdin_includes_char_count(
+def test_paste_subprocess_success_message_for_stdin_names_slug_and_cost(
     tmp_path,
 ) -> None:
-    """AC9: stdin boundary message also names char count + 'stdin' source."""
+    """Story 1.5 AC1: success stderr for the stdin branch carries the same
+    contract — out path, cost, cap, and `stdin` as the JD source.
+    """
     jd_text = "Senior Python role at Acme.\n"
 
     result = _run_module_cli(
         "paste",
         cwd=tmp_path,
         input_text=jd_text,
-        env=_isolated_cli_env(
+        env=_isolated_cli_env_with_fake_llm(
             tmp_path,
             LLM_API_KEY="test-key",
             MONTHLY_SPEND_CAP_USD="25.00",
         ),
     )
 
-    assert result.returncode == 1
-    assert "Story 1.5" in result.stderr
-    assert f"{len(jd_text)} chars" in result.stderr
+    assert result.returncode == 0
+    assert "Tailored package written to" in result.stderr
+    assert "$0." in result.stderr
+    assert "$25.00" in result.stderr
     assert "stdin" in result.stderr
 
 
 # --- Gap 6: AC10 success path: no ./out/ written via subprocess --------------
 
 
-def test_paste_subprocess_success_does_not_create_out_directory_with_file(
+def test_paste_subprocess_success_creates_out_slug_directory_with_file(
     tmp_path,
 ) -> None:
-    """AC10: Story 1.4 success path must NOT create `./out/` — file branch.
-
-    Existing rejection-path tests assert `not output_dir.exists()`, and one
-    in-process test (`test_cli_paste_does_not_write_jd_to_disk`) checks the
-    file branch, but no subprocess test asserts the success path leaves the
-    cwd clean. This is the load-bearing guard for Story 1.5 (which is where
-    the first `./out/<slug>/` write lands).
+    """Story 1.5 AC1 (subprocess, file branch): success creates ./out/<slug>/
+    with both `cv.md` and `cover-letter.md`. This is the inversion of the
+    Story 1.4 'no ./out/' guard — Story 1.5 is where artifacts land.
     """
     jd_path = tmp_path / "jd.txt"
     jd_path.write_text("Senior Python role.\n", encoding="utf-8")
     output_dir = tmp_path / "out"
 
-    # Build the isolated env first (this mirrors canonical-cv.json + src/ into
-    # tmp_path), THEN snapshot so we only flag entries the CLI itself wrote.
-    env = _isolated_cli_env(
+    env = _isolated_cli_env_with_fake_llm(
         tmp_path,
         LLM_API_KEY="test-key",
         MONTHLY_SPEND_CAP_USD="25.00",
     )
-    before_paths = {p.name for p in tmp_path.iterdir()}
 
     result = _run_module_cli(
         "paste",
@@ -357,30 +402,26 @@ def test_paste_subprocess_success_does_not_create_out_directory_with_file(
         env=env,
     )
 
-    assert result.returncode == 1
-    assert not output_dir.exists(), (
-        "Story 1.4 success path must not create ./out/ — that lands in 1.5."
-    )
-
-    after_paths = {p.name for p in tmp_path.iterdir()}
-    assert after_paths == before_paths, (
-        f"Story 1.4 success path wrote unexpected entries: "
-        f"{after_paths - before_paths}"
-    )
+    assert result.returncode == 0
+    assert output_dir.is_dir(), "./out/ should exist after a successful run"
+    slug_dirs = [p for p in output_dir.iterdir() if p.is_dir()]
+    assert len(slug_dirs) == 1
+    slug_dir = slug_dirs[0]
+    assert (slug_dir / "cv.md").exists()
+    assert (slug_dir / "cover-letter.md").exists()
 
 
-def test_paste_subprocess_success_does_not_create_out_directory_with_stdin(
+def test_paste_subprocess_success_creates_out_slug_directory_with_stdin(
     tmp_path,
 ) -> None:
-    """AC10: stdin success path also leaves cwd clean (no `./out/`)."""
+    """Story 1.5 AC1 (subprocess, stdin branch): success creates ./out/<slug>/."""
     output_dir = tmp_path / "out"
 
-    env = _isolated_cli_env(
+    env = _isolated_cli_env_with_fake_llm(
         tmp_path,
         LLM_API_KEY="test-key",
         MONTHLY_SPEND_CAP_USD="25.00",
     )
-    before_paths = {p.name for p in tmp_path.iterdir()}
 
     result = _run_module_cli(
         "paste",
@@ -389,11 +430,12 @@ def test_paste_subprocess_success_does_not_create_out_directory_with_stdin(
         env=env,
     )
 
-    assert result.returncode == 1
-    assert not output_dir.exists()
-
-    after_paths = {p.name for p in tmp_path.iterdir()}
-    assert after_paths == before_paths
+    assert result.returncode == 0
+    assert output_dir.is_dir()
+    slug_dirs = [p for p in output_dir.iterdir() if p.is_dir()]
+    assert len(slug_dirs) == 1
+    assert (slug_dirs[0] / "cv.md").exists()
+    assert (slug_dirs[0] / "cover-letter.md").exists()
 
 
 # --- Gap 7: --file=PATH (equals syntax) -------------------------------------
@@ -402,8 +444,7 @@ def test_paste_subprocess_success_does_not_create_out_directory_with_stdin(
 def test_paste_subprocess_file_equals_syntax_works(tmp_path) -> None:
     """`argparse` accepts `--file=PATH` as well as `--file PATH`.
 
-    `argparse` supports both syntaxes natively, but it's worth a smoke test
-    so that anyone scripting `jobhunter paste --file="/path/to/jd.txt"`
+    Smoke test so that anyone scripting `jobhunter paste --file="/path/to/jd.txt"`
     (e.g. from a Makefile or shell alias) is not surprised.
     """
     jd_path = tmp_path / "jd.txt"
@@ -413,33 +454,66 @@ def test_paste_subprocess_file_equals_syntax_works(tmp_path) -> None:
         f"paste",
         f"--file={jd_path}",
         cwd=tmp_path,
-        env=_isolated_cli_env(
+        env=_isolated_cli_env_with_fake_llm(
             tmp_path,
             LLM_API_KEY="test-key",
             MONTHLY_SPEND_CAP_USD="25.00",
         ),
     )
 
-    assert result.returncode == 1
-    assert "Story 1.5" in result.stderr
+    assert result.returncode == 0
+    assert "Tailored package written to" in result.stderr
     assert "--file" in result.stderr
 
 
 # --- Gap 8: In-process: --file with unicode + char count --------------------
 
 
-def test_cli_paste_in_process_utf8_file_char_count_reflects_unicode_length(
+def test_cli_paste_in_process_utf8_file_reaches_tailoring_with_unicode(
     monkeypatch, capsys, tmp_path, tmp_canonical_cv
 ) -> None:
-    """Unicode JD via --file: the {n} chars count in the boundary message
-    must equal `len(jd_text)` after UTF-8 decoding, not the byte length.
+    """Unicode JD via --file: file decodes as UTF-8 (no UnicodeDecodeError),
+    reaches the tailoring step (here stubbed), and emerges as artifacts.
 
-    A regression where someone replaces `Path.read_text(encoding="utf-8")`
-    with `Path.read_bytes()` or omits the encoding would cause a byte-count
-    or a `UnicodeDecodeError`. This test is the load-bearing assertion for
-    the encoding contract.
+    Regression guard for the explicit `encoding="utf-8"` argument in
+    `_read_jd()`.
     """
+    from decimal import Decimal
+
+    import jobhunter.cli as cli_module
+    import jobhunter.tailoring as tailoring_module
     from jobhunter.cli import main
+    from jobhunter.llm_client import TailoringResult
+
+    captured_jd: dict[str, str] = {}
+
+    def fake_tailor(canonical_cv, jd_text, *, api_key, timeout_seconds):
+        captured_jd["text"] = jd_text
+        return TailoringResult(
+            cv_markdown="# tailored\n",
+            cover_letter_markdown="cover letter\n",
+            cost_usd=Decimal("0.0042"),
+            input_tokens=10,
+            output_tokens=5,
+        )
+
+    out_root = tmp_path / "out"
+    ledger_path = tmp_path / ".cost-ledger.json"
+    original_run = tailoring_module.run_tailoring
+
+    def patched_run(canonical_cv, jd_text, *, config, now=None, llm_tailor=None,
+                    out_root=None, ledger_path=None):
+        return original_run(
+            canonical_cv,
+            jd_text,
+            config=config,
+            now=now,
+            llm_tailor=fake_tailor,
+            out_root=out_root or (tmp_path / "out"),
+            ledger_path=ledger_path or (tmp_path / ".cost-ledger.json"),
+        )
+
+    monkeypatch.setattr(cli_module, "run_tailoring", patched_run)
 
     jd_path = tmp_path / "jd-unicode.txt"
     jd_text = "Café résumé — 🚀 €100k\n"
@@ -448,13 +522,11 @@ def test_cli_paste_in_process_utf8_file_char_count_reflects_unicode_length(
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
 
-    assert main(["paste", "--file", str(jd_path)]) == 1
+    assert main(["paste", "--file", str(jd_path)]) == 0
     captured = capsys.readouterr()
-    assert "Story 1.5" in captured.err
-    assert f"{len(jd_text)} chars" in captured.err, (
-        f"Char count must equal len(jd_text)={len(jd_text)} (after UTF-8 "
-        f"decode), not the byte length. Got: {captured.err!r}"
-    )
+    assert "Tailored package written to" in captured.err
+    # Tailoring received the full UTF-8-decoded text, not bytes or replaced chars.
+    assert captured_jd["text"] == jd_text
 
 
 # --- Gap 9: In-process: empty --file rejection ------------------------------
@@ -487,13 +559,44 @@ def test_cli_paste_in_process_file_precedence_over_stdin(
 ) -> None:
     """AC3: --file beats stdin in-process too.
 
-    The existing subprocess test for precedence (`test_paste_subprocess_
-    file_precedence_over_stdin`) is good, but lacks an in-process companion.
-    This one pipes a sentinel string via `io.StringIO`, passes `--file`
-    with different content, and asserts the file content's char count
-    appears in the boundary message — proving stdin was ignored.
+    Pipes a sentinel string via stdin, passes `--file` with different
+    content, and asserts the tailoring step received the file's text,
+    proving stdin was ignored.
     """
+    from decimal import Decimal
+
+    import jobhunter.cli as cli_module
+    import jobhunter.tailoring as tailoring_module
     from jobhunter.cli import main
+    from jobhunter.llm_client import TailoringResult
+
+    captured_jd: dict[str, str] = {}
+
+    def fake_tailor(canonical_cv, jd_text, *, api_key, timeout_seconds):
+        captured_jd["text"] = jd_text
+        return TailoringResult(
+            cv_markdown="# tailored\n",
+            cover_letter_markdown="cover\n",
+            cost_usd=Decimal("0.0042"),
+            input_tokens=10,
+            output_tokens=5,
+        )
+
+    original_run = tailoring_module.run_tailoring
+
+    def patched_run(canonical_cv, jd_text, *, config, now=None, llm_tailor=None,
+                    out_root=None, ledger_path=None):
+        return original_run(
+            canonical_cv,
+            jd_text,
+            config=config,
+            now=now,
+            llm_tailor=fake_tailor,
+            out_root=out_root or (tmp_path / "out"),
+            ledger_path=ledger_path or (tmp_path / ".cost-ledger.json"),
+        )
+
+    monkeypatch.setattr(cli_module, "run_tailoring", patched_run)
 
     jd_path = tmp_path / "from-file.txt"
     file_text = "FROM FILE content here.\n"
@@ -501,17 +604,16 @@ def test_cli_paste_in_process_file_precedence_over_stdin(
 
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
-    # Even with stdin piped, --file should win.
     monkeypatch.setattr(
         sys, "stdin", io.StringIO("FROM STDIN — should be ignored\n")
     )
 
-    assert main(["paste", "--file", str(jd_path)]) == 1
+    assert main(["paste", "--file", str(jd_path)]) == 0
     captured = capsys.readouterr()
-    assert "Story 1.5" in captured.err
+    assert "Tailored package written to" in captured.err
     assert "--file" in captured.err
-    # The character count must match the file's content, NOT stdin's.
-    assert f"{len(file_text)} chars" in captured.err
+    # Tailoring received the file's content, NOT stdin's.
+    assert captured_jd["text"] == file_text
 
 
 # --- Gap 11: AC7 — non-UTF-8 / binary --file rejected cleanly ---------------

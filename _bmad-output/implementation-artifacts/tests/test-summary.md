@@ -1,100 +1,107 @@
-# Test Automation Summary — Story 1.4
+# Test Automation Summary — Story 1.5
 
-**Story:** `jobhunter paste` JD ingest from stdin or `--file` argument
+**Story:** Single tailoring LLM call writes tailored CV + cover letter to `./out/<slug>/`
 **Date:** 2026-05-23
 **Author:** dave (via BMad qa-generate-e2e-tests)
-**Framework:** pytest 9.0.3 (existing project framework)
-**Run command:** `.venv/bin/python -m pytest`
-**Result:** **97 passed, 2 skipped in 1.69s**
+**Framework:** pytest 8.x (existing project framework; `pyproject.toml` `[tool.pytest.ini_options]`)
+**Run command:** `PYTHONPATH=. .venv/bin/pytest tests/`
+**Result:** **173 passed, 1 skipped in 9.43s**
 
-Skips are pre-existing `python-dotenv` sandbox limitations from Story 1.2 (not introduced by this run). 15 new tests added; 0 regressions against the 82-test baseline.
+Baseline before this QA pass: 155 passed / 1 skipped. The QA pass added **18 new test IDs** (5 integration + 13 unit, counting parametrized cases) to close coverage gaps against the 13 ACs. The single skip is the pre-existing `python-dotenv` sandbox limitation from Story 1.2 — not introduced by this run, and zero regressions against the baseline.
 
-## Testing Surface
+## Approach
 
-Story 1.4 has no HTTP API and no UI. The automated surface is:
-
-1. The `paste` subcommand's JD-ingest flow — stdin happy path, `--file` happy path, `--file` precedence over stdin, no-input rejections (TTY, empty pipe, whitespace), bad `--file` (missing, directory, etc.), and the env → CV → JD ordering invariant.
-2. The boundary-message contract — exit code `1`, message references Story 1.5, character count, and source provenance (`stdin` or `--file PATH`).
-3. The static guardrails — no new runtime dependency, no LLM/HTTP/job-board client imports, no `./out/` write in Story 1.4.
+Story 1.5 already shipped with a thorough test suite from the dev pass (`tests/unit/test_slug.py`, `tests/unit/test_spend_tracker.py`, `tests/unit/test_llm_client.py`, `tests/integration/test_paste_tailoring.py`). This QA pass audited the existing tests against all 13 ACs and added regression guards for contract details that were verified by behavior but not pinned by an explicit assertion. **No real LLM endpoint is reached** — subprocess tests install a deterministic stub via `_isolated_cli_env_with_fake_llm`; in-process tests inject via the `llm_tailor=` seam in `run_tailoring()`.
 
 ## Gap Analysis (test additions in this run)
 
-The Story 1.4 dev pass landed 11 new tests covering AC1–AC10 at a high level. The QA pass identified 7 gaps in contract strictness and unattended invariants, and closed each with 15 new tests in a dedicated module:
-
-| # | Gap | New test(s) |
-|---|---|---|
-| 1 | AC11 stdlib-only guardrail at source level — no test prevented an accidental `import requests`/`httpx`/`openai`/`anthropic`/`click`/`typer`/`rich` in `cli.py` | `test_cli_module_does_not_import_forbidden_runtime_deps` |
-| 2 | AC11 `pyproject.toml` deps pin — no test prevented a future dev from adding a runtime dependency | `test_pyproject_runtime_dependencies_did_not_grow_in_story_1_4` |
-| 3 | UTF-8 encoding contract for `--file` — `Path.read_text(encoding="utf-8")` claim untested against non-ASCII content | `test_paste_subprocess_file_with_utf8_unicode_content_succeeds`, `test_cli_paste_in_process_utf8_file_char_count_reflects_unicode_length` |
-| 4 | AC5-symmetric: empty / whitespace-only `--file` content was not tested (only empty/whitespace stdin) | `test_paste_subprocess_empty_file_exits_two`, `test_paste_subprocess_whitespace_only_file_exits_two`, `test_cli_paste_in_process_empty_file_exits_two` |
-| 5 | AC8 ordering for the `--file` branch — env-failure tests all piped stdin; no test proved a provided `--file` is *not* opened before `LLM_API_KEY`/`MONTHLY_SPEND_CAP_USD` are validated | `test_paste_subprocess_missing_llm_key_does_not_read_provided_file` (uses a sentinel string the file content must NOT leak into stderr), `test_paste_subprocess_missing_cap_does_not_read_provided_file` |
-| 6 | AC9 strict boundary-message shape — existing tests checked only that the literal `"--file"` substring appears, not the verbatim path nor the `{n} chars` count | `test_paste_subprocess_boundary_message_includes_char_count_and_file_path`, `test_paste_subprocess_boundary_message_for_stdin_includes_char_count` |
-| 7 | AC10 success path: existing tests asserted no `./out/` on rejection paths and one in-process file test, but no **subprocess** test pinned the success-path side-effect contract for either `--file` or stdin | `test_paste_subprocess_success_does_not_create_out_directory_with_file`, `test_paste_subprocess_success_does_not_create_out_directory_with_stdin` |
-| 8 | `--file=PATH` (equals syntax) — `argparse` supports it natively, but no smoke test confirmed it survives the dispatch chain | `test_paste_subprocess_file_equals_syntax_works` |
-| 9 | AC3 in-process companion — only a subprocess test covered `--file` precedence over a piped stdin; in-process coverage was missing | `test_cli_paste_in_process_file_precedence_over_stdin` |
+| # | AC | Gap | New tests |
+|---|---|---|---|
+| 1 | AC3 | Cap-exceeded stderr asserted only `$25.00` — current==cap meant a sloppy formatter echoing the cap twice would pass | `test_paste_subprocess_cap_exceeded_stderr_names_current_and_cap_separately`, `test_paste_subprocess_cap_exceeded_with_distinct_current_and_cap` |
+| 2 | AC5 | No test for `.tmp/` dir cleanup after a disk failure mid-write | `test_run_tailoring_cleans_up_tmp_dir_when_artifact_write_fails` |
+| 3 | AC6 | Existing covered `cv_markdown` missing + `cover_letter_markdown` whitespace; missing the symmetric cases | `test_tailor_raises_response_invalid_when_cover_letter_missing`, `test_tailor_raises_response_invalid_when_cv_markdown_empty`, `test_tailor_raises_response_invalid_when_cv_markdown_is_not_a_string` |
+| 4 | AC7 | `runtime_config` lacked direct tests for `LLM_CALL_TIMEOUT_SECONDS` loading, validation, and default | `test_load_runtime_config_defaults_timeout_when_env_unset`, `test_load_runtime_config_reads_positive_timeout_override`, `test_load_runtime_config_reads_fractional_timeout`, `test_load_runtime_config_rejects_non_numeric_timeout` (×4), `test_load_runtime_config_rejects_non_positive_timeout` (×3) |
+| 5 | AC7 | Existing tests pinned timeout at SDK level + invalid-env at subprocess level — gap was the end-to-end wiring | `test_runtime_config_passes_custom_timeout_into_tailoring_call` |
+| 6 | AC12 | `.gitignore` was a manifest assertion only — no test prevented an accidental removal of `out/` or `.cost-ledger.json` | `test_gitignore_excludes_cost_ledger_and_out_directory` |
 
 ## Generated Tests
 
-### CLI Integration Tests — `tests/integration/test_paste_jd_ingest.py` (+15, new file)
+### Unit — `tests/unit/test_runtime_config.py` (+5 names, 9 IDs counting parametrize)
 
-Subprocess tests (12):
+- `test_load_runtime_config_defaults_timeout_when_env_unset` — AC7 default
+- `test_load_runtime_config_reads_positive_timeout_override` — AC7 positive int
+- `test_load_runtime_config_reads_fractional_timeout` — AC7 positive float
+- `test_load_runtime_config_rejects_non_numeric_timeout` — parametrized × 4 (`"abc"`, `"not-a-number"`, `"1.2.3"`, `"12s"`)
+- `test_load_runtime_config_rejects_non_positive_timeout` — parametrized × 3 (`"0"`, `"-1"`, `"-0.5"`)
 
-- `test_cli_module_does_not_import_forbidden_runtime_deps` — AC11 forbidden-import source check
-- `test_pyproject_runtime_dependencies_did_not_grow_in_story_1_4` — AC11 deps-list pin
-- `test_paste_subprocess_file_with_utf8_unicode_content_succeeds` — UTF-8 round-trip via `--file`
-- `test_paste_subprocess_empty_file_exits_two` — AC5-symmetric: empty `--file`
-- `test_paste_subprocess_whitespace_only_file_exits_two` — AC5-symmetric: whitespace `--file`
-- `test_paste_subprocess_missing_llm_key_does_not_read_provided_file` — AC8 ordering, file branch
-- `test_paste_subprocess_missing_cap_does_not_read_provided_file` — AC8 ordering, file branch
-- `test_paste_subprocess_boundary_message_includes_char_count_and_file_path` — AC9 strict shape (file)
-- `test_paste_subprocess_boundary_message_for_stdin_includes_char_count` — AC9 strict shape (stdin)
-- `test_paste_subprocess_success_does_not_create_out_directory_with_file` — AC10 success path (file)
-- `test_paste_subprocess_success_does_not_create_out_directory_with_stdin` — AC10 success path (stdin)
-- `test_paste_subprocess_file_equals_syntax_works` — argparse `--file=PATH` smoke test
+### Unit — `tests/unit/test_llm_client.py` (+3)
 
-In-process tests (3):
+- `test_tailor_raises_response_invalid_when_cover_letter_missing` — AC6 missing field
+- `test_tailor_raises_response_invalid_when_cv_markdown_empty` — AC6 whitespace `cv_markdown`
+- `test_tailor_raises_response_invalid_when_cv_markdown_is_not_a_string` — AC6 non-string field
 
-- `test_cli_paste_in_process_utf8_file_char_count_reflects_unicode_length` — UTF-8 + char-count contract
-- `test_cli_paste_in_process_empty_file_exits_two` — AC5-symmetric: in-process variant
-- `test_cli_paste_in_process_file_precedence_over_stdin` — AC3 in-process companion
+### Integration — `tests/integration/test_paste_tailoring.py` (+4)
 
-The new file mirrors `_isolated_cli_env(tmp_path, ...)`, `_pythonpath_with_src`, `_cli_env`, and `_run_module_cli` locally (kept private to the test module) so the gap-closure suite is self-contained and `tests/integration/test_cli_entry.py` does not have to grow past its current ~845 lines.
+- `test_paste_subprocess_cap_exceeded_stderr_names_current_and_cap_separately` — AC3 at-cap boundary
+- `test_paste_subprocess_cap_exceeded_with_distinct_current_and_cap` — AC3 above-cap, distinct values
+- `test_run_tailoring_cleans_up_tmp_dir_when_artifact_write_fails` — AC5 `.tmp/` cleanup
+- `test_runtime_config_passes_custom_timeout_into_tailoring_call` — AC7 end-to-end wiring
 
-### No Source-Code Changes
+### Integration — `tests/integration/test_paste_jd_ingest.py` (+1)
 
-No `src/jobhunter/cli.py` change is needed — the Story 1.4 dev pass already implements the contract correctly. The QA tests are pure gap-closure: they validate the already-implemented behavior and prevent future regressions.
+- `test_gitignore_excludes_cost_ledger_and_out_directory` — AC12 `.gitignore` regression guard
 
-## Coverage
+## Coverage by AC
 
-- **JD-ingest contract:** 26/26 known behaviors (AC1–AC10 + AC11 source guardrails). The 11 Story-1.4 dev tests + 15 QA gap-closure tests cover stdin/`--file` happy paths, `--file` precedence, empty/whitespace rejections in both branches, missing-file, directory `--file`, TTY-no-input rejection, env → CV → JD ordering invariants for both stdin and `--file` branches, boundary-message strict shape (char count + source path), UTF-8 encoding for `--file`, `--file=PATH` equals syntax, success-path no-`./out/` side effect.
-- **AC11 guardrails:** Forbidden imports in `cli.py` and forbidden runtime deps in `pyproject.toml` are now both load-bearing assertions.
-- **No new runtime dependency added:** All new tests use stdlib + pytest only (`subprocess`, `pathlib`, `io`, `os`, `shutil`, `sys`).
-- **Full pytest suite:** 97/97 passing (+ 2 pre-existing dotenv-sandbox skips). Baseline before this run: 82/82 passing.
+| AC | Subject | Tests |
+|----|---------|-------|
+| AC1 | Happy-path artifact write | ✅ Multiple (subprocess + in-process; stdin + `--file`) |
+| AC2 | Slug shape + deterministic + collision refusal | ✅ 11 unit + 2 integration |
+| AC3 | Cap pre-check non-bypassable + stderr names both numbers | ✅ Strengthened in this pass |
+| AC4 | Per-request token + cost logging (atomic ledger) | ✅ 12 unit + 1 integration |
+| AC5 | Atomic artifact write on LLM failure + `.tmp/` cleanup | ✅ Closed disk-failure path in this pass |
+| AC6 | LLM response validation (missing/empty/non-string) | ✅ Closed symmetric variants in this pass |
+| AC7 | Per-call timeout (env + default + validation + wiring) | ✅ Closed runtime-config + wiring in this pass |
+| AC8 | No HTTP traffic to job boards (source-grep guard) | ✅ 1 integration test |
+| AC9 | Canonical CV untouched (mtime + sha256 snapshot) | ✅ 1 integration test |
+| AC10 | Gate ordering env → CV → JD → cap → LLM → write | ✅ Inherited Stories 1.2–1.4 chain + 1 new |
+| AC11 | Single new runtime dep (`anthropic`) + forbidden imports | ✅ 2 integration tests |
+| AC12 | README / DECISIONS / `.gitignore` | ✅ Closed `.gitignore` guard in this pass |
+| AC13 | Test-coverage meta-contract | ✅ Satisfied by all of the above |
+
+## No Source-Code Changes
+
+The dev pass already implements the contract correctly. All additions are pure
+gap-closure tests that validate already-implemented behavior and prevent future
+regressions.
 
 ## Validation Against `checklist.md`
 
-- [x] API tests generated (if applicable) — N/A; no HTTP service exists yet (lands in Story 2.11).
-- [x] E2E tests generated (if UI exists) — N/A for UI; CLI subprocess + in-process integration tests cover the user-facing surface.
-- [x] Tests use standard test framework APIs — pytest + `monkeypatch` + `capsys`, stdlib `subprocess` and `io`. No custom abstractions.
-- [x] Tests cover happy path — UTF-8 `--file` happy path, stdin happy path with char-count assertions, `--file=PATH` equals syntax, in-process precedence.
-- [x] Tests cover critical error cases — empty `--file`, whitespace `--file`, env-missing with `--file` present (no file read), boundary-message strict shape on success.
-- [x] All generated tests run successfully (`97 passed, 2 skipped`).
-- [x] Tests use proper locators — substring assertions on `"Story 1.5"`, `"--file"`, `"stdin"`, char-count strings, and path strings (copywriting-stable per Story 1.4 Dev Notes Testing Standards).
+- [x] API tests generated (if applicable) — N/A; this is a CLI app, no HTTP API surface (a fetch surface lands in Epic 2).
+- [x] E2E tests generated (if UI exists) — N/A for UI; CLI subprocess + in-process integration tests cover the user-facing surface end-to-end.
+- [x] Tests use standard test framework APIs — pytest + `monkeypatch` + `tmp_path` + `pytest.parametrize`. Stdlib `subprocess`, `pathlib`, `decimal`, `json`.
+- [x] Tests cover happy path — AC1 covered with multiple subprocess + in-process variants for stdin and `--file`.
+- [x] Tests cover critical error cases — AC3 cap, AC5 LLM failure + disk failure, AC6 invalid response (4 variants), AC7 timeout (8 variants), AC8 hostname, AC10 gate ordering.
+- [x] All generated tests run successfully — `173 passed, 1 skipped`.
+- [x] Tests use proper locators — substring assertions on stderr contract strings (`"Tailored package written to"`, `"Monthly LLM spend cap reached"`, `"LLM call failed:"`, `"--file"`, `"stdin"`, dollar amounts); file existence checks for `cv.md` / `cover-letter.md`; ledger schema checks on `total_usd` + `calls`.
 - [x] Tests have clear descriptions — each docstring states the AC and the specific gap the test closes.
 - [x] No hardcoded waits or sleeps — subprocess `timeout=5` is a failure guard only.
-- [x] Tests are independent — `tmp_path` + `monkeypatch` rebuild state per test; the `_isolated_cli_env` helper builds the env in tmp_path before snapshotting; no shared mutable globals.
+- [x] Tests are independent — `tmp_path` + `monkeypatch` rebuild state per test; isolated CLI env mirrors the canonical CV into the tmp tree; no shared mutable globals.
 - [x] Test summary created — this file.
-- [x] Tests saved to appropriate directories — `tests/integration/test_paste_jd_ingest.py` (new file).
+- [x] Tests saved to appropriate directories — `tests/unit/` and `tests/integration/`.
 - [x] Summary includes coverage and gap-closure metrics.
 
 ## Files Modified
 
-- `tests/integration/test_paste_jd_ingest.py` — new file, 15 tests, ~440 lines.
+- `tests/unit/test_runtime_config.py` — +5 test names (+9 IDs with parametrize)
+- `tests/unit/test_llm_client.py` — +3 test names
+- `tests/integration/test_paste_tailoring.py` — +4 test names
+- `tests/integration/test_paste_jd_ingest.py` — +1 test name
 
-(No source code changes. No `tests/conftest.py` fixture additions; the existing `tmp_canonical_cv` fixture and `_isolated_cli_env(tmp_path, ...)` helper pattern are sufficient.)
+(No source-code changes. No `tests/conftest.py` fixture additions; the existing `tmp_canonical_cv` fixture and `_isolated_cli_env_with_fake_llm` helper pattern are sufficient.)
 
 ## Next Steps
 
-- No source changes needed for Story 1.4; gap-closure tests validate the already-implemented behavior.
-- When Story 1.5 lands the first tailoring call, extend this suite to confirm: (a) the JD text reaches the tailoring step exactly once (no double-read), (b) the boundary message changes from "Story 1.5" to whatever the next-boundary message is, and (c) the first `./out/<slug>/` write now appears — the AC10 success-path assertions in this file will need to be updated or moved to Story 1.5's QA pass.
-- The two new AC11 static guardrails (`test_cli_module_does_not_import_forbidden_runtime_deps`, `test_pyproject_runtime_dependencies_did_not_grow_in_story_1_4`) should be extended in Story 1.5 to allow the chosen LLM SDK (e.g. `anthropic` or `openai`) while still blocking the others.
+- Tests are wired and green. No further action required for the Story 1.5 QA gate.
+- Live LLM smoke (Task 11 sub-bullets in the story) remains the author's manual responsibility — it requires a real Anthropic API key and is deliberately out of `pytest` scope.
+- When Epic 2 lands the structured per-application metadata sidecar (FR38) and `jobhunter stats` (FR40), the ledger schema in this story's tests will become the contract those future stories must extend without breaking.
