@@ -146,11 +146,26 @@ development_status:
 
   # Epic 5: Keyword-Stuffing Drift Check
   # 5-4 added on 2026-05-23 for the Drift Diagnostics surface — keyword-stuffing slice (completes the surface).
-  epic-5: backlog
-  5-1-keyword-density-measurement-against-per-keyword-thresholds: backlog
-  5-2-dump-paragraph-and-comma-run-placement-detection: backlog
-  5-3-drift-metadata-writes-and-per-channel-threshold-overrides: backlog
-  5-4-drift-check-diagnostics-surface-keyword-stuffing-section: backlog
+  # 2026-05-23: Epic 5 done via sequential layered fan-out.
+  #   L0: 5-1 (a631bfd; 814 passing)
+  #   L1: 5-2 (c282623; 845 passing)
+  #   L2: 5-3 (1684705; 874 passing) — subagent stalled on watchdog
+  #     after writing modules + unit tests; orchestrator finished
+  #     integration tests + fixed two pre-existing held-package tests
+  #     (extended fixtures with Greek-alphabet filler to keep density
+  #     under threshold, # Story 5.3: comments).
+  #   L3: 5-4 (fdc354b; 879 passing) — subagent exited mid-report on
+  #     socket error after writing the component + DriftPage update;
+  #     orchestrator added the missing integration test from full
+  #     context.
+  #   Drift-check trilogy (Epics 3 + 4 + 5) now complete: fabrication
+  #   + content-loss + keyword-stuffing all wire end-to-end through
+  #   metadata + package.drift.json + held-package + DriftPage UI.
+  epic-5: done
+  5-1-keyword-density-measurement-against-per-keyword-thresholds: done
+  5-2-dump-paragraph-and-comma-run-placement-detection: done
+  5-3-drift-metadata-writes-and-per-channel-threshold-overrides: done
+  5-4-drift-check-diagnostics-surface-keyword-stuffing-section: done
   epic-5-retrospective: optional
 
   # Epic 6: Notifications & Held-Package Queue
