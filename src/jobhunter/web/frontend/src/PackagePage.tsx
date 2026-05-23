@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { ApproveOverrideModal } from "./components/ApproveOverrideModal";
 import { MarkdownRenderer } from "./components/MarkdownRenderer";
 import {
   MetadataSidebar,
@@ -12,7 +13,7 @@ type PackagePayload = {
   cv_markdown: string | null;
   cover_letter_markdown: string | null;
   upwork_proposal_markdown: string | null;
-  metadata: PackageMetadata;
+  metadata: PackageMetadata & { held?: boolean };
 };
 
 type FetchState =
@@ -38,6 +39,13 @@ export function PackagePage() {
   const { slug } = useParams<{ slug: string }>();
   const [fetchState, setFetchState] = useState<FetchState>({ kind: "loading" });
   const [activeTab, setActiveTab] = useState<ArtifactTab>("cv");
+  // Story 6.4: local UI state for the Approve action. `overrideApplied`
+  // is the optimistic flip after a 200 OK from `/api/override/<slug>` so
+  // the badge + button disappear without a full page refetch. `note`
+  // surfaces the server's "Open ./out/_overridden/..." reminder.
+  const [modalOpen, setModalOpen] = useState(false);
+  const [overrideApplied, setOverrideApplied] = useState(false);
+  const [overrideNote, setOverrideNote] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +157,11 @@ export function PackagePage() {
   const parsed = payload.metadata.parsed_jd ?? {};
   const driftVerdicts = payload.metadata.drift_verdicts ?? {};
   const fabricationFailed = driftVerdicts.fabrication === "fail";
+  // Story 6.4: a package is held until either the server-side `held` flag
+  // says so OR the optimistic flag from a successful override flips it
+  // off. Both conditions OR together so the Approve button hides as soon
+  // as the modal reports success, even before the next route load.
+  const isHeld = (payload.metadata.held ?? false) && !overrideApplied;
   const driftLinkClass = fabricationFailed
     ? "inline-flex items-center gap-stack-sm px-stack-md py-stack-sm rounded-lg bg-primary text-on-primary text-body-md font-body-md font-medium hover:bg-primary/90 transition-colors"
     : "inline-flex items-center gap-stack-sm px-stack-md py-stack-sm rounded-lg border border-outline-variant text-body-md font-body-md text-on-surface-variant hover:text-primary hover:border-primary transition-colors";
@@ -176,7 +189,7 @@ export function PackagePage() {
         <p className="text-body-md font-body-md text-on-surface-variant">
           Source board: <span className="font-medium">{board}</span>
         </p>
-        <div className="mt-stack-sm">
+        <div className="mt-stack-sm flex flex-wrap items-center gap-stack-sm">
           <Link
             to={`/packages/${encodeURIComponent(payload.slug)}/drift`}
             className={driftLinkClass}
@@ -193,7 +206,33 @@ export function PackagePage() {
               </span>
             )}
           </Link>
+          {isHeld && (
+            <>
+              <span
+                className="inline-flex items-center px-stack-sm py-stack-xs rounded-full border border-error bg-error-container text-on-error-container text-label-md font-label-md uppercase tracking-wider"
+                aria-label="Package is held"
+              >
+                Held
+              </span>
+              <button
+                type="button"
+                onClick={() => setModalOpen(true)}
+                aria-label="Approve override for this package"
+                className="inline-flex items-center gap-stack-sm px-stack-md py-stack-sm rounded-lg bg-primary text-on-primary text-body-md font-body-md font-medium hover:bg-primary/90 transition-colors"
+              >
+                Approve override
+              </button>
+            </>
+          )}
         </div>
+        {overrideApplied && overrideNote && (
+          <div
+            role="status"
+            className="mt-stack-md border border-primary/40 bg-secondary-container text-on-surface rounded-lg p-stack-sm text-body-md font-body-md"
+          >
+            {overrideNote}
+          </div>
+        )}
       </header>
 
       <div className="flex flex-col lg:flex-row gap-gutter">
@@ -273,6 +312,18 @@ export function PackagePage() {
 
         <MetadataSidebar metadata={payload.metadata} />
       </div>
+
+      {modalOpen && (
+        <ApproveOverrideModal
+          slug={payload.slug}
+          onClose={() => setModalOpen(false)}
+          onSuccess={(note) => {
+            setOverrideApplied(true);
+            setOverrideNote(note);
+            setModalOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
