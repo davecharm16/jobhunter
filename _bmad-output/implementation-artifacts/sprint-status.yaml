@@ -77,14 +77,17 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2: Paste Pipeline Hardening & Artifact System
-  # 2026-05-23: 4 stories merged in parallel via story-automator fan-out (L0):
-  #   2-1 (62c0181 + 4ae6bf2), 2-2 (62c0181), 2-9 (7dd9eed), 2-10 (38c8dc1).
-  #   Follow-up commit 3145051 wired prompt_versions into metadata.prompt_templates.
-  #   269 tests passing on main.
+  # 2026-05-23: L0 fan-out: 2-1 (4ae6bf2), 2-2 (62c0181), 2-9 (7dd9eed), 2-10
+  #   (38c8dc1). Follow-up commit 3145051 wired prompt_versions into
+  #   metadata.prompt_templates.
+  # 2026-05-23: L1 fan-out: 2-11 (3d05a10), 2-3 (682e3ee), 2-13 (2a6527a).
+  #   Stories 2-3 and 2-13 hit Anthropic session limits mid-report; their
+  #   worktree implementations were complete (verified by orchestrator pytest
+  #   + frontend build) before merge. 321 tests passing on main.
   epic-2: in-progress
   2-1-canonical-cv-tagging-schema-and-high-impact-flag: done
   2-2-config-yaml-separation-of-tunables-from-secrets: done
-  2-3-structured-jd-parser: backlog
+  2-3-structured-jd-parser: done
   2-4-source-board-classifier: backlog
   2-5-upwork-specific-signal-extraction-and-red-flags: backlog
   2-6-onlinejobs-ph-specific-signal-extraction: backlog
@@ -92,9 +95,9 @@ development_status:
   2-8-per-board-artifact-set-selector: backlog
   2-9-prompt-template-versioning: done
   2-10-per-application-metadata-sidecar-and-per-request-cost-logging: done
-  2-11-internal-post-paste-endpoint-with-shared-token-auth: backlog
+  2-11-internal-post-paste-endpoint-with-shared-token-auth: done
   2-12-stats-api-and-dashboard-stats-card: backlog
-  2-13-settings-and-canonical-cv-editor-surface: backlog
+  2-13-settings-and-canonical-cv-editor-surface: done
   2-14-jd-pipeline-and-tailoring-surface-staged-package-viewer: backlog
   epic-2-retrospective: optional
 
