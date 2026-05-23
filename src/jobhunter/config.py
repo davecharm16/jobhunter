@@ -14,3 +14,5 @@ CANONICAL_CV_PATH: Path = PROJECT_ROOT / "canonical-cv.json"
 VENDORED_JSONRESUME_SCHEMA_PATH: Path = (
     PROJECT_ROOT / "schemas" / "jsonresume-v1.0.0.json"
 )
+
+CONFIG_YAML_PATH: Path = PROJECT_ROOT / "config.yaml"

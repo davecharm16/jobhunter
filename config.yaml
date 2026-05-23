@@ -1,0 +1,22 @@
+# Tunable configuration for jobhunter (Story 2.2).
+# Secrets do NOT live here — put API keys and the like in `.env`.
+# Edit values below; defaults match the committed template.
+
+cost:
+  monthly_cap_usd: 25
+  per_app_max_usd: 0.25
+
+output:
+  dir: out
+
+prompts:
+  cv: prompts/cv.v1.md
+  cover_letter: prompts/cover_letter.v1.md
+  upwork_proposal: prompts/upwork_proposal.v1.md
+
+red_flags:
+  upwork:
+    budget_floor_usd_hourly: 25
+    budget_floor_usd_fixed: 500
+  onlinejobs_ph:
+    rate_floor_usd_monthly: 600
