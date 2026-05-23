@@ -1,4 +1,4 @@
-"""Tailoring orchestration: parse JD → cap check → LLM call → atomic artifact write.
+"""Tailoring orchestration: parse JD → classify → cap check → LLM call → atomic artifact write.
 
 This module is the only place where the spend tracker, the LLM client, and
 the artifact directory layout come together. The CLI calls one function:
@@ -9,6 +9,10 @@ every downstream check operates on a stable `parsed_jd` dict (must_haves,
 nice_to_haves, tone, seniority, red_flags) rather than re-prompting the LLM
 with raw text. The parsed dict is threaded into the metadata sidecar and
 surfaced on `TailoringOutcome`.
+
+Story 2.4 inserts a source-board classify step immediately after the parse
+so the parsed dict carries `source_board ∈ {upwork, onlinejobs_ph, linkedin,
+other}` and the metadata sidecar records the classification.
 
 Atomic write strategy (AC5): build into a `<slug>.tmp` sibling directory,
 then `os.replace()` it onto the final path. POSIX guarantees `os.replace()`
@@ -27,12 +31,14 @@ from pathlib import Path
 from typing import Any, Callable
 
 from jobhunter import (
+    board_classifier,
     jd_parser,
     llm_client,
     metadata as metadata_module,
     prompts,
     spend_tracker,
 )
+from jobhunter.board_classifier import Classification
 from jobhunter.config import PROJECT_ROOT
 from jobhunter.jd_parser import ParseTimedOut, ParsedJD
 from jobhunter.llm_client import MODEL_NAME, TailoringResult
@@ -46,6 +52,7 @@ __all__ = ["TailoringOutcome", "run_tailoring"]
 
 TailorCallable = Callable[..., TailoringResult]
 ParseCallable = Callable[..., ParsedJD]
+ClassifyCallable = Callable[..., Classification]
 
 
 @dataclass(frozen=True)
@@ -65,13 +72,16 @@ def run_tailoring(
     now: datetime | None = None,
     llm_tailor: TailorCallable | None = None,
     llm_parse: ParseCallable | None = None,
+    classify: ClassifyCallable | None = None,
+    source_board: str | None = None,
     out_root: Path | None = None,
     ledger_path: Path | None = None,
 ) -> TailoringOutcome:
-    """Orchestrate parse → cap check → tailor → atomic artifact write."""
+    """Orchestrate parse → classify → cap check → tailor → atomic artifact write."""
     using_real_tailor = llm_tailor is None
     tailor = llm_tailor or llm_client.tailor
     parse = llm_parse or jd_parser.parse_jd
+    classifier = classify or board_classifier.classify_board
     root = out_root or (PROJECT_ROOT / "out")
 
     jd_parse_template = prompts.load_prompt("jd_parse")
@@ -90,7 +100,17 @@ def run_tailoring(
             error="parse_timeout",
         )
         raise
+
+    classification = classifier(
+        jd_text,
+        parsed,
+        explicit_override=source_board,
+    )
+    # `source_board` lives at the metadata top-level (Story 2.10 placeholder slot).
+    # `parsed_jd_dict` stays at Story 2.3's 6-field shape so the structured-parse
+    # contract is not mixed with the board-classification concern.
     parsed_jd_dict = dataclasses.asdict(parsed)
+    parsed_jd_dict.pop("source_board", None)
 
     cv_template = prompts.load_prompt("cv")
     cover_letter_template = prompts.load_prompt("cover_letter")
@@ -148,6 +168,7 @@ def run_tailoring(
         calls=[call_log],
         prompt_templates=prompt_versions,
         parsed_jd=parsed_jd_dict,
+        source_board=classification.source_board,
         now=now,
     )
     write_sidecar(out_dir, package_metadata)

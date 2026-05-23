@@ -75,7 +75,10 @@ def test_run_tailoring_writes_metadata_json_with_full_ac1_payload(tmp_path) -> N
     data = json.loads(metadata_path.read_text(encoding="utf-8"))
 
     assert data["slug"] == outcome.out_dir.name
-    assert data["source_board"] == "unknown"
+    # Story 2.4 wires the source-board classifier into run_tailoring; a JD with
+    # no Upwork/OJ.ph/LinkedIn signal resolves to "other" (was placeholder
+    # "unknown" before Story 2.4 landed).
+    assert data["source_board"] == "other"
     assert data["jd_source"] == "paste"
     # Story 2.3 populates parsed_jd; the test asserts the shape exists rather
     # than the exact contents (the autouse parse stub supplies deterministic

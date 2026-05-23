@@ -13,6 +13,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable
 
+from jobhunter.board_classifier import Classification
 from jobhunter.config import PROJECT_ROOT
 from jobhunter.jd_parser import ParsedJD
 from jobhunter.llm_client import TailoringResult
@@ -34,6 +35,7 @@ def make_fake_parse(
     tone: str = "neutral",
     seniority: str = "senior",
     red_flags: list[str] | None = None,
+    source_board: str = "unknown",
 ) -> Callable[..., ParsedJD]:
     def fake_parse(
         jd_text: str,
@@ -49,9 +51,32 @@ def make_fake_parse(
             seniority=seniority,
             red_flags=list(red_flags or []),
             raw_text_length=len(jd_text),
+            source_board=source_board,
         )
 
     return fake_parse
+
+
+def make_fake_classifier(
+    *,
+    source_board: str = "other",
+    method: str = "heuristic",
+) -> Callable[..., Classification]:
+    """Stub for `board_classifier.classify_board` that honors explicit overrides."""
+
+    def fake_classify(
+        jd_text: str,
+        parsed_jd: ParsedJD,
+        *,
+        explicit_override: str | None = None,
+    ) -> Classification:
+        if explicit_override is not None:
+            return Classification(
+                source_board=explicit_override, method="explicit_override"
+            )
+        return Classification(source_board=source_board, method=method)
+
+    return fake_classify
 
 
 def make_fake_tailor(
@@ -90,7 +115,13 @@ def stage_canonical_cv(tmp_path: Path, monkeypatch) -> Path:
     return cv_path
 
 
-def stage_tailoring(tmp_path: Path, monkeypatch, fake_tailor=None, fake_parse=None):
+def stage_tailoring(
+    tmp_path: Path,
+    monkeypatch,
+    fake_tailor=None,
+    fake_parse=None,
+    fake_classify=None,
+):
     """Wire the FastAPI route's `run_tailoring` to write into tmp_path.
 
     Returns the chosen out_root / ledger_path so tests can assert on disk
@@ -103,6 +134,7 @@ def stage_tailoring(tmp_path: Path, monkeypatch, fake_tailor=None, fake_parse=No
     ledger_path = tmp_path / ".cost-ledger.json"
     tailor = fake_tailor or make_fake_tailor()
     parser = fake_parse or make_fake_parse()
+    classifier = fake_classify
     original_run = tailoring_module.run_tailoring
 
     def patched_run(
@@ -113,6 +145,8 @@ def stage_tailoring(tmp_path: Path, monkeypatch, fake_tailor=None, fake_parse=No
         now=None,
         llm_tailor=None,
         llm_parse=None,
+        classify=None,
+        source_board=None,
         out_root=None,
         ledger_path=None,
     ):
@@ -123,6 +157,8 @@ def stage_tailoring(tmp_path: Path, monkeypatch, fake_tailor=None, fake_parse=No
             now=now,
             llm_tailor=tailor,
             llm_parse=parser,
+            classify=classify or classifier,
+            source_board=source_board,
             out_root=out_root or (tmp_path / "out"),
             ledger_path=ledger_path or (tmp_path / ".cost-ledger.json"),
         )

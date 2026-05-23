@@ -1,4 +1,4 @@
-"""Integration-test fixtures (Story 2.3).
+"""Integration-test fixtures (Stories 2.3, 2.4).
 
 Adds autouse fixtures that keep the Story 2.3 parse step from reaching real
 Anthropic during integration tests that drive the orchestrator without
@@ -10,6 +10,11 @@ injecting `llm_parse` explicitly. Two layers:
    template resolves to a synthetic `PromptTemplate` even when the staged
    prompts directory does not contain `jd_parse.v1.md` (this lets Story 2.9
    tests stage minimal prompt dirs without knowing about Story 2.3).
+
+The Story 2.4 classifier is heuristic-only (no LLM call), so it does not need
+an autouse stub for cost/safety reasons — but tests that want a deterministic
+classification can pass `fake_classify=make_fake_classifier(...)` through
+`stage_tailoring()`.
 
 Tests that need to assert parse-stage behavior (timeout, malformed response)
 override the stubs with their own `monkeypatch.setattr` — the autouse fixtures

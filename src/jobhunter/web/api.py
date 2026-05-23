@@ -120,7 +120,12 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
         try:
-            outcome = run_tailoring(canonical_cv, payload.jd_text, config=config)
+            outcome = run_tailoring(
+                canonical_cv,
+                payload.jd_text,
+                config=config,
+                source_board=payload.source_board,
+            )
         except SpendCapExceeded as exc:
             raise HTTPException(
                 status_code=402,

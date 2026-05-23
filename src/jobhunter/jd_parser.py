@@ -50,6 +50,7 @@ class ParsedJD:
     seniority: str
     red_flags: list[str]
     raw_text_length: int
+    source_board: str = "unknown"
 
 
 def parse_jd(
