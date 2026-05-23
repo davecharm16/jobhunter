@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 type PasteResponse = {
   slug: string;
@@ -13,14 +14,13 @@ type Props = {
 };
 
 export function PastePanel({ jdText, setJdText }: Props) {
+  const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<PasteResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     setBusy(true);
     setError(null);
-    setResult(null);
     try {
       const response = await fetch("/api/paste", {
         method: "POST",
@@ -32,7 +32,8 @@ export function PastePanel({ jdText, setJdText }: Props) {
         setError(typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail));
         return;
       }
-      setResult(body as PasteResponse);
+      const { slug } = body as PasteResponse;
+      navigate(`/packages/${encodeURIComponent(slug)}`);
     } catch (exc) {
       setError(String(exc));
     } finally {
@@ -66,27 +67,6 @@ export function PastePanel({ jdText, setJdText }: Props) {
       {error && (
         <div className="border border-error rounded-lg p-stack-md text-error text-body-md font-body-md">
           {error}
-        </div>
-      )}
-
-      {result && (
-        <div className="border border-outline-variant rounded-lg p-stack-md bg-surface-container-low flex flex-col gap-stack-xs">
-          <div className="text-label-md font-label-md uppercase text-on-surface-variant">
-            Tailored package
-          </div>
-          <div className="text-body-md font-body-md text-on-surface">
-            <span className="font-semibold">Slug:</span> {result.slug}
-          </div>
-          <div className="text-body-md font-body-md text-on-surface">
-            <span className="font-semibold">CV:</span> {result.cv_path}
-          </div>
-          <div className="text-body-md font-body-md text-on-surface">
-            <span className="font-semibold">Cover letter:</span>{" "}
-            {result.cover_letter_path}
-          </div>
-          <div className="text-body-md font-body-md text-on-surface">
-            <span className="font-semibold">Cost:</span> ${result.cost_usd}
-          </div>
         </div>
       )}
     </section>

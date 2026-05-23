@@ -4,6 +4,7 @@ import { Sidebar } from "./Sidebar";
 import { PastePanel } from "./PastePanel";
 import { SettingsPage } from "./SettingsPage";
 import { StatsCard } from "./StatsCard";
+import { PackagePage } from "./PackagePage";
 
 function DashboardPage() {
   const [jdText, setJdText] = useState("");
@@ -38,6 +39,7 @@ export function App() {
           <Routes>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/packages/:slug" element={<PackagePage />} />
           </Routes>
         </main>
       </div>
