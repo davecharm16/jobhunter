@@ -37,6 +37,7 @@ from jobhunter.runtime_config import (
 from jobhunter.spend_tracker import SpendCapExceeded, SpendLedgerCorrupt
 from jobhunter.tailoring import run_tailoring
 from jobhunter.web.routes.canonical_cv import router as canonical_cv_router
+from jobhunter.web.routes.drift import router as drift_router
 from jobhunter.web.routes.package import router as package_router
 from jobhunter.web.routes.stats import router as stats_router
 
@@ -183,6 +184,7 @@ def create_app() -> FastAPI:
 
     app.include_router(canonical_cv_router)
     app.include_router(package_router)
+    app.include_router(drift_router)
     app.include_router(stats_router)
 
     if FRONTEND_DIST.is_dir():

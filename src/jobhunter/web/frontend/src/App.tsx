@@ -5,6 +5,7 @@ import { PastePanel } from "./PastePanel";
 import { SettingsPage } from "./SettingsPage";
 import { StatsCard } from "./StatsCard";
 import { PackagePage } from "./PackagePage";
+import { DriftPage } from "./DriftPage";
 
 function DashboardPage() {
   const [jdText, setJdText] = useState("");
@@ -40,6 +41,7 @@ export function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/packages/:slug" element={<PackagePage />} />
+            <Route path="/packages/:slug/drift" element={<DriftPage />} />
           </Routes>
         </main>
       </div>

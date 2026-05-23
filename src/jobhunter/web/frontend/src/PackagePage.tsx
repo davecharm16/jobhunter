@@ -147,6 +147,11 @@ export function PackagePage() {
   const { payload } = fetchState;
   const board = payload.metadata.source_board ?? "unknown";
   const parsed = payload.metadata.parsed_jd ?? {};
+  const driftVerdicts = payload.metadata.drift_verdicts ?? {};
+  const fabricationFailed = driftVerdicts.fabrication === "fail";
+  const driftLinkClass = fabricationFailed
+    ? "inline-flex items-center gap-stack-sm px-stack-md py-stack-sm rounded-lg bg-primary text-on-primary text-body-md font-body-md font-medium hover:bg-primary/90 transition-colors"
+    : "inline-flex items-center gap-stack-sm px-stack-md py-stack-sm rounded-lg border border-outline-variant text-body-md font-body-md text-on-surface-variant hover:text-primary hover:border-primary transition-colors";
 
   const activeArtifact =
     activeTab === "cv"
@@ -171,6 +176,24 @@ export function PackagePage() {
         <p className="text-body-md font-body-md text-on-surface-variant">
           Source board: <span className="font-medium">{board}</span>
         </p>
+        <div className="mt-stack-sm">
+          <Link
+            to={`/packages/${encodeURIComponent(payload.slug)}/drift`}
+            className={driftLinkClass}
+            aria-label={
+              fabricationFailed
+                ? "View drift diagnostics (fabrication failed)"
+                : "View drift diagnostics"
+            }
+          >
+            View drift diagnostics
+            {fabricationFailed && (
+              <span className="text-label-md font-label-md uppercase tracking-wider">
+                fabrication fail
+              </span>
+            )}
+          </Link>
+        </div>
       </header>
 
       <div className="flex flex-col lg:flex-row gap-gutter">
