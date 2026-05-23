@@ -103,8 +103,9 @@ development_status:
 
   # Epic 3: Fabrication Drift Check
   # 3-5 added on 2026-05-23 for the Drift Diagnostics surface — fabrication slice.
-  epic-3: backlog
-  3-1-finalize-llm-provider-and-build-atomic-claim-extractor: backlog
+  # 2026-05-23: 3-1 merged (bcbc1dd); 566 tests passing.
+  epic-3: in-progress
+  3-1-finalize-llm-provider-and-build-atomic-claim-extractor: done
   3-2-structural-matcher-with-claim-to-source-cv-traceability: backlog
   3-3-semantic-equivalence-threshold-for-tolerated-paraphrase: backlog
   3-4-held-package-pattern-with-hard-fail-policy-and-7-day-retention: backlog
