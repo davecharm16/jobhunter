@@ -101,6 +101,16 @@ development_status:
   2-14-jd-pipeline-and-tailoring-surface-staged-package-viewer: done
   epic-2-retrospective: optional
 
+  # Known test-environment gotcha (uncovered during Epic 4 L1):
+  # Two env-gate tests in test_paste_jd_ingest.py + test_paste_tailoring.py
+  # use monkeypatch.delenv("LLM_API_KEY") but load_runtime_config() calls
+  # load_dotenv() which re-reads .env from disk. Tests pass on main only
+  # when .env is absent (e.g. fresh worktree). When the user has a real
+  # .env on disk, these two tests fail. Worktree subagents don't see the
+  # main repo's .env, so they always pass there. Workaround: rename .env
+  # to .env.parked before running pytest, or fix the tests to intercept
+  # load_dotenv. Not a Story 4.2 regression.
+
   # Epic 3: Fabrication Drift Check
   # 3-5 added on 2026-05-23 for the Drift Diagnostics surface — fabrication slice.
   # 2026-05-23: Epic 3 complete via layered fan-out.
@@ -119,9 +129,11 @@ development_status:
 
   # Epic 4: Content-Loss Drift Check
   # 4-4 added on 2026-05-23 for the Drift Diagnostics surface — content-loss slice.
-  epic-4: backlog
-  4-1-high-impact-relevance-check-against-jd-must-haves-and-nice-to-haves: backlog
-  4-2-drop-detection-diff-and-structured-drift-metadata-in-package-drift-json: backlog
+  # 2026-05-23: 4-1 merged (9229616, 728 passing). 4-2 merged (db85038,
+  #   755 passing). Test-environment gotcha noted above re: .env file.
+  epic-4: in-progress
+  4-1-high-impact-relevance-check-against-jd-must-haves-and-nice-to-haves: done
+  4-2-drop-detection-diff-and-structured-drift-metadata-in-package-drift-json: done
   4-3-configurable-relevance-threshold-and-matcher-mode-in-config-yaml: backlog
   4-4-drift-check-diagnostics-surface-content-loss-section: backlog
   epic-4-retrospective: optional
