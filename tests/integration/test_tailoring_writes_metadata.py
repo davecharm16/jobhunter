@@ -110,8 +110,14 @@ def test_run_tailoring_writes_metadata_json_with_full_ac1_payload(tmp_path) -> N
         "cover_letter": "v1",
         "claims_extract": "v1",
     }
+    # Story 3.2: the structural fabrication matcher runs after claim
+    # extraction and overrides `fabrication` from "pending" to a real verdict.
+    # This test's canonical CV is `{"basics": {"name": "X"}}` (no work, skills,
+    # projects, or education), so the autouse stub's `pytest` claim has no
+    # canonical source -> verdict is "fail". `content_loss` and
+    # `keyword_stuffing` remain "pending" until Epics 4 and 5 land.
     assert data["drift_verdicts"] == {
-        "fabrication": "pending",
+        "fabrication": "fail",
         "content_loss": "pending",
         "keyword_stuffing": "pending",
     }
@@ -256,4 +262,11 @@ def test_run_tailoring_metadata_sits_next_to_artifacts(tmp_path) -> None:
     )
     files = {p.name for p in outcome.out_dir.iterdir()}
     # Story 3.1 adds claims.json next to the tailored artifacts.
-    assert files == {"cv.md", "cover-letter.md", "claims.json", "metadata.json"}
+    # Story 3.2 adds package.drift.json next to claims.json.
+    assert files == {
+        "cv.md",
+        "cover-letter.md",
+        "claims.json",
+        "package.drift.json",
+        "metadata.json",
+    }

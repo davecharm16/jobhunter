@@ -37,6 +37,7 @@ from jobhunter import (
     artifact_selector,
     board_classifier,
     claim_extractor,
+    fabrication_matcher,
     jd_parser,
     llm_client,
     metadata as metadata_module,
@@ -365,6 +366,17 @@ def run_tailoring(
         )
         raise
 
+    # Story 3.2: structural fabrication-matcher step. Reads claims.json (just
+    # written above), walks the canonical-CV universe, and emits
+    # package.drift.json with the fabrication verdict. The package stays
+    # "passed" from the pipeline's perspective regardless of verdict (no
+    # exception raised) — Story 3.4 will turn fabrication=fail into a true
+    # HELD state. Held vs passed is a metadata distinction, not a control-flow
+    # branch: there is exactly one code path through run_tailoring.
+    drift_verdicts = _run_fabrication_matcher(
+        out_dir=out_dir, canonical_cv=canonical_cv
+    )
+
     package_metadata = build_metadata(
         slug=slug,
         jd_source="paste",
@@ -373,6 +385,7 @@ def run_tailoring(
         prompt_templates=prompt_versions,
         parsed_jd=parsed_jd_dict,
         source_board=classification.source_board,
+        drift_verdicts=drift_verdicts,
         now=now,
     )
     write_sidecar(out_dir, package_metadata)
@@ -591,6 +604,40 @@ def _run_claim_extraction(
     tmp_path = out_dir / ".claims.tmp"
     tmp_path.write_text(json.dumps(all_claims, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp_path, target)
+
+
+def _run_fabrication_matcher(
+    *,
+    out_dir: Path,
+    canonical_cv: dict[str, Any],
+) -> dict[str, str]:
+    """Run the Story 3.2 structural matcher and write `package.drift.json`.
+
+    Reads `claims.json` from disk (already written by the Story 3.1 step),
+    rebuilds typed `Claim` dataclasses, hands them to `run_matcher`, writes
+    the drift report, and returns the `drift_verdicts` dict the metadata
+    sidecar consumes. `content_loss` and `keyword_stuffing` stay "pending"
+    until Epics 4 and 5 land their checks.
+    """
+    claims_path = out_dir / "claims.json"
+    raw = json.loads(claims_path.read_text(encoding="utf-8"))
+    claims = [
+        claim_extractor.Claim(
+            claim_id=item["claim_id"],
+            claim_type=item["claim_type"],
+            claim_text=item["claim_text"],
+            source_artifact=item["source_artifact"],
+            line_number=item["line_number"],
+        )
+        for item in raw
+    ]
+    check = fabrication_matcher.run_matcher(claims, canonical_cv)
+    fabrication_matcher.write_drift_report(out_dir, check)
+    return {
+        "fabrication": check.verdict,
+        "content_loss": "pending",
+        "keyword_stuffing": "pending",
+    }
 
 
 def _write_extraction_timeout_sidecar(
