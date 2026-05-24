@@ -1,0 +1,218 @@
+{
+  "name": "job-hunter-onlinejobs-ph-listings",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "custom",
+              "cronExpression": "0 */6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "trigger-cron-1",
+      "name": "Cron (every 6h)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.onlinejobs.ph/jobseekers/jobsearch/{{$env.OJPH_SEARCH_QUERY}}",
+        "method": "GET",
+        "responseFormat": "string",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "fetch-listings-1",
+      "name": "Fetch OJ.ph public listings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json[\"statusCode\"]}}",
+              "operation": "equal",
+              "value2": 200
+            }
+          ]
+        }
+      },
+      "id": "if-fetch-ok-1",
+      "name": "IF fetch 200",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Story 7.3 AC1+AC2: extract individual listings from the OJ.ph public\n// listings HTML page and run per-URL SHA-256 dedup against this flow's\n// own static-data namespace (`onlinejobs_ph.seen_urls`). The namespace is\n// scoped so it does not collide with the Upwork flow's dedup store.\n//\n// FR11: this flow MUST NOT log into OnlineJobs.ph. No session cookie is\n// sent on the fetch above; only the public listings HTML is parsed here.\nconst crypto = require('crypto');\n\nconst html = String($json.body || '');\nconst nowIso = new Date().toISOString();\n\n// Extract every job-posting link from the listings HTML. OJ.ph job-detail\n// URLs follow the `/jobseekers/job/<slug-id>` pattern; the regex is kept\n// deliberately permissive so the flow does not break when OJ.ph tweaks the\n// surrounding markup.\nconst hrefRe = /href=\"(\\/jobseekers\\/job\\/[A-Za-z0-9_\\-]+)\"/g;\nconst seen = new Set();\nconst listings = [];\nlet match;\nwhile ((match = hrefRe.exec(html)) !== null) {\n  const path = match[1];\n  if (seen.has(path)) continue;\n  seen.add(path);\n  const url = 'https://www.onlinejobs.ph' + path;\n  // Use the link's surrounding text window as the JD snippet. The full\n  // JD body is fetched server-side downstream — n8n only forwards what\n  // it can scrape from the listings page.\n  const start = Math.max(0, match.index - 400);\n  const end = Math.min(html.length, match.index + 800);\n  const jdText = html.slice(start, end).replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n  listings.push({ url, jdText });\n}\n\n// Per-flow static-data dedup store. The namespace key `onlinejobs_ph`\n// keeps these hashes from colliding with Story 7.2's `upwork` namespace.\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.onlinejobs_ph) {\n  staticData.onlinejobs_ph = { seen_urls: {} };\n}\nconst seenUrls = staticData.onlinejobs_ph.seen_urls;\n\nconst out = [];\nfor (const item of listings) {\n  const hash = crypto.createHash('sha256').update(item.url).digest('hex');\n  if (seenUrls[hash]) continue; // AC2: already-seen hashes are dropped.\n  out.push({\n    json: {\n      source: 'onlinejobs_ph',\n      jd_text: item.jdText,\n      url: item.url,\n      discovered_at: nowIso,\n      _url_hash: hash\n    }\n  });\n}\nreturn out;"
+      },
+      "id": "extract-and-dedup-1",
+      "name": "Extract listings + dedup",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [960, 220]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.INGEST_BASE_URL}}/api/paste",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.INGEST_SHARED_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: $json.source, jd_text: $json.jd_text, url: $json.url, discovered_at: $json.discovered_at }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "post-ingest-1",
+      "name": "POST /api/paste",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1200, 220]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json[\"statusCode\"]}}",
+              "operation": "smaller",
+              "value2": 300
+            },
+            {
+              "value1": "={{$json[\"statusCode\"]}}",
+              "operation": "largerEqual",
+              "value2": 200
+            }
+          ],
+          "combineOperation": "all"
+        }
+      },
+      "id": "if-post-ok-1",
+      "name": "IF POST 2xx",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1440, 220]
+    },
+    {
+      "parameters": {
+        "functionCode": "// AC3: record the URL hash only on 2xx. Non-2xx leaves the hash absent\n// from the dedup store so the next cron tick retries the same URL.\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.onlinejobs_ph) {\n  staticData.onlinejobs_ph = { seen_urls: {} };\n}\nconst hash = $node['Extract listings + dedup'].json['_url_hash'] || $json._url_hash;\nif (hash) {\n  staticData.onlinejobs_ph.seen_urls[hash] = new Date().toISOString();\n}\nreturn [{ json: { recorded: Boolean(hash) } }];"
+      },
+      "id": "record-hash-1",
+      "name": "Record URL hash",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1680, 140]
+    }
+  ],
+  "connections": {
+    "Cron (every 6h)": {
+      "main": [
+        [
+          {
+            "node": "Fetch OJ.ph public listings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch OJ.ph public listings": {
+      "main": [
+        [
+          {
+            "node": "IF fetch 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF fetch 200": {
+      "main": [
+        [
+          {
+            "node": "Extract listings + dedup",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Extract listings + dedup": {
+      "main": [
+        [
+          {
+            "node": "POST /api/paste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /api/paste": {
+      "main": [
+        [
+          {
+            "node": "IF POST 2xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF POST 2xx": {
+      "main": [
+        [
+          {
+            "node": "Record URL hash",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "versionId": "story-7-3-onlinejobs-ph-listings",
+  "id": "job-hunter-onlinejobs-ph-listings",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": ["job-hunter", "epic-7", "story-7-3"],
+  "notes": "FR11: this flow MUST NOT log into OnlineJobs.ph. Public listings only. See `docs/n8n-contract.md`."
+}
