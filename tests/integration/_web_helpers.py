@@ -182,6 +182,12 @@ def stage_tailoring(
         artifacts_override=None,
         out_root=None,
         ledger_path=None,
+        # Story 7.1: forward the n8n-ingest fields the route now threads
+        # through so the patched stub stays signature-compatible with
+        # `jobhunter.tailoring.run_tailoring`.
+        jd_source=None,
+        url=None,
+        discovered_at=None,
     ):
         return original_run(
             canonical_cv,
@@ -200,6 +206,9 @@ def stage_tailoring(
             artifacts_override=artifacts_override,
             out_root=out_root or (tmp_path / "out"),
             ledger_path=ledger_path or (tmp_path / ".cost-ledger.json"),
+            jd_source=jd_source,
+            url=url,
+            discovered_at=discovered_at,
         )
 
     monkeypatch.setattr(api_module, "run_tailoring", patched_run)

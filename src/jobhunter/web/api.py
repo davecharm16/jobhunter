@@ -53,6 +53,12 @@ FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
 # path tests continue to exercise the route without a token.
 _LOOPBACK_CLIENT_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
 
+# Story 7.1: n8n channel adapters set `source` to one of these values so the
+# metadata sidecar records the actual ingest channel via `jd_source`. The
+# browser path uses `source: "browser"` and keeps the existing `"paste"`
+# default in the sidecar (documented in docs/n8n-contract.md).
+_N8N_INGEST_SOURCES = frozenset({"upwork", "onlinejobs_ph", "linkedin_email"})
+
 
 def _is_loopback_request(request: Request) -> bool:
     client = request.client
@@ -89,6 +95,11 @@ class PasteRequest(BaseModel):
     source: str = Field(min_length=1)
     source_board: str | None = None
     metadata: dict[str, Any] | None = None
+    # Story 7.1: optional n8n-ingest fields per docs/n8n-contract.md. Both are
+    # `None` for the browser path; non-loopback n8n callers populate them with
+    # the canonical job-post URL and the ISO-8601 UTC fetch timestamp.
+    url: str | None = None
+    discovered_at: str | None = None
 
 
 class PasteResponse(BaseModel):
@@ -133,6 +144,8 @@ def create_app() -> FastAPI:
             payload.metadata.get("artifacts_override") if payload.metadata else None
         )
 
+        jd_source = payload.source if payload.source in _N8N_INGEST_SOURCES else None
+
         try:
             outcome = run_tailoring(
                 canonical_cv,
@@ -140,6 +153,9 @@ def create_app() -> FastAPI:
                 config=config,
                 source_board=payload.source_board,
                 artifacts_override=artifacts_override,
+                jd_source=jd_source,
+                url=payload.url,
+                discovered_at=payload.discovered_at,
             )
         except SpendCapExceeded as exc:
             raise HTTPException(

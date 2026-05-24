@@ -151,8 +151,20 @@ def run_tailoring(
     artifacts_override: list[str] | None = None,
     out_root: Path | None = None,
     ledger_path: Path | None = None,
+    jd_source: str | None = None,
+    url: str | None = None,
+    discovered_at: str | None = None,
 ) -> TailoringOutcome:
-    """Orchestrate parse → classify → cap check → tailor → extract claims → atomic artifact write."""
+    """Orchestrate parse → classify → cap check → tailor → extract claims → atomic artifact write.
+
+    Story 7.1 adds three optional kwargs that the n8n ingest path
+    (`POST /api/paste` from a non-loopback caller) threads through:
+    *jd_source* (e.g. `"upwork"`, `"onlinejobs_ph"`, `"linkedin_email"`) becomes
+    `metadata.jd_source` — the browser path leaves it `None` and the sidecar
+    keeps the existing `"paste"` default. *url* and *discovered_at* are passed
+    straight to `build_metadata` so the sidecar carries the canonical job-post
+    URL and the n8n fetch timestamp; both stay `None` for the browser path.
+    """
     using_real_tailor = llm_tailor is None
     # Back-compat shim: when the caller injected `llm_tailor` (test mode) but
     # did not inject `llm_tailor_upwork_proposal`, default the proposal call
@@ -505,7 +517,7 @@ def run_tailoring(
 
     package_metadata = build_metadata(
         slug=slug,
-        jd_source="paste",
+        jd_source=jd_source or "paste",
         artifacts_produced=artifacts_produced,
         calls=calls,
         prompt_templates=prompt_versions,
@@ -515,6 +527,8 @@ def run_tailoring(
         now=now,
         held=held_path_value is not None,
         held_path=held_path_value,
+        url=url,
+        discovered_at=discovered_at,
     )
     write_sidecar(out_dir, package_metadata)
 

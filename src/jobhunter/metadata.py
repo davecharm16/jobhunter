@@ -101,6 +101,11 @@ class PackageMetadata:
     # delivery sets `{"status": "delivered", "delivered_at": "<iso8601>"}`;
     # an exhausted retry budget sets `{"status": "delivery_failed", ...}`.
     notification: dict | None = None
+    # Story 7.1: optional ingest-channel fields populated when an n8n flow POSTs
+    # to `/api/paste` with the canonical contract (docs/n8n-contract.md). Both
+    # are `None` for the browser path so the sidecar stays compact.
+    url: str | None = None
+    discovered_at: str | None = None
 
 
 def format_cost(value: Decimal) -> str:
@@ -134,6 +139,8 @@ def build_metadata(
     held: bool = False,
     held_path: str | None = None,
     notification: dict | None = None,
+    url: str | None = None,
+    discovered_at: str | None = None,
 ) -> PackageMetadata:
     """Assemble a `PackageMetadata` with the cost totals computed from *calls*.
 
@@ -175,6 +182,8 @@ def build_metadata(
         held=held,
         held_path=held_path,
         notification=dict(notification) if notification is not None else None,
+        url=url,
+        discovered_at=discovered_at,
     )
 
 

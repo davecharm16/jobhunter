@@ -1,0 +1,90 @@
+{
+  "name": "job-hunter-auth-test",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-manual-1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Story 7.1 AC2: minimal canonical body per docs/n8n-contract.md.\n// The token never appears in this flow JSON — it is injected at runtime\n// from the n8n environment variable INGEST_SHARED_TOKEN.\nreturn [\n  {\n    json: {\n      jd_text: 'Test JD from n8n auth flow',\n      source: 'upwork',\n      url: 'https://example.com/job/auth-test',\n      discovered_at: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "id": "build-body-1",
+      "name": "Build canonical body",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.INGEST_BASE_URL}}/api/paste",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.INGEST_SHARED_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "post-ingest-1",
+      "name": "POST /api/paste",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [720, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build canonical body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build canonical body": {
+      "main": [
+        [
+          {
+            "node": "POST /api/paste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "versionId": "story-7-1-auth-test",
+  "id": "job-hunter-auth-test",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": ["job-hunter", "epic-7", "story-7-1"],
+  "notes": "FR11: this flow MUST NOT log into Upwork, LinkedIn, or OnlineJobs.ph. Public RSS / public listings only. LinkedIn ingest is email-parse only. This is the canonical auth-test flow; Stories 7.2/7.3/7.4 copy this shape.\n\nContract: docs/n8n-contract.md. Required env vars: INGEST_BASE_URL, INGEST_SHARED_TOKEN. Hosting-agnostic: uses only Manual Trigger + Function + HTTP Request nodes — no Execute Command, no browser-automation node, no filesystem-only node."
+}
