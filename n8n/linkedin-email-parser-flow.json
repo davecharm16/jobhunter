@@ -1,0 +1,231 @@
+{
+  "name": "job-hunter-linkedin-email-parser",
+  "nodes": [
+    {
+      "parameters": {
+        "mailbox": "INBOX",
+        "postProcessAction": "read",
+        "format": "simple",
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 15,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\", [\"FROM\", \"jobalerts-noreply@linkedin.com\"], [\"SUBJECT\", \"job\"]]",
+          "imapHost": "={{$env.IMAP_HOST}}",
+          "imapPort": "={{$env.IMAP_PORT}}",
+          "imapUser": "={{$env.IMAP_USER}}",
+          "imapPassword": "={{$env.IMAP_PASSWORD}}"
+        }
+      },
+      "id": "trigger-imap-1",
+      "name": "IMAP Email Read",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Story 7.4 AC1 + AC3: per-email Message-ID dedup.\n// Hash the RFC 5322 Message-ID header and check against the\n// `linkedin_email.seen_message_ids` static-data slot. Drop if seen.\n//\n// FR10 + FR11 + NFR12: this flow never fetches linkedin.com.\n// Only the email payload is read; the Message-ID is taken from the\n// email's own headers — no LinkedIn site hit.\nconst crypto = require('crypto');\n\nconst staticData = this.getWorkflowStaticData('global');\nif (!staticData.linkedin_email) {\n  staticData.linkedin_email = { seen_message_ids: {}, seen_job_urls: {} };\n}\nif (!staticData.linkedin_email.seen_message_ids) {\n  staticData.linkedin_email.seen_message_ids = {};\n}\n\nconst out = [];\nfor (const item of items) {\n  const headers = (item.json && item.json.headers) || {};\n  // RFC 5322 Message-ID header — case can vary by IMAP server.\n  const messageId =\n    headers['message-id'] ||\n    headers['Message-ID'] ||\n    headers['Message-Id'] ||\n    (item.json && item.json.messageId) ||\n    '';\n  if (!messageId) {\n    // No Message-ID — log and skip; do not crash the flow.\n    console.warn('linkedin_email: email has no Message-ID header; skipping');\n    continue;\n  }\n  const hash = crypto.createHash('sha256').update(String(messageId)).digest('hex');\n  if (staticData.linkedin_email.seen_message_ids[hash]) {\n    // Already processed this email — drop silently.\n    continue;\n  }\n  // Mark provisionally as seen so we don't re-parse on the same poll batch.\n  staticData.linkedin_email.seen_message_ids[hash] = new Date().toISOString();\n  out.push({\n    json: {\n      ...item.json,\n      _message_id: messageId,\n      _message_id_hash: hash,\n      _email_received_at: (item.json && (item.json.date || item.json.receivedDate)) || new Date().toISOString(),\n    },\n  });\n}\nreturn out;"
+      },
+      "id": "dedup-message-id-1",
+      "name": "Dedup by Message-ID",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Story 7.4 AC2: parse LinkedIn's Job Alert email template.\n// Pulls each job block from the email body (HTML preferred, plain-text fallback)\n// and emits one item per job with: job_title, company, linkedin_job_url, jd_text.\n//\n// FR10 + FR11 + NFR12: the parser reads the email body ONLY.\n// It NEVER follows links, NEVER opens a browser, NEVER hits linkedin.com.\n// LinkedIn tracking URLs are captured AS-IS — resolution happens downstream.\nconst out = [];\nfor (const item of items) {\n  const body = item.json || {};\n  const html = body.html || body.textHtml || '';\n  const text = body.text || body.textPlain || '';\n  const blocks = [];\n  if (html && typeof html === 'string' && html.length > 0) {\n    // LinkedIn Job Alert HTML emails wrap each job in an anchor that points\n    // to a LinkedIn tracking URL (linkedin.com/comm/jobs/view/... or similar).\n    // We capture each anchor as-is — no site fetch is performed against it.\n    const anchorRegex = /<a[^>]+href=\"([^\"]+)\"[^>]*>([\\s\\S]*?)<\\/a>/gi;\n    const seenUrls = new Set();\n    let match;\n    while ((match = anchorRegex.exec(html)) !== null) {\n      const url = match[1];\n      const innerHtml = match[2] || '';\n      const innerText = innerHtml.replace(/<[^>]+>/g, '').replace(/\\s+/g, ' ').trim();\n      // Heuristic: a job-card anchor's inner text looks like a job title and\n      // the href contains a /jobs/view/ or /comm/jobs/view/ path segment.\n      // We do NOT fetch the URL — we just capture it as data.\n      if (\n        innerText &&\n        innerText.length >= 3 &&\n        /jobs\\/view\\//i.test(url) &&\n        !seenUrls.has(url)\n      ) {\n        seenUrls.add(url);\n        blocks.push({\n          job_title: innerText,\n          company: '',\n          linkedin_job_url: url,\n          surrounding_snippet_text: innerText,\n        });\n      }\n    }\n  }\n  if (blocks.length === 0 && text && typeof text === 'string') {\n    // Plain-text fallback. LinkedIn Job Alert plain-text bodies list each\n    // posting on its own block: title line, company/location line, then URL.\n    const urlRegex = /(https?:\\/\\/[^\\s)>\\]]+)/g;\n    const urls = text.match(urlRegex) || [];\n    const seenUrls = new Set();\n    for (const url of urls) {\n      if (!/jobs\\/view\\//i.test(url)) {\n        continue;\n      }\n      if (seenUrls.has(url)) {\n        continue;\n      }\n      seenUrls.add(url);\n      const idx = text.indexOf(url);\n      const start = Math.max(0, idx - 240);\n      const end = Math.min(text.length, idx + url.length + 80);\n      const snippet = text.slice(start, end).replace(/\\s+/g, ' ').trim();\n      blocks.push({\n        job_title: '',\n        company: '',\n        linkedin_job_url: url,\n        surrounding_snippet_text: snippet,\n      });\n    }\n  }\n  if (blocks.length === 0) {\n    // AC2: zero parsable blocks => template drift. Log warning, skip email,\n    // do NOT crash the flow.\n    console.warn(\n      'linkedin_email: template-drift — zero parsable job blocks in email',\n      { message_id: body._message_id, received_at: body._email_received_at }\n    );\n    continue;\n  }\n  for (const block of blocks) {\n    out.push({\n      json: {\n        ...block,\n        _message_id: body._message_id,\n        _message_id_hash: body._message_id_hash,\n        _email_received_at: body._email_received_at,\n      },\n    });\n  }\n}\nreturn out;"
+      },
+      "id": "parse-email-1",
+      "name": "Parse Job Alert email",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Story 7.4 AC3: per-extracted-URL dedup (scoped to `linkedin_email`).\n// Hash each extracted job URL with SHA-256 and check against the\n// `linkedin_email.seen_job_urls` static-data slot. Drop if already seen.\n//\n// FR10 + FR11 + NFR12: dedup is done in-memory on the URL string only.\n// The flow does NOT fetch the URL to canonicalize it — site crawling against\n// linkedin.com is forbidden by inspection.\nconst crypto = require('crypto');\n\nconst staticData = this.getWorkflowStaticData('global');\nif (!staticData.linkedin_email) {\n  staticData.linkedin_email = { seen_message_ids: {}, seen_job_urls: {} };\n}\nif (!staticData.linkedin_email.seen_job_urls) {\n  staticData.linkedin_email.seen_job_urls = {};\n}\n\nconst out = [];\nfor (const item of items) {\n  const url = (item.json && item.json.linkedin_job_url) || '';\n  if (!url) {\n    continue;\n  }\n  const hash = crypto.createHash('sha256').update(String(url)).digest('hex');\n  if (staticData.linkedin_email.seen_job_urls[hash]) {\n    // Already POSTed in a prior run — drop silently.\n    continue;\n  }\n  out.push({\n    json: {\n      ...item.json,\n      _url_hash: hash,\n    },\n  });\n}\nreturn out;"
+      },
+      "id": "dedup-url-1",
+      "name": "Dedup by job URL",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Story 7.4 AC4: build the canonical /api/paste body per docs/n8n-contract.md.\n// source = 'linkedin_email'. jd_text = the surrounding snippet (the JD blurb\n// LinkedIn embeds in the email). url = the linkedin job URL captured as-is\n// from the email (not fetched). discovered_at = ISO-8601 UTC of email receipt.\nconst out = [];\nfor (const item of items) {\n  const j = item.json || {};\n  const discoveredAt = j._email_received_at\n    ? new Date(j._email_received_at).toISOString()\n    : new Date().toISOString();\n  out.push({\n    json: {\n      source: 'linkedin_email',\n      jd_text: j.surrounding_snippet_text || j.job_title || '',\n      url: j.linkedin_job_url || '',\n      discovered_at: discoveredAt,\n      _url_hash: j._url_hash,\n      _message_id_hash: j._message_id_hash,\n    },\n  });\n}\nreturn out;"
+      },
+      "id": "build-body-1",
+      "name": "Build canonical body",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.INGEST_BASE_URL}}/api/paste",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.INGEST_SHARED_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: $json.source, jd_text: $json.jd_text, url: $json.url, discovered_at: $json.discovered_at }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "post-ingest-1",
+      "name": "POST /api/paste",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1440, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.statusCode }}",
+              "operation": "smaller",
+              "value2": 300
+            },
+            {
+              "value1": "={{ $json.statusCode }}",
+              "operation": "largerEqual",
+              "value2": 200
+            }
+          ]
+        },
+        "combineOperation": "all"
+      },
+      "id": "if-2xx-1",
+      "name": "IF response 2xx",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1680, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Story 7.4 AC3 + AC4: on 2xx, record BOTH the URL hash AND the\n// Message-ID hash. Non-2xx leaves the hashes unrecorded so the next IMAP\n// poll re-attempts the POST.\nconst staticData = this.getWorkflowStaticData('global');\nif (!staticData.linkedin_email) {\n  staticData.linkedin_email = { seen_message_ids: {}, seen_job_urls: {} };\n}\nif (!staticData.linkedin_email.seen_job_urls) {\n  staticData.linkedin_email.seen_job_urls = {};\n}\nif (!staticData.linkedin_email.seen_message_ids) {\n  staticData.linkedin_email.seen_message_ids = {};\n}\n\nconst now = new Date().toISOString();\nfor (const item of items) {\n  const body = (item.json && item.json.body) || item.json || {};\n  // The HTTP Request node with fullResponse=true emits { body, headers, statusCode }.\n  // We pull the original request fields from $json.body when they're nested.\n  const urlHash = body._url_hash || (item.json && item.json._url_hash);\n  const messageIdHash = body._message_id_hash || (item.json && item.json._message_id_hash);\n  if (urlHash) {\n    staticData.linkedin_email.seen_job_urls[urlHash] = now;\n  }\n  if (messageIdHash) {\n    staticData.linkedin_email.seen_message_ids[messageIdHash] = now;\n  }\n}\nreturn items;"
+      },
+      "id": "record-hashes-1",
+      "name": "Record hashes on 2xx",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1920, 240]
+    }
+  ],
+  "connections": {
+    "IMAP Email Read": {
+      "main": [
+        [
+          {
+            "node": "Dedup by Message-ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedup by Message-ID": {
+      "main": [
+        [
+          {
+            "node": "Parse Job Alert email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Job Alert email": {
+      "main": [
+        [
+          {
+            "node": "Dedup by job URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedup by job URL": {
+      "main": [
+        [
+          {
+            "node": "Build canonical body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build canonical body": {
+      "main": [
+        [
+          {
+            "node": "POST /api/paste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /api/paste": {
+      "main": [
+        [
+          {
+            "node": "IF response 2xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF response 2xx": {
+      "main": [
+        [
+          {
+            "node": "Record hashes on 2xx",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "versionId": "story-7-4-linkedin-email-parser",
+  "id": "job-hunter-linkedin-email-parser",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": ["job-hunter", "epic-7", "story-7-4"],
+  "notes": "FR10 + FR11 + NFR12: LinkedIn ingest is email-parse ONLY. This flow MUST NOT fetch any linkedin.com URL. Site crawling is forbidden — ToS landmine and account-suspension risk against the author's income-bearing LinkedIn account. The IMAP inbox used must be a dedicated Gmail account separate from the author's primary LinkedIn-registered email, so the polling credentials are isolated from anything tied to the author's LinkedIn login.\n\nContract: docs/n8n-contract.md. Required env vars: INGEST_BASE_URL, INGEST_SHARED_TOKEN, IMAP_HOST, IMAP_USER, IMAP_PASSWORD, IMAP_PORT. Hosting-agnostic: uses only IMAP Email Read + Function + HTTP Request + IF nodes — no Execute Command, no browser-automation node, no filesystem-only node. Source field: 'linkedin_email'. Dedup: SHA-256 hash of the RFC 5322 Message-ID (linkedin_email.seen_message_ids) AND SHA-256 hash of each extracted job URL (linkedin_email.seen_job_urls); both recorded only on a 2xx response from /api/paste so non-2xx retries on the next IMAP poll."
+}
