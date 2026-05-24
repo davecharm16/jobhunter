@@ -5,7 +5,7 @@ const NAV_ITEMS: Array<{ label: string; to: string }> = [
   { label: "JD Pipeline", to: "/jd-pipeline" },
   { label: "CV Tailoring", to: "/cv-tailoring" },
   { label: "Drift Checks", to: "/drift-checks" },
-  { label: "Job Alerts", to: "/job-alerts" },
+  { label: "Job Alerts", to: "/scans" },
   { label: "Settings", to: "/settings" },
 ];
 

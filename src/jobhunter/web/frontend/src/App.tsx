@@ -6,6 +6,7 @@ import { SettingsPage } from "./SettingsPage";
 import { StatsCard } from "./StatsCard";
 import { PackagePage } from "./PackagePage";
 import { DriftPage } from "./DriftPage";
+import { ScansPage } from "./ScansPage";
 import { HeldCountCard } from "./components/HeldCountCard";
 import {
   RecentPackagesTable,
@@ -118,6 +119,7 @@ export function App() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/packages/:slug" element={<PackagePage />} />
             <Route path="/packages/:slug/drift" element={<DriftPage />} />
+            <Route path="/scans" element={<ScansPage />} />
           </Routes>
         </main>
       </div>
