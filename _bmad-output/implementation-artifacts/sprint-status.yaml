@@ -198,12 +198,26 @@ development_status:
 
   # Epic 7: Automated Job Ingestion (n8n Scheduled Flows)
   # 7-5 added on 2026-05-23 for the Job Alerts & Automated Scans surface (Stitch screen 03).
-  epic-7: backlog
-  7-1-endpoint-integration-and-shared-token-auth-for-n8n-flows: backlog
-  7-2-upwork-scheduled-search-flow: backlog
-  7-3-onlinejobs-ph-listings-flow: backlog
-  7-4-linkedin-job-alert-email-parser-flow: backlog
-  7-5-job-alerts-and-automated-scans-surface: backlog
+  # 2026-05-24: Epic 7 done via layered fan-out — v1 SHIPPED.
+  #   L0: 7-1 (d228671; endpoint contract + reference docs + n8n/auth-test.json;
+  #        1010 passing)
+  #   L1 (3 parallel): 7-2 Upwork RSS flow JSON (40e5a78), 7-3 OJ.ph listings
+  #        flow JSON (1e2622c), 7-4 LinkedIn email parser flow JSON
+  #        (3ad1f9d); all clean rebases; 1071 passing.
+  #   L2: 7-5 (924c3ca; Scans UI; 1078 passing). Subagent stalled mid-task
+  #        after writing only the backend route; orchestrator finished
+  #        FlowCard.tsx + ScansPage.tsx + App.tsx + Sidebar.tsx wiring +
+  #        integration tests from full context.
+  #
+  # With Story 7.5 complete, all 7 epics are done. v1 is shippable end-to-end
+  # via the browser paste path AND via the automated n8n front door.
+  # 1078 tests passing; 42 stories landed across 7 epics.
+  epic-7: done
+  7-1-endpoint-integration-and-shared-token-auth-for-n8n-flows: done
+  7-2-upwork-scheduled-search-flow: done
+  7-3-onlinejobs-ph-listings-flow: done
+  7-4-linkedin-job-alert-email-parser-flow: done
+  7-5-job-alerts-and-automated-scans-surface: done
   epic-7-retrospective: optional
 
   # Epic 8: DISSOLVED on 2026-05-23 (web-only pivot per DECISIONS.md §6).
