@@ -1,0 +1,195 @@
+{
+  "name": "job-hunter-upwork-search",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 6,
+              "unit": "hours",
+              "cronExpression": "0 */6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "trigger-cron-1",
+      "name": "Cron (every 6h)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.upwork.com/ab/feed/jobs/rss?q={{$env.UPWORK_SEARCH_QUERY}}&sort=recency",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/rss+xml, application/xml, text/xml"
+            },
+            {
+              "name": "User-Agent",
+              "value": "job-hunter-n8n/7.2 (+public RSS only; FR11)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "fetch-rss-1",
+      "name": "Fetch public RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Story 7.2 AC1: bail cleanly on non-200 (logs but does not crash n8n).\n// AC2: parse RSS items, compute sha256(canonical_url), drop items whose hash\n//      is already in workflow static data under key `upwork.seen_urls`.\n// FR11: this node never logs in, never sends a session cookie, and never\n//       touches a browser-automation node. Public RSS only.\n\nconst statusCode = $json.statusCode || ($json.headers ? $json.headers.statusCode : 200);\nif (statusCode && statusCode >= 400) {\n  console.log('upwork-rss: non-200 response, exiting clean. status=' + statusCode);\n  return [];\n}\n\nconst body = typeof $json.body === 'string' ? $json.body : ($json.data || '');\nif (!body) {\n  console.log('upwork-rss: empty body, exiting clean.');\n  return [];\n}\n\n// Minimal RSS <item> extractor — no external deps so this stays hosting-agnostic.\nconst itemRe = /<item[\\s\\S]*?<\\/item>/g;\nconst rawItems = body.match(itemRe) || [];\n\nfunction pick(xml, tag) {\n  const m = xml.match(new RegExp('<' + tag + '(?:[^>]*)>([\\\\s\\\\S]*?)<\\\\/' + tag + '>'));\n  if (!m) return '';\n  let v = m[1];\n  // strip CDATA wrapper if present\n  v = v.replace(/^\\s*<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>\\s*$/, '$1');\n  return v.trim();\n}\n\nfunction stripHtml(s) {\n  return s.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"').replace(/&#39;/g, \"'\").replace(/\\s+/g, ' ').trim();\n}\n\nfunction canonicalUrl(u) {\n  if (!u) return '';\n  // Drop tracking query / fragment; keep scheme + host + path.\n  try {\n    const parsed = new URL(u);\n    return parsed.origin + parsed.pathname.replace(/\\/$/, '');\n  } catch (e) {\n    return u.split('?')[0].split('#')[0].replace(/\\/$/, '');\n  }\n}\n\nfunction sha256Hex(s) {\n  const crypto = require('crypto');\n  return crypto.createHash('sha256').update(s, 'utf8').digest('hex');\n}\n\nconst staticData = getWorkflowStaticData('global');\nif (!staticData['upwork.seen_urls'] || typeof staticData['upwork.seen_urls'] !== 'object') {\n  staticData['upwork.seen_urls'] = {};\n}\nconst seen = staticData['upwork.seen_urls'];\n\nconst out = [];\nconst nowIso = new Date().toISOString();\nfor (const raw of rawItems) {\n  const link = canonicalUrl(pick(raw, 'link'));\n  if (!link) continue;\n  const hash = sha256Hex(link);\n  if (seen[hash]) continue;\n  const description = pick(raw, 'description');\n  const title = pick(raw, 'title');\n  const jdText = stripHtml((title ? title + '\\n\\n' : '') + description);\n  if (!jdText) continue;\n  out.push({\n    json: {\n      source: 'upwork',\n      jd_text: jdText,\n      url: link,\n      discovered_at: nowIso,\n      _url_hash: hash\n    }\n  });\n}\nreturn out;"
+      },
+      "id": "dedup-and-build-1",
+      "name": "Dedup + build canonical body",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"_url_hash\"]}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "if-new-item-1",
+      "name": "IF item is new",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.INGEST_BASE_URL}}/api/paste",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.INGEST_SHARED_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: $json.source, jd_text: $json.jd_text, url: $json.url, discovered_at: $json.discovered_at }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "post-ingest-1",
+      "name": "POST /api/paste",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1200, 240]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Story 7.2 AC3: record the hash ONLY on 2xx — non-2xx leaves the hash\n// unrecorded so the next cron tick retries this item. The hash comes from\n// the upstream Dedup node via n8n's per-item node reference, since the\n// HTTP Request response body replaces $json for this item.\n\nconst status = $json.statusCode || ($json.headers && $json.headers.statusCode) || 0;\nconst upstream = $node['Dedup + build canonical body'] && $node['Dedup + build canonical body'].json;\nconst sourceHash = (upstream && upstream._url_hash) || $json._url_hash || '';\n\nconst staticData = getWorkflowStaticData('global');\nif (!staticData['upwork.seen_urls'] || typeof staticData['upwork.seen_urls'] !== 'object') {\n  staticData['upwork.seen_urls'] = {};\n}\n\nif (status >= 200 && status < 300 && sourceHash) {\n  staticData['upwork.seen_urls'][sourceHash] = new Date().toISOString();\n  return [{ json: { recorded: true, status: status, hash: sourceHash } }];\n}\nconsole.log('upwork-rss: ingest non-2xx, not recording hash. status=' + status);\nreturn [{ json: { recorded: false, status: status } }];"
+      },
+      "id": "record-hash-1",
+      "name": "Record hash on 2xx",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1440, 240]
+    }
+  ],
+  "connections": {
+    "Cron (every 6h)": {
+      "main": [
+        [
+          {
+            "node": "Fetch public RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch public RSS": {
+      "main": [
+        [
+          {
+            "node": "Dedup + build canonical body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedup + build canonical body": {
+      "main": [
+        [
+          {
+            "node": "IF item is new",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF item is new": {
+      "main": [
+        [
+          {
+            "node": "POST /api/paste",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "POST /api/paste": {
+      "main": [
+        [
+          {
+            "node": "Record hash on 2xx",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "versionId": "story-7-2-upwork-search",
+  "id": "job-hunter-upwork-search",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": ["job-hunter", "epic-7", "story-7-2"],
+  "notes": "FR11: this flow MUST NOT log into Upwork. Public RSS / public listing pages only. Stories 7.1–7.4 share the n8n contract; see `docs/n8n-contract.md`.\n\nFR11 reinforced from Story 7.1: this flow MUST NOT log into Upwork, LinkedIn, or OnlineJobs.ph. LinkedIn ingest is email-parse only (Story 7.4). This flow targets Upwork's public RSS endpoint only — no session cookie, no OAuth token, no browser-automation node.\n\nRequired env vars: INGEST_BASE_URL, INGEST_SHARED_TOKEN, UPWORK_SEARCH_QUERY. Hosting-agnostic: uses only Cron + HTTP Request + Function + IF nodes — no Execute Command, no Puppeteer / Selenium / headless Chromium, no filesystem-only node. Dedup state lives in n8n workflow static data under key `upwork.seen_urls` and survives n8n restarts."
+}
