@@ -1,6 +1,18 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --font-ui: "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --color-accent: #4F81BD;
+  --color-drift-fail: #C53030;
+  --color-drift-warn: #D69E2E;
+  --color-drift-override: #4F81BD;
+  --color-drift-pass: #38A169;
+}
 
 html,
 body,

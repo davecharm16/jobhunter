@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApproveOverrideModal } from "./components/ApproveOverrideModal";
 import { MarkdownRenderer } from "./components/MarkdownRenderer";
+import {
+  MarginDiffTicks,
+  type UnsourcedClaim,
+} from "./components/MarginDiffTicks";
 import {
   MetadataSidebar,
   type PackageMetadata,
@@ -22,6 +26,19 @@ type FetchState =
   | { kind: "error"; status: number | null; message: string };
 
 type ArtifactTab = "cv" | "letter" | "proposal";
+
+/* ── Drift data (for fabrication margin ticks) ────────────────────── */
+type DriftFabricationCheck = {
+  verdict: "pass" | "fail";
+  unsourced_claims: UnsourcedClaim[];
+};
+
+type DriftDocument = {
+  fabrication_check?: DriftFabricationCheck;
+};
+
+/* ── Toast flash ──────────────────────────────────────────────────── */
+type Toast = { id: number; message: string };
 
 function isUpwork(payload: PackagePayload): boolean {
   return (payload.metadata.source_board ?? "").toLowerCase() === "upwork";
@@ -46,6 +63,13 @@ export function PackagePage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [overrideApplied, setOverrideApplied] = useState(false);
   const [overrideNote, setOverrideNote] = useState<string | null>(null);
+  // Story 8.3: drift data for fabrication margin ticks
+  const [driftClaims, setDriftClaims] = useState<UnsourcedClaim[]>([]);
+  // Story 8.3: toast flash for copy/download feedback
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastIdRef = useRef(0);
+  // Story 8.3: ref for the markdown preview wrapper (MarginDiffTicks)
+  const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +118,102 @@ export function PackagePage() {
       cancelled = true;
     };
   }, [slug]);
+
+  // Story 8.3: fetch drift data for fabrication margin ticks
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    async function loadDrift() {
+      try {
+        const res = await fetch(
+          `/api/package/${encodeURIComponent(slug!)}/drift`,
+        );
+        if (!res.ok || cancelled) return; // 404 / error: graceful degradation
+        const body = (await res.json()) as DriftDocument;
+        if (cancelled) return;
+        const claims = body.fabrication_check?.unsourced_claims ?? [];
+        setDriftClaims(claims);
+      } catch {
+        // Drift data unavailable — no ticks, no error
+      }
+    }
+    loadDrift();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  // Story 8.3: toast flash helper
+  const showToast = useCallback((message: string) => {
+    const id = ++toastIdRef.current;
+    setToasts((prev) => [...prev, { id, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 2000);
+  }, []);
+
+  // Story 8.3: copy markdown to clipboard
+  const handleCopy = useCallback(
+    async (text: string) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast("Copied!");
+      } catch {
+        showToast("Copy failed — check browser permissions.");
+      }
+    },
+    [showToast],
+  );
+
+  // Story 8.3: download markdown as .md file
+  const handleDownloadMd = useCallback(
+    (text: string, filename: string) => {
+      const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Downloaded ${filename}`);
+    },
+    [showToast],
+  );
+
+  // Story 8.3: download PDF from backend
+  const handleDownloadPdf = useCallback(
+    async (pdfName: string) => {
+      if (!slug) return;
+      try {
+        const res = await fetch(
+          `/api/package/${encodeURIComponent(slug)}/download/${pdfName}`,
+        );
+        if (res.status === 501 || res.status === 404) {
+          showToast("PDF generation not available yet.");
+          return;
+        }
+        if (!res.ok) {
+          showToast(`PDF download failed (${res.status}).`);
+          return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = pdfName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast(`Downloaded ${pdfName}`);
+      } catch {
+        showToast("PDF generation not available yet.");
+      }
+    },
+    [slug, showToast],
+  );
 
   const tabs = useMemo(() => {
     if (fetchState.kind !== "ready") return [];
@@ -173,6 +293,23 @@ export function PackagePage() {
         ? payload.cover_letter_markdown
         : payload.upwork_proposal_markdown;
 
+  // Story 8.3: filenames for download actions
+  const mdFilename =
+    activeTab === "cv"
+      ? "cv.md"
+      : activeTab === "letter"
+        ? "cover-letter.md"
+        : "upwork-proposal.md";
+  const pdfFilename =
+    activeTab === "cv"
+      ? "cv.pdf"
+      : activeTab === "letter"
+        ? "cover-letter.pdf"
+        : "upwork-proposal.pdf";
+
+  // Story 8.3: only show fabrication ticks on the CV tab
+  const activeClaims = activeTab === "cv" ? driftClaims : [];
+
   return (
     <div className="p-margin-mobile md:p-margin-desktop max-w-container-max mx-auto w-full flex flex-col gap-stack-lg">
       <header className="flex flex-col gap-stack-xs">
@@ -183,7 +320,10 @@ export function PackagePage() {
           <span>/</span>
           <span>Packages</span>
         </div>
-        <h1 className="text-display font-display text-on-surface break-words">
+        <h1
+          className="text-display font-display text-on-surface break-words"
+          style={{ fontFamily: "var(--font-mono)" }}
+        >
           {payload.slug}
         </h1>
         <p className="text-body-md font-body-md text-on-surface-variant">
@@ -273,7 +413,10 @@ export function PackagePage() {
         </section>
 
         <section className="flex-1 flex flex-col bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden min-h-[320px]">
-          <div className="flex border-b border-outline-variant bg-surface-container-low">
+          <div
+            className="flex border-b border-outline-variant bg-surface-container-low"
+            style={{ fontFamily: "var(--font-ui)" }}
+          >
             {tabs.map((tab) => {
               const active = tab.key === activeTab;
               return (
@@ -293,21 +436,111 @@ export function PackagePage() {
               );
             })}
             <div className="ml-auto flex items-center px-stack-md">
-              <span className="text-label-md font-label-md text-on-surface-variant border border-outline-variant rounded-lg px-stack-sm py-stack-xs">
+              <span
+                className="text-label-md font-label-md text-on-surface-variant border border-outline-variant rounded-lg px-stack-sm py-stack-xs"
+                style={{ fontFamily: "var(--font-mono)" }}
+              >
                 Drift Check Active
               </span>
             </div>
           </div>
 
-          <div className="flex-1 p-stack-lg overflow-y-auto bg-surface-container-lowest">
-            {activeArtifact ? (
-              <MarkdownRenderer source={activeArtifact} />
-            ) : (
-              <p className="text-body-md font-body-md text-on-surface-variant italic">
-                This artifact is not present in the staged package.
-              </p>
-            )}
+          <div className="flex-1 p-stack-lg overflow-y-auto bg-surface-container-lowest relative">
+            <div ref={previewRef} className="relative">
+              <MarginDiffTicks
+                claims={activeClaims}
+                containerRef={previewRef}
+              />
+              <div className="pl-stack-sm">
+                {activeArtifact ? (
+                  <MarkdownRenderer source={activeArtifact} />
+                ) : (
+                  <p className="text-body-md font-body-md text-on-surface-variant italic">
+                    This artifact is not present in the staged package.
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
+
+          {/* Story 8.3: Action toolbar */}
+          {activeArtifact && (
+            <div
+              className="flex items-center gap-stack-sm px-stack-lg py-stack-sm border-t border-outline-variant bg-surface-container-low"
+              style={{ fontFamily: "var(--font-ui)" }}
+            >
+              <button
+                type="button"
+                onClick={() => handleCopy(activeArtifact)}
+                className="inline-flex items-center gap-1.5 px-stack-sm py-stack-xs rounded-lg border border-outline-variant text-label-md font-label-md text-on-surface-variant hover:text-primary hover:border-primary transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <span style={{ fontFamily: "var(--font-mono)" }}>Copy</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadMd(activeArtifact, mdFilename)}
+                className="inline-flex items-center gap-1.5 px-stack-sm py-stack-xs rounded-lg border border-outline-variant text-label-md font-label-md text-on-surface-variant hover:text-primary hover:border-primary transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span style={{ fontFamily: "var(--font-mono)" }}>
+                  {mdFilename}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadPdf(pdfFilename)}
+                className="inline-flex items-center gap-1.5 px-stack-sm py-stack-xs rounded-lg border border-outline-variant text-label-md font-label-md text-on-surface-variant hover:text-primary hover:border-primary transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <polyline points="9 15 12 18 15 15" />
+                </svg>
+                <span style={{ fontFamily: "var(--font-mono)" }}>
+                  {pdfFilename}
+                </span>
+              </button>
+            </div>
+          )}
         </section>
 
         <MetadataSidebar metadata={payload.metadata} />
@@ -323,6 +556,22 @@ export function PackagePage() {
             setModalOpen(false);
           }}
         />
+      )}
+
+      {/* Story 8.3: Toast flash overlay */}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-stack-xs">
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              role="status"
+              className="bg-inverse-surface text-inverse-on-surface text-body-md font-body-md px-stack-md py-stack-sm rounded-lg shadow-lg animate-fade-in"
+              style={{ fontFamily: "var(--font-ui)" }}
+            >
+              {t.message}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

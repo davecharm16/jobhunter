@@ -17,6 +17,9 @@ for (const [name, scale] of Object.entries(typography)) {
   fontSize[name] = [scale.fontSize, meta];
   fontFamily[name] = ["Inter", "system-ui", "sans-serif"];
 }
+// Story 8.3: IBM Plex font families for UI chrome and monospace
+fontFamily["ui"] = ["IBM Plex Sans", "sans-serif"];
+fontFamily["mono"] = ["IBM Plex Mono", "monospace"];
 
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
