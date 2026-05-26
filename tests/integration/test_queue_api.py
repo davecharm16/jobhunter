@@ -396,3 +396,101 @@ def test_get_queue_does_not_mutate_out_tree(tmp_path, monkeypatch) -> None:
 
     after = _snapshot_out_tree(out_root)
     assert before == after
+
+
+# --- Story 8.1: overridden packages in queue --------------------------------
+
+
+def test_get_queue_includes_overridden_packages_in_recent(
+    tmp_path, monkeypatch,
+) -> None:
+    """Packages under ``_overridden/`` appear in the recent list."""
+    out_root = _stage_out_root(tmp_path, monkeypatch)
+    _write(
+        out_root,
+        _sidecar(slug="normal-pass", created_at="2026-05-20T10:00:00Z"),
+    )
+    # Write an overridden package under _overridden/
+    overridden_root = out_root / "_overridden"
+    overridden_root.mkdir()
+    _write(
+        overridden_root,
+        _sidecar(
+            slug="approved-pkg",
+            created_at="2026-05-20T12:00:00Z",
+            override_applied=True,
+            drift={
+                "fabrication": "fail",
+                "content_loss": "pass",
+                "keyword_stuffing": "pass",
+            },
+        ),
+    )
+
+    client = TestClient(create_app())
+    body = client.get("/api/queue").json()
+
+    slugs = [entry["slug"] for entry in body["recent"]]
+    assert "approved-pkg" in slugs
+    assert "normal-pass" in slugs
+    assert len(body["recent"]) == 2
+
+
+def test_get_queue_overridden_package_verdict_is_overridden(
+    tmp_path, monkeypatch,
+) -> None:
+    """Overridden packages from ``_overridden/`` render verdict ``overridden``."""
+    out_root = _stage_out_root(tmp_path, monkeypatch)
+    overridden_root = out_root / "_overridden"
+    overridden_root.mkdir()
+    _write(
+        overridden_root,
+        _sidecar(
+            slug="released",
+            created_at="2026-05-20T14:00:00Z",
+            held=False,
+            override_applied=True,
+            drift={
+                "fabrication": "fail",
+                "content_loss": "pass",
+                "keyword_stuffing": "pass",
+            },
+        ),
+    )
+
+    client = TestClient(create_app())
+    body = client.get("/api/queue").json()
+
+    assert len(body["recent"]) == 1
+    assert body["recent"][0]["verdict"] == "overridden"
+    assert body["recent"][0]["slug"] == "released"
+
+
+def test_get_queue_overridden_packages_sort_with_normal(
+    tmp_path, monkeypatch,
+) -> None:
+    """Overridden packages are interleaved correctly by timestamp."""
+    out_root = _stage_out_root(tmp_path, monkeypatch)
+    _write(
+        out_root,
+        _sidecar(slug="oldest", created_at="2026-05-18T09:00:00Z"),
+    )
+    _write(
+        out_root,
+        _sidecar(slug="newest", created_at="2026-05-22T15:00:00Z"),
+    )
+    overridden_root = out_root / "_overridden"
+    overridden_root.mkdir()
+    _write(
+        overridden_root,
+        _sidecar(
+            slug="middle-overridden",
+            created_at="2026-05-20T12:00:00Z",
+            override_applied=True,
+        ),
+    )
+
+    client = TestClient(create_app())
+    body = client.get("/api/queue").json()
+    slugs = [entry["slug"] for entry in body["recent"]]
+    assert slugs == ["newest", "middle-overridden", "oldest"]

@@ -1,8 +1,14 @@
-"""GET /api/package/<slug> tests (Story 2.14).
+"""GET /api/package/<slug> tests (Story 2.14, updated Story 8.1).
 
 The route reads `./out/<slug>/` directly from disk on every request and
 returns the JD text, tailored CV markdown, tailored cover letter markdown,
 Upwork-proposal markdown (when present), and the `metadata.json` sidecar.
+
+Story 8.1 adds:
+- Fallback to `./out/_overridden/<slug>/` for approved packages.
+- Download endpoints for individual markdown artifacts.
+- 501 placeholders for PDF downloads (Story 8.2).
+
 These tests stage per-test `./out/<slug>/` directories under `tmp_path`, point
 the route module's `OUT_ROOT` at them via `monkeypatch`, and exercise the
 FastAPI app in-process via `TestClient` — no real network, no real LLM call.
@@ -18,15 +24,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from jobhunter.web.api import create_app
+from jobhunter.web.routes import download as download_module
 from jobhunter.web.routes import package as package_module
 
 
 @pytest.fixture
 def staged_out_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Point the package route's OUT_ROOT at a per-test tmp directory."""
+    """Point the package and download routes' OUT_ROOT at a per-test tmp directory."""
     out_root = tmp_path / "out"
     out_root.mkdir()
     monkeypatch.setattr(package_module, "OUT_ROOT", out_root)
+    monkeypatch.setattr(download_module, "OUT_ROOT", out_root)
     return out_root
 
 
@@ -243,3 +251,242 @@ def test_get_package_preserves_drift_verdicts_and_cost(
     assert body["metadata"]["drift_verdicts"]["fabrication"] == "pending"
     assert body["metadata"]["cost"]["total_usd"] == "0.123456"
     assert body["metadata"]["prompt_templates"]["tailoring"] == "v1"
+
+
+# --- Story 8.1: overridden-package fallback --------------------------------
+
+
+def test_get_package_returns_200_for_overridden_package(
+    staged_out_root: Path,
+) -> None:
+    """Package under ``_overridden/<slug>`` is found via the fallback."""
+    slug = "2026-05-23-overridden-abc123"
+    overridden_root = staged_out_root / "_overridden"
+    overridden_root.mkdir()
+    metadata = _minimal_metadata(slug)
+    metadata["held"] = False
+    metadata["override"] = {"applied": True, "reason": "looks good"}
+    _write_package(
+        overridden_root,
+        slug,
+        metadata=metadata,
+        cv_markdown="# Overridden CV\n",
+        cover_letter_markdown="Overridden cover letter.\n",
+    )
+
+    client = TestClient(create_app())
+    response = client.get(f"/api/package/{slug}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["slug"] == slug
+    assert body["cv_markdown"] == "# Overridden CV\n"
+    assert body["cover_letter_markdown"] == "Overridden cover letter.\n"
+    assert body["metadata"]["override"]["applied"] is True
+
+
+def test_get_package_prefers_primary_over_overridden(
+    staged_out_root: Path,
+) -> None:
+    """When a slug exists in both locations, the primary wins."""
+    slug = "2026-05-23-both-locations-aabb11"
+    metadata_primary = _minimal_metadata(slug)
+    metadata_primary["source_board"] = "primary"
+    _write_package(
+        staged_out_root,
+        slug,
+        metadata=metadata_primary,
+        cv_markdown="# Primary CV\n",
+        cover_letter_markdown="Primary letter.\n",
+    )
+
+    overridden_root = staged_out_root / "_overridden"
+    overridden_root.mkdir()
+    metadata_overridden = _minimal_metadata(slug)
+    metadata_overridden["source_board"] = "overridden"
+    _write_package(
+        overridden_root,
+        slug,
+        metadata=metadata_overridden,
+        cv_markdown="# Overridden CV\n",
+        cover_letter_markdown="Overridden letter.\n",
+    )
+
+    client = TestClient(create_app())
+    response = client.get(f"/api/package/{slug}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metadata"]["source_board"] == "primary"
+
+
+def test_get_package_returns_404_for_truly_missing_package(
+    staged_out_root: Path,
+) -> None:
+    """No regression: slug absent from both locations still returns 404."""
+    # Create the _overridden dir (empty) so we verify the fallback is checked.
+    (staged_out_root / "_overridden").mkdir()
+
+    client = TestClient(create_app())
+    response = client.get("/api/package/totally-missing-slug")
+
+    assert response.status_code == 404
+    assert "package_not_found" in response.json()["detail"]
+
+
+# --- Story 8.1: download endpoints ----------------------------------------
+
+
+def test_download_cv_md_returns_markdown_attachment(
+    staged_out_root: Path,
+) -> None:
+    slug = "2026-05-23-download-cv-aaa111"
+    metadata = _minimal_metadata(slug)
+    _write_package(
+        staged_out_root,
+        slug,
+        metadata=metadata,
+        cv_markdown="# My Tailored CV\n\nSkills: Python\n",
+        cover_letter_markdown="Dear sir.\n",
+    )
+
+    client = TestClient(create_app())
+    response = client.get(f"/api/package/{slug}/download/cv.md")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/markdown")
+    assert "attachment" in response.headers["content-disposition"]
+    assert 'filename="cv.md"' in response.headers["content-disposition"]
+    assert response.text == "# My Tailored CV\n\nSkills: Python\n"
+
+
+def test_download_cover_letter_md_returns_markdown_attachment(
+    staged_out_root: Path,
+) -> None:
+    slug = "2026-05-23-download-cl-bbb222"
+    metadata = _minimal_metadata(slug)
+    _write_package(
+        staged_out_root,
+        slug,
+        metadata=metadata,
+        cv_markdown="# CV\n",
+        cover_letter_markdown="Dear hiring manager,\n\nI am interested.\n",
+    )
+
+    client = TestClient(create_app())
+    response = client.get(f"/api/package/{slug}/download/cover-letter.md")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/markdown")
+    assert "attachment" in response.headers["content-disposition"]
+    assert 'filename="cover-letter.md"' in response.headers["content-disposition"]
+    assert response.text == "Dear hiring manager,\n\nI am interested.\n"
+
+
+def test_download_cv_md_from_overridden_package(
+    staged_out_root: Path,
+) -> None:
+    """Download endpoint also searches ``_overridden/`` via the fallback."""
+    slug = "2026-05-23-download-overridden-ccc333"
+    overridden_root = staged_out_root / "_overridden"
+    overridden_root.mkdir()
+    metadata = _minimal_metadata(slug)
+    metadata["override"] = {"applied": True, "reason": "ok"}
+    _write_package(
+        overridden_root,
+        slug,
+        metadata=metadata,
+        cv_markdown="# Overridden CV download\n",
+        cover_letter_markdown="Overridden letter.\n",
+    )
+
+    client = TestClient(create_app())
+    response = client.get(f"/api/package/{slug}/download/cv.md")
+
+    assert response.status_code == 200
+    assert response.text == "# Overridden CV download\n"
+
+
+def test_download_cv_pdf_returns_pdf(
+    staged_out_root: Path,
+) -> None:
+    slug = "2026-05-23-pdf-placeholder-ddd444"
+    metadata = _minimal_metadata(slug)
+    _write_package(
+        staged_out_root,
+        slug,
+        metadata=metadata,
+        cv_markdown="# CV\n",
+        cover_letter_markdown="Letter.\n",
+    )
+
+    client = TestClient(create_app())
+    response = client.get(f"/api/package/{slug}/download/cv.pdf")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert f'filename="{slug}-cv.pdf"' in response.headers["content-disposition"]
+    assert response.content[:5] == b"%PDF-"
+
+
+def test_download_cover_letter_pdf_returns_pdf(
+    staged_out_root: Path,
+) -> None:
+    slug = "2026-05-23-pdf-cl-placeholder-eee555"
+    metadata = _minimal_metadata(slug)
+    _write_package(
+        staged_out_root,
+        slug,
+        metadata=metadata,
+        cv_markdown="# CV\n",
+        cover_letter_markdown="Letter.\n",
+    )
+
+    client = TestClient(create_app())
+    response = client.get(f"/api/package/{slug}/download/cover-letter.pdf")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert f'filename="{slug}-cover-letter.pdf"' in response.headers["content-disposition"]
+    assert response.content[:5] == b"%PDF-"
+
+
+def test_download_unknown_artifact_returns_404(
+    staged_out_root: Path,
+) -> None:
+    slug = "2026-05-23-unknown-artifact-fff666"
+    metadata = _minimal_metadata(slug)
+    _write_package(
+        staged_out_root,
+        slug,
+        metadata=metadata,
+        cv_markdown="# CV\n",
+        cover_letter_markdown="Letter.\n",
+    )
+
+    client = TestClient(create_app())
+    response = client.get(f"/api/package/{slug}/download/nonexistent.txt")
+
+    assert response.status_code == 404
+    assert "unknown_download_artifact" in response.json()["detail"]
+
+
+def test_download_missing_artifact_file_returns_404(
+    staged_out_root: Path,
+) -> None:
+    """Package exists but the requested markdown artifact file is absent."""
+    slug = "2026-05-23-missing-cv-file-ggg777"
+    metadata = _minimal_metadata(slug)
+    # Write package without cv_markdown — only cover letter.
+    _write_package(
+        staged_out_root,
+        slug,
+        metadata=metadata,
+        cover_letter_markdown="Letter.\n",
+    )
+
+    client = TestClient(create_app())
+    response = client.get(f"/api/package/{slug}/download/cv.md")
+
+    assert response.status_code == 404
+    assert "artifact_not_found" in response.json()["detail"]

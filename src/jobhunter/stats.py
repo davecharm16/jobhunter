@@ -75,17 +75,17 @@ class StatsAggregate:
         return body
 
 
-def load_metadata_sidecars(out_root: Path) -> list[dict[str, Any]]:
-    """Load every `./out/<slug>/metadata.json` under *out_root* as raw dicts.
-
-    Slugs whose `metadata.json` is missing or malformed are silently skipped
-    so a single corrupt sidecar does not block the dashboard from rendering.
-    """
-    if not out_root.is_dir():
+def _load_sidecars_from_dir(directory: Path) -> list[dict[str, Any]]:
+    """Load ``metadata.json`` from each slug sub-directory of *directory*."""
+    if not directory.is_dir():
         return []
     sidecars: list[dict[str, Any]] = []
-    for slug_dir in sorted(out_root.iterdir()):
+    for slug_dir in sorted(directory.iterdir()):
         if not slug_dir.is_dir():
+            continue
+        # Skip the _overridden meta-directory when iterating out_root so we
+        # don't double-count — _overridden is scanned explicitly below.
+        if slug_dir.name.startswith("_"):
             continue
         path = slug_dir / "metadata.json"
         if not path.is_file():
@@ -95,6 +95,21 @@ def load_metadata_sidecars(out_root: Path) -> list[dict[str, Any]]:
                 sidecars.append(json.load(fh))
         except (OSError, json.JSONDecodeError):
             continue
+    return sidecars
+
+
+def load_metadata_sidecars(out_root: Path) -> list[dict[str, Any]]:
+    """Load every ``metadata.json`` under *out_root* as raw dicts.
+
+    Scans both ``out_root/<slug>/`` (fresh and held packages) **and**
+    ``out_root/_overridden/<slug>/`` (approved packages moved by the override
+    flow).  Slugs whose ``metadata.json`` is missing or malformed are silently
+    skipped so a single corrupt sidecar does not block the dashboard from
+    rendering.
+    """
+    sidecars = _load_sidecars_from_dir(out_root)
+    overridden_root = out_root / "_overridden"
+    sidecars.extend(_load_sidecars_from_dir(overridden_root))
     return sidecars
 
 
