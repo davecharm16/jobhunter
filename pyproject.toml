@@ -52,7 +52,10 @@ jobhunter = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+# Repo root ("." ) is needed so integration tests can `from tests.integration...`
+# import shared helpers under the bare `pytest` console script (CI). Without it,
+# only `python -m pytest` worked (that injects the CWD onto sys.path).
+pythonpath = ["src", "."]
 
 [tool.ruff]
 target-version = "py311"
