@@ -25,7 +25,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libffi8 \
         shared-mime-info \
         fonts-dejavu-core \
+        supervisor \
     && rm -rf /var/lib/apt/lists/*
+
+# Caddy: copy the static binary from the official image (no apt repo needed).
+COPY --from=caddy:2.11 /usr/bin/caddy /usr/bin/caddy
 
 WORKDIR /app
 
@@ -46,18 +50,22 @@ RUN pip install --no-cache-dir -e ".[web]"
 COPY canonical-cv.json config.yaml ./
 COPY schemas/ ./schemas/
 
-# Run as a non-root user; pre-create writable runtime state.
+# Baked config: Caddyfile (front door) + supervisord (process manager).
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY docker/supervisord.conf /etc/supervisor/supervisord.conf
+
+# Non-root app user for uvicorn; Caddy runs as root for 80/443 + cert storage.
 RUN useradd --create-home --uid 10001 app \
-    && mkdir -p /app/out \
+    && mkdir -p /app/out /data /config \
     && touch /app/.cost-ledger.json \
     && chown -R app:app /app
-USER app
 
+# Baked default so direct `docker run ... jobhunter` debug invocations bind the
+# right port; supervisord sets this per-program too (redundant but harmless).
 ENV JOBHUNTER_WEB_PORT=8765
-EXPOSE 8765
 
-# Binds 127.0.0.1:8765 — the CLI refuses non-loopback binds by design
-# (DECISIONS.md §6 / cli.py:ensure_loopback). The Caddy sidecar shares this
-# network namespace and proxies to 127.0.0.1:8765, so the app only ever sees
-# loopback traffic and its loopback-trust auth model is preserved unchanged.
-CMD ["jobhunter", "--no-browser"]
+# Caddy listens here in prod (TLS) / :8080 in local. EXPOSE is documentation.
+EXPOSE 8080 80 443
+
+# supervisord (PID 1) runs uvicorn (loopback) + Caddy (public) together.
+CMD ["supervisord", "-c", "/etc/supervisor/supervisord.conf"]
