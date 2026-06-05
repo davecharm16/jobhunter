@@ -1,0 +1,55 @@
+# ORACLE CLOUD (Always-Free VM) deployment. See docs/deployment/oracle-cloud.md.
+#
+# Runs the prebuilt GHCR image (no build on the VM — the Always-Free box has too
+# little RAM to build the Vite/WeasyPrint image). Watchtower auto-pulls new
+# images pushed by CI on `main`.
+#
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Required in .env on the VM:
+#   LLM_API_KEY=...                 MONTHLY_SPEND_CAP_USD=25.00
+#   CADDY_SITE_ADDRESS=jobhunter.example.com   # your domain (enables HTTPS)
+#   CADDY_BASIC_AUTH_USER=dave
+#   CADDY_BASIC_AUTH_HASH=$(docker run --rm caddy caddy hash-password --plaintext 'strong-secret')
+#   ACME_EMAIL=you@example.com      # Let's Encrypt contact
+
+services:
+  app:
+    image: ghcr.io/davecharm16/jobhunter:main
+    container_name: jobhunter
+    pull_policy: always
+    env_file: .env
+    environment:
+      CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS:?set your domain in .env}
+      CADDY_BASIC_AUTH_USER: ${CADDY_BASIC_AUTH_USER:?set in .env}
+      CADDY_BASIC_AUTH_HASH: ${CADDY_BASIC_AUTH_HASH:?set in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - jobhunter-out:/app/out
+      - jobhunter-ledger:/ledger
+      - caddy-data:/data
+      - caddy-config:/config
+    entrypoint:
+      - /bin/sh
+      - -c
+      - 'ln -sf /ledger/.cost-ledger.json /app/.cost-ledger.json && touch /ledger/.cost-ledger.json && chown app:app /ledger/.cost-ledger.json && exec supervisord -c /etc/supervisor/supervisord.conf'
+    restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --label-enable --cleanup --interval 300
+    restart: unless-stopped
+
+volumes:
+  jobhunter-out:
+  jobhunter-ledger:
+  caddy-data:
+  caddy-config:
