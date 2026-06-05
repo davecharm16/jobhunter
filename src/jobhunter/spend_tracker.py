@@ -38,7 +38,24 @@ __all__ = [
 
 
 LEDGER_FILENAME = ".cost-ledger.json"
-LEDGER_PATH: Path = PROJECT_ROOT / LEDGER_FILENAME
+
+
+def _resolve_ledger_path() -> Path:
+    """Ledger location, overridable via the JOBHUNTER_LEDGER_PATH env var.
+
+    Container deployments point this at a file inside a mounted *directory*
+    volume so the atomic temp-sibling + os.replace() write stays on one
+    filesystem. A single-file bind mount would make os.replace a cross-device
+    rename (EXDEV) — the write fails and spend data is lost. Defaults to
+    <PROJECT_ROOT>/.cost-ledger.json for local (non-Docker) use.
+    """
+    override = os.environ.get("JOBHUNTER_LEDGER_PATH")
+    if override and override.strip():
+        return Path(override.strip())
+    return PROJECT_ROOT / LEDGER_FILENAME
+
+
+LEDGER_PATH: Path = _resolve_ledger_path()
 
 
 class SpendLedgerCorrupt(RuntimeError):

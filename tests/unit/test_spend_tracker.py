@@ -197,6 +197,20 @@ def test_check_cap_or_raise_surfaces_corrupt_ledger(tmp_path) -> None:
         )
 
 
+def test_ledger_path_env_override(monkeypatch, tmp_path) -> None:
+    from jobhunter import spend_tracker
+    target = tmp_path / "ledger" / ".cost-ledger.json"
+    monkeypatch.setenv("JOBHUNTER_LEDGER_PATH", str(target))
+    assert spend_tracker._resolve_ledger_path() == target
+
+
+def test_ledger_path_defaults_without_env(monkeypatch) -> None:
+    from jobhunter import spend_tracker
+    from jobhunter.config import PROJECT_ROOT
+    monkeypatch.delenv("JOBHUNTER_LEDGER_PATH", raising=False)
+    assert spend_tracker._resolve_ledger_path() == PROJECT_ROOT / spend_tracker.LEDGER_FILENAME
+
+
 def test_record_call_does_not_disturb_other_months(tmp_path) -> None:
     ledger_path = tmp_path / ".cost-ledger.json"
     prior = {"2026-04": {"total_usd": "1.50", "calls": 10}}

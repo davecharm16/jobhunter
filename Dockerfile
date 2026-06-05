@@ -56,9 +56,9 @@ COPY docker/supervisord.conf /etc/supervisor/supervisord.conf
 
 # Non-root app user for uvicorn; Caddy runs as root for 80/443 + cert storage.
 RUN useradd --create-home --uid 10001 app \
-    && mkdir -p /app/out /data /config \
+    && mkdir -p /app/out /data /config /ledger \
     && touch /app/.cost-ledger.json \
-    && chown -R app:app /app
+    && chown -R app:app /app /ledger
 
 # Baked default so direct `docker run ... jobhunter` debug invocations bind the
 # right port; supervisord sets this per-program too (redundant but harmless).

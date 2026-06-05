@@ -4,7 +4,6 @@
 #
 # First-run:
 #   cp .env.example .env            # fill LLM_API_KEY, MONTHLY_SPEND_CAP_USD
-#   touch .cost-ledger.json         # so the bind mount is a file, not a dir
 #   # add to .env (compose auto-loads .env for ${...}):
 #   #   CADDY_BASIC_AUTH_USER=dave
 #   #   CADDY_BASIC_AUTH_HASH=$(docker run --rm caddy caddy hash-password --plaintext 'secret')
@@ -20,14 +19,16 @@ services:
       CADDY_SITE_ADDRESS: ":8080"
       CADDY_BASIC_AUTH_USER: ${CADDY_BASIC_AUTH_USER:?set CADDY_BASIC_AUTH_USER in .env}
       CADDY_BASIC_AUTH_HASH: "${CADDY_BASIC_AUTH_HASH:?run: docker run --rm caddy caddy hash-password}"
+      JOBHUNTER_LEDGER_PATH: /ledger/.cost-ledger.json
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
       - ./canonical-cv.json:/app/canonical-cv.json:ro
       - ./config.yaml:/app/config.yaml:ro
-      - ./.cost-ledger.json:/app/.cost-ledger.json
+      - jobhunter-ledger:/ledger
       - jobhunter-out:/app/out
     restart: unless-stopped
 
 volumes:
   jobhunter-out:
+  jobhunter-ledger:
