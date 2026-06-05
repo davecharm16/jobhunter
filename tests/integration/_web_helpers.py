@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any, Callable
 
 from jobhunter.board_classifier import Classification
-from jobhunter.config import PROJECT_ROOT
 from jobhunter.jd_parser import ParsedJD
 from jobhunter.llm_client import TailoringResult, UpworkProposalResult
 
@@ -131,9 +130,19 @@ def make_fake_upwork_proposal_tailor(
     return fake_proposal_tailor
 
 
+FIXTURE_CV_PATH = Path(__file__).resolve().parent / "fixtures" / "canonical-cv.json"
+
+
 def stage_canonical_cv(tmp_path: Path, monkeypatch) -> Path:
     cv_path = tmp_path / "canonical-cv.json"
-    shutil.copyfile(PROJECT_ROOT / "canonical-cv.json", cv_path)
+    # Stage a dedicated, version-controlled fixture CV — NOT the live
+    # PROJECT_ROOT/canonical-cv.json. These pipeline tests assert behavior
+    # against specific CV content ("Python", "filesystem-first artifact
+    # pipeline", and the absence of highImpact entries). Copying the real CV
+    # coupled the suite to Dave's evolving personal data and broke it when the
+    # CV was enriched (commit 671bed0). The fixture is the pre-enrichment sample
+    # the tests were written against, frozen so they stay deterministic.
+    shutil.copyfile(FIXTURE_CV_PATH, cv_path)
 
     import jobhunter.canonical_cv as reader_module
     import jobhunter.config as config_module
