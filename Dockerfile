@@ -34,8 +34,10 @@ COPY --from=caddy:2.11 /usr/bin/caddy /usr/bin/caddy
 WORKDIR /app
 
 # Project metadata + source. Editable install keeps PROJECT_ROOT = /app, so
-# canonical-cv.json, config.yaml, schemas/, out/, and .cost-ledger.json all
-# resolve under the /app tree (some are bind-mounted by docker-compose).
+# canonical-cv.json, config.yaml, schemas/, and out/ resolve under /app. The
+# spend ledger is redirected to /ledger/.cost-ledger.json via JOBHUNTER_LEDGER_PATH
+# in both compose files (a directory volume — keeps the atomic os.replace() write
+# on one filesystem); /app/.cost-ledger.json is only the bare-`docker run` fallback.
 COPY pyproject.toml README.md ./
 COPY src/ ./src/
 # The frontend is served as static files from this exact path (api.py:
