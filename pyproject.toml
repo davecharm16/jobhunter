@@ -24,6 +24,8 @@ dev = [
     "pip-audit>=2.7",
     "types-PyYAML>=6.0",
     "types-Markdown>=3.6",
+    # tests/test_pdf_writer.py reads WeasyPrint output back via PdfReader.
+    "pypdf>=4.0",
 ]
 web = [
     "fastapi[all]>=0.110",
