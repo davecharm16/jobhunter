@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write  # needed to create the GitHub Release
+
+jobs:
+  build:
+    name: Build wheel + sdist and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build the frontend INTO the source tree first so package-data bundles
+      # dist/ into the wheel (setuptools collects it from src/jobhunter/web/...).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/jobhunter/web/frontend/package-lock.json
+      - name: Build frontend
+        working-directory: src/jobhunter/web/frontend
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build sdist + wheel
+        run: |
+          pip install build
+          python -m build
+
+      # Guard against the packaging regression where setuptools ships only *.py
+      # and the wheel serves a broken UI.
+      - name: Verify frontend is bundled in the wheel
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+          whl = sorted(glob.glob("dist/*.whl"))[-1]
+          names = zipfile.ZipFile(whl).namelist()
+          hit = [n for n in names if "web/frontend/dist/index.html" in n]
+          fonts = [n for n in names if "web/fonts/" in n]
+          assert hit, "frontend dist/index.html missing from wheel (check [tool.setuptools.package-data])"
+          assert fonts, "web/fonts/ missing from wheel (PDF export needs the vendored fonts)"
+          print("OK: bundled", hit[0], "and", len(fonts), "font file(s)")
+          PY
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            Automated build for ${{ github.ref_name }}.
+
+            ⚠️ The wheel bundles the frontend + fonts, but the JSON Resume schema,
+            `canonical-cv.json`, and `config.yaml` live at the repo root (read via
+            `PROJECT_ROOT`). A bare `pip install` of the wheel must be run from a
+            checkout, or use the Docker image, which copies the whole repo.

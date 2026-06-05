@@ -1,0 +1,67 @@
+# Self-host (private) deployment for Job Hunter. See README "Self-host with Docker".
+#
+# Topology
+# --------
+# The FastAPI app binds 127.0.0.1:8765 *inside* its container — the CLI refuses
+# non-loopback binds by design (DECISIONS.md §6). The Caddy sidecar runs in the
+# SAME network namespace (network_mode: "service:app") and reverse-proxies to
+# 127.0.0.1:8765. Net effect: the app only ever sees loopback traffic, so its
+# loopback-trust auth model (and the token-free browser path) keeps working
+# unchanged, while Caddy supplies the real network-edge auth (HTTP basic auth).
+#
+# Run this behind Tailscale / a VPN. Do NOT publish :8080 to the public internet
+# without giving Caddy TLS (see Caddyfile).
+#
+# First-run setup
+# ---------------
+#   cp .env.example .env            # fill LLM_API_KEY, MONTHLY_SPEND_CAP_USD
+#   touch .cost-ledger.json         # so the bind mount is a file, not a dir
+#   # add these two lines to .env (compose auto-loads .env for ${...}):
+#   #   CADDY_BASIC_AUTH_USER=dave
+#   #   CADDY_BASIC_AUTH_HASH=$(docker run --rm caddy caddy hash-password --plaintext 'secret')
+#   docker compose up --build
+
+services:
+  app:
+    build: .
+    image: jobhunter:local
+    container_name: jobhunter-app
+    # Injects LLM_API_KEY, MONTHLY_SPEND_CAP_USD, INGEST_TOKEN, etc. as container
+    # env. runtime_config reads os.environ (load_dotenv override=False), so no
+    # .env file is mounted into the image.
+    env_file: .env
+    environment:
+      JOBHUNTER_WEB_PORT: "8765"
+    # Ports are declared on the namespace owner (app); Caddy listens on :8080
+    # inside this shared namespace. Published on host loopback only — point your
+    # Tailscale/VPN at this host (or change to the tailnet IP, e.g.
+    # "100.x.y.z:8080:8080").
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      # Override the baked-in defaults with your live CV + config.
+      - ./canonical-cv.json:/app/canonical-cv.json:ro
+      - ./config.yaml:/app/config.yaml:ro
+      # Persist the monthly spend ledger across restarts (touch the file first).
+      - ./.cost-ledger.json:/app/.cost-ledger.json
+      # Tailored packages.
+      - jobhunter-out:/app/out
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    container_name: jobhunter-caddy
+    depends_on:
+      - app
+    # Share the app's network namespace so reverse_proxy 127.0.0.1:8765 works and
+    # the app sees loopback. Port publishing lives on the `app` service above.
+    network_mode: "service:app"
+    environment:
+      CADDY_BASIC_AUTH_USER: ${CADDY_BASIC_AUTH_USER:?set CADDY_BASIC_AUTH_USER in .env}
+      CADDY_BASIC_AUTH_HASH: ${CADDY_BASIC_AUTH_HASH:?set CADDY_BASIC_AUTH_HASH in .env (docker run --rm caddy caddy hash-password)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    restart: unless-stopped
+
+volumes:
+  jobhunter-out:

@@ -19,6 +19,11 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pip-audit>=2.7",
+    "types-PyYAML>=6.0",
+    "types-Markdown>=3.6",
 ]
 web = [
     "fastapi[all]>=0.110",
@@ -33,6 +38,41 @@ jobhunter = "jobhunter.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# Ship the built frontend and vendored fonts inside the wheel/sdist. setuptools
+# packages.find only collects *.py; without this the installed package serves a
+# broken UI (no dist/) and crashes on PDF export (no fonts/). The vendored JSON
+# Resume schema lives at the repo root and is read via PROJECT_ROOT, so it is
+# NOT part of the wheel — wheel installs must run from a checkout or rely on the
+# Docker image, which copies the whole repo. See README "Packaging" note.
+[tool.setuptools.package-data]
+jobhunter = [
+    "web/frontend/dist/**/*",
+    "web/fonts/**/*",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests", "scripts"]
+extend-exclude = ["src/jobhunter/web/frontend"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, bugbear, pyupgrade, comprehensions.
+select = ["E", "F", "I", "B", "UP", "C4"]
+ignore = ["E501"]  # line length is handled by the formatter, not linting
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+packages = ["jobhunter"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+# Pragmatic for an existing codebase: type-check what is annotated, do not
+# force annotations everywhere yet. Tighten over time.
+check_untyped_defs = true

@@ -1,0 +1,25 @@
+# Network-edge auth for the self-hosted, private deployment.
+#
+# Caddy runs in the SAME network namespace as the app container
+# (docker-compose: network_mode "service:app"), so 127.0.0.1:8765 reaches the
+# uvicorn process. Because Caddy connects over loopback, the app sees the client
+# as 127.0.0.1 and its loopback-trust model keeps working — no token, no
+# frontend changes. Caddy provides the only real network-facing auth.
+#
+# Run this behind Tailscale/VPN. auto_https is OFF because traffic is expected
+# to ride an already-encrypted tailnet. If you expose this beyond a trusted
+# network, give Caddy a real hostname + remove `auto_https off` so it gets TLS.
+
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	# Generate the hash with:  docker run --rm caddy caddy hash-password --plaintext 'your-password'
+	basic_auth {
+		{$CADDY_BASIC_AUTH_USER} {$CADDY_BASIC_AUTH_HASH}
+	}
+
+	reverse_proxy 127.0.0.1:8765
+}

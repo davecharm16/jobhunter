@@ -48,6 +48,68 @@ Paste a job description into the dashboard textarea and click "Tailor this JD". 
 
 The canonical CV must be a text format (JSON Resume v1.0.0 today; markdown or YAML if the fall-back criterion in [`DECISIONS.md`](./DECISIONS.md) §2 fires). `.pdf`, `.docx`, and `.doc` paths are rejected by extension before any read attempt — Job Hunter never parses binary CV formats.
 
+## Reproducible installs (uv)
+
+`uv.lock` pins the full dependency graph (web + dev extras). For a byte-for-byte
+reproducible environment:
+
+```bash
+uv sync --extra web --extra dev   # creates .venv from the lock
+uv run pytest                     # run anything inside the locked env
+```
+
+Plain `pip install -e ".[web,dev]"` still works for casual use; the lockfile is
+the source of truth when reproducibility matters (CI, Docker, onboarding).
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push to `main` and every PR:
+
+- **Backend** — installs the WeasyPrint system libraries, then runs Ruff (lint +
+  format), mypy, and `pytest`. `pytest` is the hard gate; Ruff/mypy start
+  **advisory** because the existing tree carries a lint/format backlog. To make
+  them blocking: run a one-time `ruff check --fix && ruff format`, commit it,
+  then delete the `continue-on-error:` lines.
+- **Frontend** — `npm ci`, `tsc -b` typecheck, `npm run build`.
+- **Docker** — builds the production image so Dockerfile breakage fails CI.
+
+`.github/workflows/release.yml` runs on `v*` tags: builds the frontend, then the
+sdist + wheel, asserts the frontend + fonts are bundled, and attaches the
+artifacts to a GitHub Release.
+
+## Self-host with Docker (private)
+
+> ⚠️ **Single-user, private deployment only.** Job Hunter's auth model trusts
+> loopback (`DECISIONS.md` §6) and runs on *your* LLM key + spend cap. The compose
+> stack keeps that model intact and adds HTTP basic auth at the edge — run it
+> **behind Tailscale / a VPN**, never on the open internet without TLS.
+
+How it stays safe: the app binds `127.0.0.1:8765` inside its container (the CLI
+refuses non-loopback binds). A **Caddy sidecar shares the app's network
+namespace** and reverse-proxies to `127.0.0.1:8765`, so the app only ever sees
+loopback traffic — the browser path needs no token and no frontend change —
+while Caddy provides the network-facing basic auth.
+
+```bash
+cp .env.example .env                 # fill LLM_API_KEY, MONTHLY_SPEND_CAP_USD
+touch .cost-ledger.json              # so the bind mount is a file, not a dir
+
+# Add Caddy credentials to .env (compose auto-loads .env for ${...}):
+echo "CADDY_BASIC_AUTH_USER=dave" >> .env
+echo "CADDY_BASIC_AUTH_HASH=$(docker run --rm caddy caddy hash-password --plaintext 'change-me')" >> .env
+
+docker compose up --build            # Caddy on http://127.0.0.1:8080
+```
+
+State persists via bind mounts (`canonical-cv.json`, `config.yaml`,
+`.cost-ledger.json`) and the `jobhunter-out` volume (`./out` packages). Secrets
+are injected as container env (`env_file: .env`) — no `.env` is baked into the image.
+
+**Packaging caveat:** the wheel bundles the frontend `dist/` and fonts, but the
+JSON Resume schema, `canonical-cv.json`, and `config.yaml` live at the repo root
+and are read via `PROJECT_ROOT`. A bare `pip install` of the wheel must run from
+a checkout; the Docker image sidesteps this by copying the whole repo.
+
 ## Repo layout
 
 ```
