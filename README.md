@@ -77,33 +77,38 @@ the source of truth when reproducibility matters (CI, Docker, onboarding).
 sdist + wheel, asserts the frontend + fonts are bundled, and attaches the
 artifacts to a GitHub Release.
 
-## Self-host with Docker (private)
+## Deploy
 
-> ⚠️ **Single-user, private deployment only.** Job Hunter's auth model trusts
-> loopback (`DECISIONS.md` §6) and runs on *your* LLM key + spend cap. The compose
-> stack keeps that model intact and adds HTTP basic auth at the edge — run it
-> **behind Tailscale / a VPN**, never on the open internet without TLS.
+Two supported targets, both using the single all-in-one image (Caddy + uvicorn):
 
-How it stays safe: the app binds `127.0.0.1:8765` inside its container (the CLI
-refuses non-loopback binds). A **Caddy sidecar shares the app's network
-namespace** and reverse-proxies to `127.0.0.1:8765`, so the app only ever sees
-loopback traffic — the browser path needs no token and no frontend change —
-while Caddy provides the network-facing basic auth.
+- **Local / private** (this section) — `docker compose up`, reachable at
+  `http://127.0.0.1:8080` behind basic-auth. Good behind Tailscale/VPN.
+- **Oracle Cloud (always-free, public HTTPS, 24/7, push-to-deploy)** — see
+  [`docs/deployment/oracle-cloud.md`](./docs/deployment/oracle-cloud.md) and
+  [`docs/deployment/continuous-deployment.md`](./docs/deployment/continuous-deployment.md).
+
+> ⚠️ Job Hunter runs on *your* LLM key + spend cap and trusts whoever clears
+> Caddy basic-auth. Use a strong password; never expose n8n's admin UI publicly.
+
+How it stays safe: the image runs Caddy + uvicorn together (supervisord). Caddy
+is the public front door (basic-auth, plus TLS when given a domain) and
+reverse-proxies to uvicorn on `127.0.0.1:8765`, so the app only ever sees
+loopback traffic — the browser path needs no token and no frontend change.
 
 ```bash
 cp .env.example .env                 # fill LLM_API_KEY, MONTHLY_SPEND_CAP_USD
-touch .cost-ledger.json              # so the bind mount is a file, not a dir
 
 # Add Caddy credentials to .env (compose auto-loads .env for ${...}):
 echo "CADDY_BASIC_AUTH_USER=dave" >> .env
 echo "CADDY_BASIC_AUTH_HASH=$(docker run --rm caddy caddy hash-password --plaintext 'change-me')" >> .env
 
-docker compose up --build            # Caddy on http://127.0.0.1:8080
+docker compose up --build            # http://127.0.0.1:8080  (basic-auth)
 ```
 
-State persists via bind mounts (`canonical-cv.json`, `config.yaml`,
-`.cost-ledger.json`) and the `jobhunter-out` volume (`./out` packages). Secrets
-are injected as container env (`env_file: .env`) — no `.env` is baked into the image.
+State persists in Docker named volumes — `jobhunter-out` (tailored packages) and
+`jobhunter-ledger` (spend ledger). `canonical-cv.json` and `config.yaml` are
+bind-mounted (local) or baked into the image (cloud). Secrets are injected as
+container env (`env_file: .env`) — no `.env` is baked into the image.
 
 **Packaging caveat:** the wheel bundles the frontend `dist/` and fonts, but the
 JSON Resume schema, `canonical-cv.json`, and `config.yaml` live at the repo root
