@@ -36,7 +36,15 @@ export type Trace = {
   matched_canonical_entry_id: string;
   match_method: "exact_string" | "substring" | "semantic";
   match_score: number;
-  source_text: string | null;
+  /**
+   * The canonical-CV text that was matched.
+   *
+   * `string`    → present (post-D2 data); full diff is available.
+   * `null`      → explicitly absent in the JSON (backend set it to null).
+   * `undefined` → key missing entirely (legacy pre-D2 data); the trace is
+   *               still a real match — do NOT treat as fabrication.
+   */
+  source_text: string | null | undefined;
 };
 
 export type UnsourcedClaim = {
@@ -170,6 +178,7 @@ function TraceDiffList({ traces }: { traces: Trace[] }) {
               claimText={trace.claim_text}
               sourceText={trace.source_text}
               traceId={trace.claim_id}
+              isFabrication={false}
             />
           </div>
         ))}
@@ -237,6 +246,7 @@ function FabricationContent({ check }: { check: FabricationCheck }) {
                   claimText={claim.claim_text}
                   sourceText={null}
                   traceId={claim.claim_id}
+                  isFabrication={true}
                 />
                 <details className="group rounded-lg border border-outline-variant bg-surface-container-lowest mt-stack-xs">
                   <summary className="cursor-pointer list-none px-stack-md py-stack-sm text-label-md font-label-md uppercase tracking-wider text-on-surface-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg hover:text-primary group-open:text-primary flex items-center justify-between">

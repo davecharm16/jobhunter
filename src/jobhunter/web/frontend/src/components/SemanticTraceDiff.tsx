@@ -126,9 +126,16 @@ type Props = {
   claimText: string;
   /**
    * The original canonical-CV text that was matched (left pane).
-   * When null this is an unsourced / potentially fabricated claim.
+   *
+   * Three distinct states:
+   *   - string  → real source text is available; render the full word diff.
+   *   - null    → explicitly unsourced (set by the backend); treated as a
+   *               genuine fabrication when `isFabrication` is also true.
+   *   - undefined → key absent from the JSON (legacy pre-D2 data); this is
+   *               a real match that was written before source_text was
+   *               recorded — NOT a fabrication.
    */
-  sourceText: string | null;
+  sourceText: string | null | undefined;
   /** Unique id used for accessible region labelling. */
   traceId: string;
   /**
@@ -137,6 +144,17 @@ type Props = {
    * (e.g. TraceDiffList / DriftPage) avoid repeating it per instance.
    */
   showLegend?: boolean;
+  /**
+   * Whether this entry is a genuine unsourced / fabricated claim.
+   *
+   * Pass `true` only for entries from `unsourced_claims[]`.
+   * Pass `false` (default) for entries from `traces[]` — even when
+   * `sourceText` is undefined (legacy data missing source_text).
+   *
+   * This prevents legacy sourced traces from being mislabelled as
+   * fabrications just because they predate the D2 source_text field.
+   */
+  isFabrication?: boolean;
 };
 
 export function SemanticTraceDiff({
@@ -144,11 +162,23 @@ export function SemanticTraceDiff({
   sourceText,
   traceId,
   showLegend = false,
+  isFabrication = false,
 }: Props) {
-  const hasSource = sourceText !== null && sourceText !== undefined;
+  // A real diff is only possible when we have an actual source string.
+  const hasSourceText = typeof sourceText === "string";
 
-  const { leftTokens, rightTokens } = hasSource
-    ? splitDiff(sourceText!, claimText)
+  // Show the red fabrication warning only when the caller explicitly marks
+  // this entry as fabricated (i.e. from unsourced_claims[]). A sourced trace
+  // that merely lacks source_text (legacy pre-D2 data, sourceText=undefined)
+  // must NOT render the fabrication panel.
+  const showFabricationWarning = isFabrication && !hasSourceText;
+
+  // Show the neutral "not recorded" note for sourced traces with absent source_text.
+  // This covers the legacy case: sourceText is undefined but isFabrication is false.
+  const showLegacyNote = !isFabrication && !hasSourceText;
+
+  const { leftTokens, rightTokens } = hasSourceText
+    ? splitDiff(sourceText, claimText)
     : {
         leftTokens: [] as DiffToken[],
         rightTokens: [{ text: claimText, op: "equal" as DiffOp }],
@@ -187,9 +217,10 @@ export function SemanticTraceDiff({
             canonical-cv
           </span>
           <div className="font-mono text-body-md font-body-md text-on-surface-variant leading-relaxed whitespace-pre-wrap break-words">
-            {hasSource ? (
+            {hasSourceText ? (
               <DiffSpans tokens={leftTokens} />
-            ) : (
+            ) : showFabricationWarning ? (
+              /* Genuine fabrication — unsourced_claims[] entry */
               <span className="inline-flex items-center gap-stack-xs text-error italic">
                 <span
                   className="inline-block w-2 h-2 rounded-full bg-error shrink-0"
@@ -197,7 +228,16 @@ export function SemanticTraceDiff({
                 />
                 No canonical source — possible fabrication
               </span>
-            )}
+            ) : showLegacyNote ? (
+              /* Sourced trace from legacy data written before D2 added source_text */
+              <span className="inline-flex items-center gap-stack-xs text-on-surface-variant italic">
+                <span
+                  className="inline-block w-2 h-2 rounded-full bg-outline shrink-0"
+                  aria-hidden="true"
+                />
+                Canonical source not recorded for this check
+              </span>
+            ) : null}
           </div>
         </div>
 
