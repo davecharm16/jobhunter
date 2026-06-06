@@ -7,6 +7,7 @@ import { StatsCard } from "./StatsCard";
 import { PackagePage } from "./PackagePage";
 import { DriftPage } from "./DriftPage";
 import { ScansPage } from "./ScansPage";
+import { NotFound } from "./NotFound";
 import { HeldCountCard } from "./components/HeldCountCard";
 import { type QueueEntry } from "./components/RecentPackagesTable";
 import { PipelineCard } from "./components/PipelineCard";
@@ -137,6 +138,7 @@ export function App() {
             <Route path="/packages/:slug" element={<PackagePage />} />
             <Route path="/packages/:slug/drift" element={<DriftPage />} />
             <Route path="/scans" element={<ScansPage />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
       </div>
