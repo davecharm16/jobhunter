@@ -8,10 +8,9 @@ import { PackagePage } from "./PackagePage";
 import { DriftPage } from "./DriftPage";
 import { ScansPage } from "./ScansPage";
 import { HeldCountCard } from "./components/HeldCountCard";
-import {
-  RecentPackagesTable,
-  type QueueEntry,
-} from "./components/RecentPackagesTable";
+import { type QueueEntry } from "./components/RecentPackagesTable";
+import { PipelineCard } from "./components/PipelineCard";
+import { QueueEmptyState } from "./components/QueueEmptyState";
 
 type QueueResponse = {
   held_count: number;
@@ -92,7 +91,25 @@ function DashboardPage() {
             </section>
           )}
           {queueState.kind === "ready" && (
-            <RecentPackagesTable entries={recent} />
+            <section className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+              <header className="flex items-center justify-between px-gutter py-stack-md border-b border-outline-variant bg-surface-container-low">
+                <h3 className="text-headline-md font-headline-md text-on-surface">
+                  Application Pipeline
+                </h3>
+                <span className="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">
+                  {recent.length} shown
+                </span>
+              </header>
+              {recent.length === 0 ? (
+                <QueueEmptyState />
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-stack-md p-gutter">
+                  {recent.map((entry) => (
+                    <PipelineCard key={entry.slug} entry={entry} />
+                  ))}
+                </div>
+              )}
+            </section>
           )}
         </div>
       </section>

@@ -126,13 +126,16 @@ def test_get_queue_returns_held_count_and_recent_shape(
     assert body["held_count"] == 1
     assert isinstance(body["recent"], list)
     assert len(body["recent"]) == 2
-    # Each entry has the four projection keys and nothing else.
+    # Each entry has the six projection keys (job_title + company_name added in
+    # Story D1 / dashboard gap 01-1..4).
     for entry in body["recent"]:
         assert set(entry.keys()) == {
             "slug",
             "source_board",
             "verdict",
             "timestamp",
+            "job_title",
+            "company_name",
         }
 
 
@@ -494,3 +497,67 @@ def test_get_queue_overridden_packages_sort_with_normal(
     body = client.get("/api/queue").json()
     slugs = [entry["slug"] for entry in body["recent"]]
     assert slugs == ["newest", "middle-overridden", "oldest"]
+
+
+# --- Story D1 / Dashboard gap 01-1..4: job_title + company_name fields ----
+
+
+def test_get_queue_job_title_taken_from_sidecar_when_present(
+    tmp_path, monkeypatch,
+) -> None:
+    """When the sidecar has ``job_title``, it is surfaced verbatim."""
+    out_root = _stage_out_root(tmp_path, monkeypatch)
+    payload = _sidecar(slug="20260601T120000Z-senior-dev")
+    payload["job_title"] = "Senior Software Developer"
+    payload["company_name"] = "Acme Corp"
+    _write(out_root, payload)
+
+    client = TestClient(create_app())
+    entry = client.get("/api/queue").json()["recent"][0]
+    assert entry["job_title"] == "Senior Software Developer"
+    assert entry["company_name"] == "Acme Corp"
+
+
+def test_get_queue_job_title_derived_from_slug_when_absent(
+    tmp_path, monkeypatch,
+) -> None:
+    """When the sidecar lacks ``job_title``, it is derived from the slug
+    (timestamp prefix stripped, hyphens → spaces, title-cased)."""
+    out_root = _stage_out_root(tmp_path, monkeypatch)
+    _write(
+        out_root,
+        _sidecar(slug="20260601T120000Z-senior-frontend-developer"),
+    )
+
+    client = TestClient(create_app())
+    entry = client.get("/api/queue").json()["recent"][0]
+    assert entry["job_title"] == "Senior Frontend Developer"
+    assert entry["company_name"] is None
+
+
+def test_get_queue_company_name_is_none_when_absent(
+    tmp_path, monkeypatch,
+) -> None:
+    """When the sidecar has no ``company_name``, the field is ``None``."""
+    out_root = _stage_out_root(tmp_path, monkeypatch)
+    payload = _sidecar(slug="20260601T120000Z-ux-designer")
+    payload["job_title"] = "UX Designer"
+    # company_name intentionally omitted
+    _write(out_root, payload)
+
+    client = TestClient(create_app())
+    entry = client.get("/api/queue").json()["recent"][0]
+    assert entry["job_title"] == "UX Designer"
+    assert entry["company_name"] is None
+
+
+def test_get_queue_slug_without_timestamp_prefix_still_derives_title(
+    tmp_path, monkeypatch,
+) -> None:
+    """A slug with no timestamp prefix is title-cased directly."""
+    out_root = _stage_out_root(tmp_path, monkeypatch)
+    _write(out_root, _sidecar(slug="product-manager-role"))
+
+    client = TestClient(create_app())
+    entry = client.get("/api/queue").json()["recent"][0]
+    assert entry["job_title"] == "Product Manager Role"

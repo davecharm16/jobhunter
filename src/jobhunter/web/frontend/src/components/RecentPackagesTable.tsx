@@ -14,6 +14,10 @@ export type QueueEntry = {
   source_board: string;
   verdict: QueueVerdict;
   timestamp: string;
+  /** Human-readable job title; derived from slug when not set by the pipeline. */
+  job_title: string | null;
+  /** Company name from the sidecar; null when not set by the pipeline. */
+  company_name: string | null;
 };
 
 type Props = {
