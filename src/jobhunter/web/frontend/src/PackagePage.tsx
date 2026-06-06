@@ -252,6 +252,70 @@ export function PackagePage() {
     [slug, showToast],
   );
 
+  /* ── SVG icons for artifact tabs ─────────────────────────────── */
+  const TAB_ICONS: Record<ArtifactTab, React.ReactElement> = {
+    cv: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        className="shrink-0"
+      >
+        {/* document / description icon */}
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+        <polyline points="10 9 9 9 8 9" />
+      </svg>
+    ),
+    letter: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        className="shrink-0"
+      >
+        {/* envelope / mail icon */}
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+        <polyline points="22,6 12,13 2,6" />
+      </svg>
+    ),
+    proposal: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        className="shrink-0"
+      >
+        {/* briefcase / proposal icon */}
+        <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+      </svg>
+    ),
+  };
+
   const tabs = useMemo(() => {
     if (fetchState.kind !== "ready") return [];
     const out: Array<{ key: ArtifactTab; label: string; available: boolean }> = [
@@ -723,10 +787,11 @@ export function PackagePage() {
                   disabled={!tab.available}
                   className={
                     active
-                      ? "px-stack-lg py-stack-sm text-body-md font-body-md font-semibold text-primary border-b-2 border-primary bg-surface-container-lowest disabled:opacity-50"
-                      : "px-stack-lg py-stack-sm text-body-md font-body-md text-on-surface-variant hover:bg-surface-container-high border-b-2 border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                      ? "inline-flex items-center gap-1.5 px-stack-lg py-stack-sm text-body-md font-body-md font-semibold text-primary border-b-2 border-primary bg-surface-container-lowest disabled:opacity-50"
+                      : "inline-flex items-center gap-1.5 px-stack-lg py-stack-sm text-body-md font-body-md text-on-surface-variant hover:bg-surface-container-high border-b-2 border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                   }
                 >
+                  {TAB_ICONS[tab.key]}
                   {tab.label}
                 </button>
               );
