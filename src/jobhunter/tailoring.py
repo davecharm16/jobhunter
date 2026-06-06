@@ -530,6 +530,9 @@ def run_tailoring(
         held_path=held_path_value,
         url=url,
         discovered_at=discovered_at,
+        # D1: thread job_title/company_name from the JD parse for UI display.
+        job_title=parsed.job_title,
+        company_name=parsed.company_name,
     )
     write_sidecar(out_dir, package_metadata)
 

@@ -52,6 +52,10 @@ class ParsedJD:
     raw_text_length: int
     source_board: str = "unknown"
     signals: dict[str, dict] = field(default_factory=dict)
+    # D1: optional human-readable role/company surfaced from the JD parse.
+    # Both default to None so nothing existing breaks; populated best-effort.
+    job_title: str | None = None
+    company_name: str | None = None
 
 
 def parse_jd(
@@ -87,4 +91,7 @@ def parse_jd(
         seniority=result.seniority,
         red_flags=list(result.red_flags),
         raw_text_length=len(jd_text),
+        # D1: thread optional fields from ParseResult; default None when absent.
+        job_title=getattr(result, "job_title", None),
+        company_name=getattr(result, "company_name", None),
     )

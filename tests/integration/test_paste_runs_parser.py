@@ -166,6 +166,7 @@ def test_parsed_jd_dict_has_expected_keys(tmp_path, monkeypatch) -> None:
 
     slug_dirs = [p for p in out_root.iterdir() if p.is_dir()]
     data = json.loads((slug_dirs[0] / "metadata.json").read_text(encoding="utf-8"))
+    # D1: job_title and company_name added to ParsedJD (optional, default None).
     expected_keys = {
         "must_haves",
         "nice_to_haves",
@@ -173,5 +174,7 @@ def test_parsed_jd_dict_has_expected_keys(tmp_path, monkeypatch) -> None:
         "seniority",
         "red_flags",
         "raw_text_length",
+        "job_title",
+        "company_name",
     }
     assert set(data["parsed_jd"].keys()) == expected_keys

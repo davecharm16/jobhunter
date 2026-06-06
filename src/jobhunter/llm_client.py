@@ -214,6 +214,14 @@ JD_PARSE_TOOL: dict[str, Any] = {
                 "items": {"type": "string"},
                 "description": "Concerning aspects warranting human review.",
             },
+            "job_title": {
+                "type": "string",
+                "description": "The explicit job title stated in the JD, or null if not stated.",
+            },
+            "company_name": {
+                "type": "string",
+                "description": "The hiring company name stated in the JD, or null if not stated.",
+            },
         },
         "required": [
             "must_haves",
@@ -276,6 +284,9 @@ class ParseResult:
     cost_usd: Decimal
     input_tokens: int
     output_tokens: int
+    # D1: optional human-readable role/company for metadata display.
+    job_title: str | None = None
+    company_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -495,6 +506,15 @@ def parse_jd(
     tone = _validate_string_field(payload, "tone")
     seniority = _validate_string_field(payload, "seniority")
     red_flags = _validate_string_list_field(payload, "red_flags")
+    # D1: best-effort optional fields — absent or null from the LLM → None.
+    job_title_raw = payload.get("job_title")
+    job_title: str | None = (
+        job_title_raw.strip() if isinstance(job_title_raw, str) and job_title_raw.strip() else None
+    )
+    company_name_raw = payload.get("company_name")
+    company_name: str | None = (
+        company_name_raw.strip() if isinstance(company_name_raw, str) and company_name_raw.strip() else None
+    )
 
     return ParseResult(
         must_haves=must_haves,
@@ -505,6 +525,8 @@ def parse_jd(
         cost_usd=cost,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+        job_title=job_title,
+        company_name=company_name,
     )
 
 

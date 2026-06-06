@@ -381,3 +381,70 @@ def test_package_metadata_is_frozen_dataclass() -> None:
     )
     with pytest.raises(Exception):
         md.slug = "other"  # type: ignore[misc]
+
+
+# --- D1: job_title + company_name in metadata payload --------------------
+
+
+def test_build_metadata_job_title_and_company_name_default_to_none() -> None:
+    """D1: build_metadata defaults job_title and company_name to None."""
+    md = build_metadata(
+        slug="s",
+        jd_source="paste",
+        artifacts_produced=[],
+        calls=[],
+        now=FIXED_NOW,
+    )
+    assert md.job_title is None
+    assert md.company_name is None
+
+
+def test_build_metadata_passes_job_title_and_company_name() -> None:
+    """D1: build_metadata surfaces job_title and company_name when supplied."""
+    md = build_metadata(
+        slug="s",
+        jd_source="paste",
+        artifacts_produced=[],
+        calls=[],
+        now=FIXED_NOW,
+        job_title="Senior Frontend Engineer",
+        company_name="Stripe",
+    )
+    assert md.job_title == "Senior Frontend Engineer"
+    assert md.company_name == "Stripe"
+
+
+def test_write_sidecar_persists_job_title_and_company_name(tmp_path) -> None:
+    """D1: metadata.json round-trips job_title and company_name."""
+    out_dir = tmp_path / "slug"
+    out_dir.mkdir()
+    md = build_metadata(
+        slug="slug",
+        jd_source="paste",
+        artifacts_produced=["cv"],
+        calls=[_sample_call()],
+        now=FIXED_NOW,
+        job_title="Senior Frontend Engineer",
+        company_name="Stripe",
+    )
+    write_sidecar(out_dir, md)
+    data = json.loads((out_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert data["job_title"] == "Senior Frontend Engineer"
+    assert data["company_name"] == "Stripe"
+
+
+def test_write_sidecar_persists_null_job_title_and_company_name(tmp_path) -> None:
+    """D1: metadata.json round-trips None job_title/company_name as JSON null."""
+    out_dir = tmp_path / "slug"
+    out_dir.mkdir()
+    md = build_metadata(
+        slug="slug",
+        jd_source="paste",
+        artifacts_produced=["cv"],
+        calls=[_sample_call()],
+        now=FIXED_NOW,
+    )
+    write_sidecar(out_dir, md)
+    data = json.loads((out_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert data["job_title"] is None
+    assert data["company_name"] is None

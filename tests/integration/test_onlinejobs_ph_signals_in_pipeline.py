@@ -280,6 +280,7 @@ def test_extractor_preserves_parsed_jd_metadata_shape(tmp_path) -> None:
     )
 
     data = json.loads((outcome.out_dir / "metadata.json").read_text(encoding="utf-8"))
+    # D1: job_title and company_name added to ParsedJD (optional, default None).
     expected_keys = {
         "must_haves",
         "nice_to_haves",
@@ -287,6 +288,8 @@ def test_extractor_preserves_parsed_jd_metadata_shape(tmp_path) -> None:
         "seniority",
         "red_flags",
         "raw_text_length",
+        "job_title",
+        "company_name",
     }
     assert set(data["parsed_jd"].keys()) == expected_keys
     # OJ.ph still flows through as the classified source_board (top-level key).

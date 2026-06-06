@@ -349,3 +349,94 @@ def test_parsed_jd_is_frozen_dataclass() -> None:
     )
     with pytest.raises(Exception):
         parsed.tone = "formal"  # type: ignore[misc]
+
+
+# --- D1: ParsedJD job_title + company_name optional fields ---------------
+
+
+def test_parsed_jd_job_title_and_company_name_default_to_none() -> None:
+    """D1: ParsedJD accepts the new fields and defaults them to None."""
+    parsed = ParsedJD(
+        must_haves=["Python"],
+        nice_to_haves=[],
+        tone="casual",
+        seniority="senior",
+        red_flags=[],
+        raw_text_length=20,
+    )
+    assert parsed.job_title is None
+    assert parsed.company_name is None
+
+
+def test_parsed_jd_accepts_explicit_job_title_and_company_name() -> None:
+    """D1: ParsedJD stores job_title and company_name when supplied."""
+    parsed = ParsedJD(
+        must_haves=["Python"],
+        nice_to_haves=[],
+        tone="casual",
+        seniority="senior",
+        red_flags=[],
+        raw_text_length=20,
+        job_title="Senior Frontend Engineer",
+        company_name="Stripe",
+    )
+    assert parsed.job_title == "Senior Frontend Engineer"
+    assert parsed.company_name == "Stripe"
+
+
+def test_parse_jd_maps_job_title_and_company_name_from_llm() -> None:
+    """D1: parse_jd passes job_title and company_name from the LLM ParseResult into ParsedJD."""
+    jd_text = "Senior Frontend Engineer at Stripe.\n"
+
+    def fake_parser(jd, *, api_key, timeout_seconds, prompt):
+        return ParseResult(
+            must_haves=["React"],
+            nice_to_haves=[],
+            tone="professional",
+            seniority="senior",
+            red_flags=[],
+            cost_usd=Decimal("0.001"),
+            input_tokens=100,
+            output_tokens=50,
+            job_title="Senior Frontend Engineer",
+            company_name="Stripe",
+        )
+
+    parsed = parse_jd(
+        jd_text,
+        api_key="k",
+        timeout_seconds=30.0,
+        prompt=_template(),
+        llm_parse=fake_parser,
+    )
+    assert parsed.job_title == "Senior Frontend Engineer"
+    assert parsed.company_name == "Stripe"
+
+
+def test_parse_jd_handles_none_job_title_and_company_name() -> None:
+    """D1: parse_jd gracefully handles a JD with no stated title/company (both None)."""
+    jd_text = "Looking for a developer.\n"
+
+    def fake_parser(jd, *, api_key, timeout_seconds, prompt):
+        return ParseResult(
+            must_haves=["Python"],
+            nice_to_haves=[],
+            tone="casual",
+            seniority="mid",
+            red_flags=[],
+            cost_usd=Decimal("0.001"),
+            input_tokens=100,
+            output_tokens=50,
+            job_title=None,
+            company_name=None,
+        )
+
+    parsed = parse_jd(
+        jd_text,
+        api_key="k",
+        timeout_seconds=30.0,
+        prompt=_template(),
+        llm_parse=fake_parser,
+    )
+    assert parsed.job_title is None
+    assert parsed.company_name is None

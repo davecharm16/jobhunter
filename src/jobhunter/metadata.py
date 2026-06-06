@@ -106,6 +106,11 @@ class PackageMetadata:
     # are `None` for the browser path so the sidecar stays compact.
     url: str | None = None
     discovered_at: str | None = None
+    # D1: human-readable role/company extracted from the JD parse so the UI
+    # can display "Senior Frontend Engineer at Stripe" instead of a raw slug.
+    # Both are None when the JD did not state them explicitly.
+    job_title: str | None = None
+    company_name: str | None = None
 
 
 def format_cost(value: Decimal) -> str:
@@ -141,6 +146,8 @@ def build_metadata(
     notification: dict | None = None,
     url: str | None = None,
     discovered_at: str | None = None,
+    job_title: str | None = None,
+    company_name: str | None = None,
 ) -> PackageMetadata:
     """Assemble a `PackageMetadata` with the cost totals computed from *calls*.
 
@@ -184,6 +191,8 @@ def build_metadata(
         notification=dict(notification) if notification is not None else None,
         url=url,
         discovered_at=discovered_at,
+        job_title=job_title,
+        company_name=company_name,
     )
 
 

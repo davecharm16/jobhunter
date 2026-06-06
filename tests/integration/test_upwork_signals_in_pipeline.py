@@ -344,6 +344,7 @@ def test_metadata_parsed_jd_keys_unchanged_when_upwork(
     assert response.status_code == 200, response.text
 
     metadata = _read_metadata(out_root)
+    # D1: job_title and company_name added to ParsedJD (optional, default None).
     assert set(metadata["parsed_jd"].keys()) == {
         "must_haves",
         "nice_to_haves",
@@ -351,6 +352,8 @@ def test_metadata_parsed_jd_keys_unchanged_when_upwork(
         "seniority",
         "red_flags",
         "raw_text_length",
+        "job_title",
+        "company_name",
     }
 
 
