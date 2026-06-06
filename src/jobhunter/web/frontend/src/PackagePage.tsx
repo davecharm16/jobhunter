@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApproveOverrideModal } from "./components/ApproveOverrideModal";
+import {
+  InlineDriftHighlight,
+  type DriftTrace,
+} from "./components/InlineDriftHighlight";
 import { MarkdownRenderer } from "./components/MarkdownRenderer";
 import {
   MarginDiffTicks,
@@ -27,9 +31,16 @@ type FetchState =
 
 type ArtifactTab = "cv" | "letter" | "proposal";
 
-/* ── Drift data (for fabrication margin ticks) ────────────────────── */
+/* ── Drift data (for fabrication margin ticks + inline highlights) ── */
+type DriftApiTrace = {
+  claim_id: string;
+  claim_text: string;
+  source_text: string | null;
+};
+
 type DriftFabricationCheck = {
   verdict: "pass" | "fail";
+  traces: DriftApiTrace[];
   unsourced_claims: UnsourcedClaim[];
 };
 
@@ -71,6 +82,8 @@ export function PackagePage() {
   const [regenError, setRegenError] = useState<string | null>(null);
   // Story 8.3: drift data for fabrication margin ticks
   const [driftClaims, setDriftClaims] = useState<UnsourcedClaim[]>([]);
+  // Story 04-2: inline highlight traces (sourced + unsourced combined)
+  const [driftTraces, setDriftTraces] = useState<DriftTrace[]>([]);
   // Story 8.3: toast flash for copy/download feedback
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastIdRef = useRef(0);
@@ -139,6 +152,22 @@ export function PackagePage() {
         if (cancelled) return;
         const claims = body.fabrication_check?.unsourced_claims ?? [];
         setDriftClaims(claims);
+        // 04-2: combine sourced traces + unsourced claims into a single
+        // DriftTrace[] for inline highlights. Unsourced claims get
+        // source_text: null (fabrication / no canonical source).
+        const sourced: DriftTrace[] = (
+          body.fabrication_check?.traces ?? []
+        ).map((t) => ({
+          claim_id: t.claim_id,
+          claim_text: t.claim_text,
+          source_text: t.source_text,
+        }));
+        const unsourced: DriftTrace[] = claims.map((c) => ({
+          claim_id: c.claim_id,
+          claim_text: c.claim_text,
+          source_text: null,
+        }));
+        setDriftTraces([...sourced, ...unsourced]);
       } catch {
         // Drift data unavailable — no ticks, no error
       }
@@ -315,6 +344,8 @@ export function PackagePage() {
 
   // Story 8.3: only show fabrication ticks on the CV tab
   const activeClaims = activeTab === "cv" ? driftClaims : [];
+  // Story 04-2: inline highlights also shown only on CV tab
+  const activeTraces = activeTab === "cv" ? driftTraces : [];
 
   return (
     <div className="p-margin-mobile md:p-margin-desktop max-w-container-max mx-auto w-full flex flex-col gap-stack-lg">
@@ -570,7 +601,15 @@ export function PackagePage() {
               />
               <div className="pl-stack-sm">
                 {activeArtifact ? (
-                  <MarkdownRenderer source={activeArtifact} />
+                  activeTraces.length > 0 ? (
+                    /* 04-2: render with inline drift highlights */
+                    <InlineDriftHighlight
+                      source={activeArtifact}
+                      traces={activeTraces}
+                    />
+                  ) : (
+                    <MarkdownRenderer source={activeArtifact} />
+                  )
                 ) : (
                   <p className="text-body-md font-body-md text-on-surface-variant italic">
                     This artifact is not present in the staged package.
