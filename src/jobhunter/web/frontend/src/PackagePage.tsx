@@ -313,10 +313,16 @@ export function PackagePage() {
   const board = payload.metadata.source_board ?? "unknown";
   const parsed = payload.metadata.parsed_jd ?? {};
   const driftVerdicts = payload.metadata.drift_verdicts ?? {};
-  // 04-5: job title + company for the page header
-  const jobTitle = parsed.job_title ?? null;
-  const companyName = parsed.company_name ?? null;
-  const jobLocation = parsed.location ?? null;
+  // 04-5: job title + company for the page header.
+  // Fallback chain: parsed_jd.job_title → metadata.job_title → null.
+  // (metadata.job_title is the D1 top-level field; parsed_jd.job_title is the
+  // same value mirrored into the parsed dict — prefer parsed_jd first so
+  // old packages without the top-level field still resolve.)
+  const jobTitle =
+    parsed.job_title ?? payload.metadata.job_title ?? null;
+  const companyName =
+    parsed.company_name ?? payload.metadata.company_name ?? null;
+  // location: no such field exists in ParsedJD — removed.
   const headerTitle =
     jobTitle && companyName
       ? `${jobTitle} at ${companyName}`
@@ -386,15 +392,10 @@ export function PackagePage() {
         >
           {headerTitle ?? payload.slug}
         </h1>
-        {/* 04-5: sub-headline with slug + location when we have a resolved title */}
+        {/* 04-5: sub-headline with slug when we have a resolved title */}
         {headerTitle && (
           <p className="text-body-md font-body-md text-on-surface-variant" style={{ fontFamily: "var(--font-mono)" }}>
             {payload.slug}
-            {jobLocation && (
-              <span className="ml-stack-md text-on-surface-variant/70">
-                {jobLocation}
-              </span>
-            )}
           </p>
         )}
         <p className="text-body-md font-body-md text-on-surface-variant">
@@ -632,8 +633,8 @@ export function PackagePage() {
         </div>
       )}
 
-      {/* 04-7: Budget Range + Expected Tone stat cards for all boards */}
-      {(parsed.budget || parsed.expected_tone) && (
+      {/* 04-7: Budget Range (Upwork only, from signals) + Tone stat cards */}
+      {(parsed.budget || parsed.tone) && (
         <div className="flex flex-wrap gap-stack-md">
           {parsed.budget && (
             <div className="flex-1 min-w-[140px] bg-surface-container rounded-xl border border-outline-variant p-stack-md">
@@ -651,19 +652,19 @@ export function PackagePage() {
               </p>
             </div>
           )}
-          {parsed.expected_tone && (
+          {parsed.tone && (
             <div className="flex-1 min-w-[140px] bg-surface-container rounded-xl border border-outline-variant p-stack-md">
               <p
                 className="text-label-md font-label-md uppercase tracking-wider text-on-surface-variant mb-stack-xs"
                 style={{ fontFamily: "var(--font-ui)" }}
               >
-                Expected Tone
+                Tone
               </p>
               <p
                 className="text-body-lg font-body-lg font-semibold text-on-surface"
                 style={{ fontFamily: "var(--font-ui)" }}
               >
-                {parsed.expected_tone}
+                {parsed.tone}
               </p>
             </div>
           )}

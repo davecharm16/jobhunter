@@ -324,10 +324,15 @@ def test_screening_questions_plumbed_through_parsed_signals(
 # --- Parsed_jd metadata shape preserved (signals popped) -----------------
 
 
-def test_metadata_parsed_jd_keys_unchanged_when_upwork(
+def test_metadata_parsed_jd_keys_when_upwork(
     tmp_path, monkeypatch,
 ) -> None:
-    """The metadata's `parsed_jd` keeps its Story 2.3 six-key shape."""
+    """The metadata's `parsed_jd` carries the expected keys for an Upwork package.
+
+    Upwork packages gain a `budget` key (promoted from signals.upwork.budget_band)
+    when the JD contains a parseable budget. source_board and signals must NOT
+    appear — they live at the metadata top-level / are dropped respectively.
+    """
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
     stage_canonical_cv(tmp_path, monkeypatch)
@@ -344,17 +349,17 @@ def test_metadata_parsed_jd_keys_unchanged_when_upwork(
     assert response.status_code == 200, response.text
 
     metadata = _read_metadata(out_root)
-    # D1: job_title and company_name added to ParsedJD (optional, default None).
-    assert set(metadata["parsed_jd"].keys()) == {
-        "must_haves",
-        "nice_to_haves",
-        "tone",
-        "seniority",
-        "red_flags",
-        "raw_text_length",
-        "job_title",
-        "company_name",
-    }
+    parsed_jd = metadata["parsed_jd"]
+    # base fields always present
+    assert {"must_haves", "nice_to_haves", "tone", "seniority", "red_flags",
+            "raw_text_length", "job_title", "company_name"}.issubset(
+        set(parsed_jd.keys())
+    )
+    # Upwork budget promoted from signals into parsed_jd
+    assert parsed_jd.get("budget") == "$50/hr"
+    # signals and source_board must NOT be present
+    assert "signals" not in parsed_jd
+    assert "source_board" not in parsed_jd
 
 
 # --- Explicit override + extractor still runs ----------------------------

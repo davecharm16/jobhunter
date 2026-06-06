@@ -1,5 +1,5 @@
-import { RefObject, useLayoutEffect, useRef, useState } from "react";
-import { MarkdownRenderer } from "./MarkdownRenderer";
+import { useEffect, useRef, useState } from "react";
+import { MarkdownRenderer, type HighlightSpan, type OnMarkClick } from "./MarkdownRenderer";
 
 /**
  * A JD must-have requirement used to highlight matching phrases in the CV.
@@ -26,178 +26,43 @@ type StandaloneProps = {
 };
 
 /**
- * JD-tailoring highlight style — secondary-container (sky blue) bg with a
- * dashed primary underline. Visually distinct from drift highlights:
- * - Drift sourced: primary-fixed (soft indigo), solid underline
- * - Drift fabrication: error-container (red), dashed underline
- * - JD tailored (this): secondary-container (blue), dashed primary underline
+ * Convert JD must-haves to HighlightSpan[] for MarkdownRenderer.
  */
-const TAILORING_STYLE = {
-  backgroundColor: "rgba(218,226,253,0.55)", // secondary-container @ 55%
-  borderBottomColor: "var(--color-primary, #3525cd)",
-  borderBottomStyle: "dashed" as const,
-  borderBottomWidth: "2px",
-  display: "inline",
-  borderRadius: "2px",
-  paddingLeft: "2px",
-  paddingRight: "2px",
-  cursor: "help",
-};
-
-function injectKeywordHighlights(
-  root: Element,
-  needle: string,
-  requirement: string,
-  onMark: (el: HTMLElement) => void,
-): (() => void)[] {
-  const cleanups: (() => void)[] = [];
-  if (!needle.trim()) return cleanups;
-
-  const lower = needle.toLowerCase();
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-
-  const nodesToProcess: Text[] = [];
-  let node: Text | null;
-  while ((node = walker.nextNode() as Text | null)) {
-    if ((node.textContent ?? "").toLowerCase().includes(lower)) {
-      nodesToProcess.push(node);
-    }
-  }
-
-  for (const textNode of nodesToProcess) {
-    const text = textNode.textContent ?? "";
-    const lowerText = text.toLowerCase();
-    let idx = lowerText.indexOf(lower);
-    if (idx === -1) continue;
-
-    const parent = textNode.parentNode;
-    if (!parent) continue;
-
-    const fragment = document.createDocumentFragment();
-    let cursor = 0;
-    while (idx !== -1) {
-      if (idx > cursor) {
-        fragment.appendChild(document.createTextNode(text.slice(cursor, idx)));
-      }
-      const mark = document.createElement("mark");
-      mark.textContent = text.slice(idx, idx + needle.length);
-      Object.assign(mark.style, TAILORING_STYLE);
-      mark.dataset["jdRequirement"] = requirement;
-      mark.dataset["jdNeedle"] = needle;
-      mark.setAttribute("tabindex", "0");
-      mark.setAttribute("role", "mark");
-      mark.setAttribute(
-        "aria-label",
-        `Tailored to JD requirement: "${requirement}"`,
-      );
-      onMark(mark);
-      fragment.appendChild(mark);
-      cursor = idx + needle.length;
-      idx = lowerText.indexOf(lower, cursor);
-    }
-    if (cursor < text.length) {
-      fragment.appendChild(document.createTextNode(text.slice(cursor)));
-    }
-
-    parent.replaceChild(fragment, textNode);
-
-    cleanups.push(() => {
-      const current = Array.from(parent.childNodes);
-      const toRemove: ChildNode[] = [];
-      for (const child of current) {
-        if (
-          child instanceof HTMLElement &&
-          child.tagName === "MARK" &&
-          child.dataset["jdNeedle"] === needle
-        ) {
-          toRemove.push(child);
-        }
-      }
-      if (toRemove.length > 0) {
-        const firstNode = toRemove[0];
-        parent.insertBefore(document.createTextNode(text), firstNode);
-        for (const n of toRemove) parent.removeChild(n);
-      }
+function mustHavesToSpans(mustHaves: JDMustHave[]): HighlightSpan[] {
+  const seen = new Set<string>();
+  const spans: HighlightSpan[] = [];
+  for (const requirement of mustHaves) {
+    const phrase = requirement.trim().replace(/[.,;:!?]+$/, "").trim();
+    if (!phrase || seen.has(phrase.toLowerCase())) continue;
+    seen.add(phrase.toLowerCase());
+    spans.push({
+      kind: "jd-tailored",
+      matchText: phrase,
+      requirement,
     });
   }
-
-  return cleanups;
-}
-
-function buildNeedles(requirement: string): string[] {
-  const phrase = requirement.trim().replace(/[.,;:!?]+$/, "").trim();
-  if (phrase.length === 0) return [];
-  return [phrase];
-}
-
-/**
- * Hook: run JD must-have highlights on an externally-managed container.
- * Use this when the container is already rendered by another component
- * (e.g. InlineDriftHighlight). `setTooltip` is a setter for the caller's
- * tooltip state; pass null to disable tooltips from this hook.
- */
-export function useJDHighlights(
-  containerRef: RefObject<Element | null>,
-  mustHaves: JDMustHave[] | undefined,
-  source: string,
-  setTooltip: (t: TooltipState) => void,
-): void {
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container || !mustHaves || mustHaves.length === 0) return;
-
-    // Run at 160ms — after InlineDriftHighlight (120ms) so JD marks render on
-    // top of drift marks without interfering with drift's cleanup.
-    const timer = setTimeout(() => {
-      const allCleanups: (() => void)[] = [];
-
-      for (const requirement of mustHaves) {
-        const needles = buildNeedles(requirement);
-        for (const needle of needles) {
-          const cleanups = injectKeywordHighlights(
-            container,
-            needle,
-            requirement,
-            (mark) => {
-              const showTip = () => {
-                const rect = mark.getBoundingClientRect();
-                setTooltip({ requirement, anchorRect: rect });
-              };
-              mark.addEventListener("mouseenter", showTip);
-              mark.addEventListener("focus", showTip);
-              allCleanups.push(() => {
-                mark.removeEventListener("mouseenter", showTip);
-                mark.removeEventListener("focus", showTip);
-              });
-            },
-          );
-          allCleanups.push(...cleanups);
-        }
-      }
-
-      return () => {
-        for (const fn of allCleanups) fn();
-      };
-    }, 160);
-
-    return () => clearTimeout(timer);
-  }, [source, mustHaves, containerRef, setTooltip]);
+  return spans;
 }
 
 /**
  * Standalone component: renders markdown + JD-tailoring highlights.
  *
- * When drift highlights are also needed, use InlineDriftHighlight as the base
- * and add the `useJDHighlights` hook on its container ref instead — see
- * the DriftAndJDHighlight wrapper below.
+ * All highlights are rendered as React elements via MarkdownRenderer —
+ * no DOM mutation, no TreeWalker, no useLayoutEffect injection. This prevents
+ * the NotFoundError crash that occurred when React tried to reconcile text
+ * nodes that had been mutated by the previous DOM-injection approach.
+ *
+ * When drift highlights are also needed, use DriftAndJDHighlight which
+ * composes both highlight kinds through the same React-rendered path.
  */
 export function InlineJDHighlight({ source, mustHaves }: StandaloneProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<TooltipState>(null);
+  const spans: HighlightSpan[] = mustHaves && mustHaves.length > 0
+    ? mustHavesToSpans(mustHaves)
+    : [];
 
-  useJDHighlights(containerRef, mustHaves, source, setTooltip);
-
-  useLayoutEffect(() => {
+  // Close tooltip on Escape
+  useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") setTooltip(null);
     }
@@ -205,9 +70,19 @@ export function InlineJDHighlight({ source, mustHaves }: StandaloneProps) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  const handleMarkActivate: OnMarkClick = (span, anchorRect) => {
+    if (span.kind === "jd-tailored") {
+      setTooltip({ requirement: span.requirement, anchorRect });
+    }
+  };
+
   return (
-    <div className="relative" ref={containerRef}>
-      <MarkdownRenderer source={source} />
+    <div className="relative">
+      <MarkdownRenderer
+        source={source}
+        highlightSpans={spans}
+        onMarkActivate={handleMarkActivate}
+      />
       {tooltip && (
         <JDTooltip tooltip={tooltip} onClose={() => setTooltip(null)} />
       )}
@@ -230,7 +105,7 @@ export function JDTooltip({ tooltip, onClose }: JDTooltipProps) {
   const rawLeft = anchorRect.left + window.scrollX;
   const left = Math.min(rawLeft, window.innerWidth - 320);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     function handler(e: MouseEvent) {
       if (
         tooltipRef.current &&
@@ -281,3 +156,8 @@ export function JDTooltip({ tooltip, onClose }: JDTooltipProps) {
     </div>
   );
 }
+
+/**
+ * Exported for DriftAndJDHighlight to build JD spans without rendering.
+ */
+export { mustHavesToSpans };

@@ -6,18 +6,17 @@ type RedFlag = {
 type ParsedJD = {
   must_haves?: string[];
   nice_to_haves?: string[];
+  /** JD tone — e.g. "professional", "enthusiastic". Always present on parsed JDs. */
   tone?: string;
   seniority?: string;
+  /** Upwork budget band (e.g. "$25-50/hr") — present only on Upwork packages. */
   budget?: string;
-  expected_tone?: string;
   /** Red flags surfaced by the JD parser (may live here OR at top-level metadata.red_flags) */
   red_flags?: Array<RedFlag | string>;
   /** Job title extracted from the JD */
   job_title?: string | null;
   /** Company name extracted from the JD */
   company_name?: string | null;
-  /** Location string extracted from the JD */
-  location?: string | null;
 };
 
 type CallLog = {
@@ -46,6 +45,9 @@ export type PackageMetadata = {
   drift_verdicts?: Record<string, string>;
   override?: { applied?: boolean; reason?: string | null };
   cost?: Cost;
+  /** D1: human-readable role/company extracted from the JD parse (top-level fallback). */
+  job_title?: string | null;
+  company_name?: string | null;
 };
 
 type Props = {
@@ -75,8 +77,8 @@ export function MetadataSidebar({ metadata }: Props) {
   const cost = metadata.cost;
   const promptTemplates = metadata.prompt_templates ?? {};
   const overrideAvailable = hasAnyDriftFail(drift);
-  // 04-7: budget/tone shown for all boards (not gated on Upwork)
-  const hasBudgetOrTone = !!(parsed.budget || parsed.expected_tone);
+  // 04-7: budget (Upwork only) — tone is already shown in the Parsed JD card
+  const hasBudgetOrTone = !!parsed.budget;
   // 04-6: red_flags may live in parsed_jd.red_flags (primary) or top-level metadata.red_flags
   const redFlags: Array<RedFlag | string> = (
     parsed.red_flags && parsed.red_flags.length > 0
@@ -112,13 +114,10 @@ export function MetadataSidebar({ metadata }: Props) {
         )}
       </Card>
 
-      {/* 04-7: Budget/Tone shown for all boards, not just Upwork */}
+      {/* 04-7: Budget shown for Upwork packages in a dedicated signals card */}
       {hasBudgetOrTone && (
-        <Card title={upwork ? "Upwork signals" : "JD signals"}>
+        <Card title="Upwork signals">
           {parsed.budget && <Row label="Budget" value={parsed.budget} />}
-          {parsed.expected_tone && (
-            <Row label="Expected tone" value={parsed.expected_tone} />
-          )}
         </Card>
       )}
 

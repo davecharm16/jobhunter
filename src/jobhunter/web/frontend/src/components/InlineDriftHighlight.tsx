@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import { MarkdownRenderer } from "./MarkdownRenderer";
+import { useEffect, useRef, useState } from "react";
+import { MarkdownRenderer, type HighlightSpan } from "./MarkdownRenderer";
 
 /**
  * A sourced claim: the LLM paraphrased something from the canonical CV but
@@ -29,137 +29,24 @@ type Props = {
 };
 
 /**
- * Highlight severity:
- * - No source_text  → fabrication/unsourced → error (red)
- * - Has source_text → sourced-but-tailored  → accent (primary-fixed / soft indigo)
+ * Convert drift traces to HighlightSpan[] for MarkdownRenderer.
+ * Deduplicates by claim_text (case-insensitive) to avoid redundant spans.
  */
-function highlightStyle(sourceText: string | null): {
-  background: string;
-  borderColor: string;
-  borderStyle: string;
-} {
-  if (sourceText === null) {
-    // Fabrication: error-container bg + dashed error underline
-    return {
-      background: "var(--tw-highlight-fabrication-bg, rgba(186,26,26,0.12))",
-      borderColor: "var(--color-error, #ba1a1a)",
-      borderStyle: "dashed",
-    };
-  }
-  // Sourced-but-tailored: soft primary-fixed bg + solid primary underline
-  return {
-    background: "var(--tw-highlight-sourced-bg, rgba(226,223,255,0.55))",
-    borderColor: "var(--color-primary, #3525cd)",
-    borderStyle: "solid",
-  };
-}
-
-/**
- * Walk all text nodes under `root` and wrap occurrences of `needle`
- * (case-insensitive) with a styled `<mark>` element, calling `onMark` for
- * each injected mark so we can attach event listeners.
- *
- * Returns an array of cleanup functions that restore the original DOM when
- * called (so we can reset before the next highlight pass).
- */
-function injectHighlights(
-  root: Element,
-  needle: string,
-  markAttrs: { dataset: Record<string, string>; style: Record<string, string> },
-  onMark: (el: HTMLElement) => void,
-): (() => void)[] {
-  const cleanups: (() => void)[] = [];
-  if (!needle.trim()) return cleanups;
-
-  const lower = needle.toLowerCase();
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-
-  const nodesToProcess: Text[] = [];
-  let node: Text | null;
-  while ((node = walker.nextNode() as Text | null)) {
-    if ((node.textContent ?? "").toLowerCase().includes(lower)) {
-      nodesToProcess.push(node);
-    }
-  }
-
-  for (const textNode of nodesToProcess) {
-    const text = textNode.textContent ?? "";
-    const lowerText = text.toLowerCase();
-    let idx = lowerText.indexOf(lower);
-    if (idx === -1) continue;
-
-    const parent = textNode.parentNode;
-    if (!parent) continue;
-
-    // Split into before / match / after fragments and replace inline
-    const fragment = document.createDocumentFragment();
-    let cursor = 0;
-    while (idx !== -1) {
-      if (idx > cursor) {
-        fragment.appendChild(document.createTextNode(text.slice(cursor, idx)));
-      }
-      const mark = document.createElement("mark");
-      mark.textContent = text.slice(idx, idx + needle.length);
-      // Apply style
-      Object.assign(mark.style, markAttrs.style);
-      mark.style.display = "inline";
-      mark.style.borderRadius = "2px";
-      mark.style.paddingLeft = "2px";
-      mark.style.paddingRight = "2px";
-      mark.style.borderBottomWidth = "2px";
-      mark.style.cursor = "help";
-      // Dataset for claim lookup
-      for (const [k, v] of Object.entries(markAttrs.dataset)) {
-        mark.dataset[k] = v;
-      }
-      // Tabindex so keyboard users can focus
-      mark.setAttribute("tabindex", "0");
-      mark.setAttribute("role", "mark");
-      onMark(mark);
-      fragment.appendChild(mark);
-      cursor = idx + needle.length;
-      idx = lowerText.indexOf(lower, cursor);
-    }
-    if (cursor < text.length) {
-      fragment.appendChild(document.createTextNode(text.slice(cursor)));
-    }
-
-    parent.replaceChild(fragment, textNode);
-
-    // Cleanup: restore original text node
-    cleanups.push(() => {
-      const current = parent.childNodes;
-      // Find the first mark/text node we inserted by dataset
-      // Strategy: gather siblings until we reconstruct the original span
-      // Simpler: replace the whole parent's inner markup with original text
-      // (only safe if parent is a leaf-ish element — for p/li/span this holds)
-      // We save the original text and will use it.
-      const originalText = text;
-      // Walk siblings to find the injected marks and text nodes we added
-      const toRemove: ChildNode[] = [];
-      let restored = false;
-      for (const child of Array.from(current)) {
-        if (
-          (child instanceof HTMLElement &&
-            child.tagName === "MARK" &&
-            child.dataset["claimId"] === markAttrs.dataset["claimId"]) ||
-          (child instanceof Text &&
-            !restored &&
-            toRemove.length > 0)
-        ) {
-          toRemove.push(child);
-        }
-      }
-      if (toRemove.length > 0) {
-        const firstNode = toRemove[0];
-        parent.insertBefore(document.createTextNode(originalText), firstNode);
-        for (const n of toRemove) parent.removeChild(n);
-      }
-      restored = true;
+function tracesToSpans(traces: DriftTrace[]): HighlightSpan[] {
+  const seen = new Set<string>();
+  const spans: HighlightSpan[] = [];
+  for (const trace of traces) {
+    const key = trace.claim_text.toLowerCase().trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    spans.push({
+      kind: trace.source_text !== null ? "drift-sourced" : "drift-fabrication",
+      matchText: trace.claim_text,
+      claim_text: trace.claim_text,
+      source_text: trace.source_text,
     });
   }
-
-  return cleanups;
+  return spans;
 }
 
 /**
@@ -169,74 +56,20 @@ function injectHighlights(
  *
  * Design reference: 04-jd-pipeline-tailoring.html — error-container+dashed
  * underline for fabrications; primary-fixed+solid underline for sourced claims.
+ *
+ * All highlights are rendered as React elements via MarkdownRenderer —
+ * no DOM mutation, no TreeWalker, no useLayoutEffect injection. This prevents
+ * the NotFoundError crash that occurred when React tried to reconcile text
+ * nodes that had been mutated by the previous DOM-injection approach.
  */
 export function InlineDriftHighlight({ source, traces }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<TooltipState>(null);
+  const spans: HighlightSpan[] = traces && traces.length > 0
+    ? tracesToSpans(traces)
+    : [];
 
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container || !traces || traces.length === 0) return;
-
-    // Give ReactMarkdown a tick to finish rendering
-    const timer = setTimeout(() => {
-      const allCleanups: (() => void)[] = [];
-
-      for (const trace of traces) {
-        if (!trace.claim_text.trim()) continue;
-
-        const sev = highlightStyle(trace.source_text);
-
-        const markAttrs = {
-          dataset: { claimId: trace.claim_id },
-          style: {
-            backgroundColor: sev.background,
-            borderBottomColor: sev.borderColor,
-            borderBottomStyle: sev.borderStyle,
-          },
-        };
-
-        const cleanups = injectHighlights(
-          container,
-          trace.claim_text,
-          markAttrs,
-          (mark) => {
-            const showTip = () => {
-              const rect = mark.getBoundingClientRect();
-              setTooltip({
-                claimText: trace.claim_text,
-                sourceText: trace.source_text,
-                anchorRect: rect,
-              });
-            };
-            mark.addEventListener("mouseenter", showTip);
-            mark.addEventListener("focus", showTip);
-            mark.setAttribute(
-              "aria-label",
-              trace.source_text
-                ? `Drift: claimed "${trace.claim_text}" — canonical said "${trace.source_text}"`
-                : `Possible fabrication: "${trace.claim_text}" — no canonical source found`,
-            );
-            allCleanups.push(() => {
-              mark.removeEventListener("mouseenter", showTip);
-              mark.removeEventListener("focus", showTip);
-            });
-          },
-        );
-
-        allCleanups.push(...cleanups);
-      }
-
-      return () => {
-        for (const fn of allCleanups) fn();
-      };
-    }, 120);
-
-    return () => clearTimeout(timer);
-  }, [source, traces]);
-
-  // Close tooltip when mouse leaves the container or Escape pressed
-  useLayoutEffect(() => {
+  // Close tooltip on Escape
+  useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") setTooltip(null);
     }
@@ -244,9 +77,23 @@ export function InlineDriftHighlight({ source, traces }: Props) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  function handleMarkActivate(span: HighlightSpan, anchorRect: DOMRect) {
+    if (span.kind === "drift-sourced" || span.kind === "drift-fabrication") {
+      setTooltip({
+        claimText: span.claim_text,
+        sourceText: span.source_text,
+        anchorRect,
+      });
+    }
+  }
+
   return (
-    <div className="relative" ref={containerRef}>
-      <MarkdownRenderer source={source} />
+    <div className="relative">
+      <MarkdownRenderer
+        source={source}
+        highlightSpans={spans}
+        onMarkActivate={handleMarkActivate}
+      />
 
       {tooltip && (
         <DriftTooltip
@@ -276,7 +123,7 @@ function DriftTooltip({ tooltip, onClose }: DriftTooltipProps) {
   const left = Math.min(rawLeft, window.innerWidth - 320);
 
   // Close on click-outside
-  useLayoutEffect(() => {
+  useEffect(() => {
     function handler(e: MouseEvent) {
       if (tooltipRef.current && !tooltipRef.current.contains(e.target as Node)) {
         onClose();

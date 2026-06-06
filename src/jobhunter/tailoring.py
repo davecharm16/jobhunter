@@ -225,7 +225,12 @@ def run_tailoring(
     # `source_board` lives at the metadata top-level (Story 2.10 placeholder slot).
     # `signals` is a board-specific sidecar (Stories 2.5, 2.6) — kept off the
     # `parsed_jd` dict so Story 2.3's 6-field shape is preserved end-to-end.
+    # Exception: Upwork `budget_band` is promoted into parsed_jd as `budget`
+    # so the UI can surface it without re-extracting from raw JD text.
     parsed_jd_dict = dataclasses.asdict(parsed)
+    upwork_signals_dict: dict = parsed_jd_dict.get("signals", {}).get("upwork", {})
+    if upwork_signals_dict.get("budget_band"):
+        parsed_jd_dict["budget"] = upwork_signals_dict["budget_band"]
     parsed_jd_dict.pop("source_board", None)
     parsed_jd_dict.pop("signals", None)
 
