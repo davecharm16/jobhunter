@@ -6,6 +6,7 @@ import { SettingsPage } from "./SettingsPage";
 import { StatsCard } from "./StatsCard";
 import { PackagePage } from "./PackagePage";
 import { DriftPage } from "./DriftPage";
+import { DriftHistoryPage } from "./DriftHistoryPage";
 import { ScansPage } from "./ScansPage";
 import { NotFound } from "./NotFound";
 import { HeldCountCard } from "./components/HeldCountCard";
@@ -138,6 +139,7 @@ export function App() {
             <Route path="/packages/:slug" element={<PackagePage />} />
             <Route path="/packages/:slug/drift" element={<DriftPage />} />
             <Route path="/scans" element={<ScansPage />} />
+            <Route path="/drift" element={<DriftHistoryPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

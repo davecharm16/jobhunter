@@ -1,282 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import {
-  DriftSection,
-  type DriftVerdict,
-} from "./components/DriftSection";
-import {
-  ContentLossSection,
-  type ContentLossBlock,
-} from "./components/ContentLossSection";
-import {
-  KeywordStuffingSection,
-  type KeywordStuffingBlock,
-} from "./components/KeywordStuffingSection";
-import { SemanticTraceDiff } from "./components/SemanticTraceDiff";
-import { DriftStatStrip } from "./components/DriftStatStrip";
-
-// The drift.json shape mirrors `jobhunter.fabrication_matcher.FabricationCheck`
-// at the wire. Stories 4.4 + 5.4 added sibling keys (`content_loss`,
-// `keyword_stuffing`); each is optional so older drift.json (pre-Epic-4/5
-// runs) still render gracefully through the absent-block placeholder.
-type Trace = {
-  claim_id: string;
-  claim_text: string;
-  matched_canonical_entry_id: string;
-  match_method: "exact_string" | "substring" | "semantic";
-  match_score: number;
-  /** D2: canonical CV original text that was matched. Null for unsourced claims. */
-  source_text: string | null;
-};
-
-type UnsourcedClaim = {
-  claim_id: string;
-  claim_text: string;
-  source_artifact: string;
-  line_number: number;
-  reason: string;
-};
-
-type FabricationCheck = {
-  verdict: "pass" | "fail";
-  claims_total: number;
-  claims_sourced: number;
-  claims_unsourced: number;
-  traces: Trace[];
-  unsourced_claims: UnsourcedClaim[];
-};
-
-type DriftDocument = {
-  fabrication_check?: FabricationCheck;
-  content_loss?: ContentLossBlock;
-  keyword_stuffing?: KeywordStuffingBlock;
-};
+import { DriftDetailPane, type DriftDocument } from "./components/DriftDetailPane";
 
 type FetchState =
   | { kind: "loading" }
   | { kind: "ready"; payload: DriftDocument }
   | { kind: "error"; status: number | null; message: string };
-
-function fabricationVerdict(doc: DriftDocument): DriftVerdict {
-  const fab = doc.fabrication_check;
-  if (!fab) return "unknown";
-  return fab.verdict;
-}
-
-function contentLossVerdict(doc: DriftDocument): DriftVerdict {
-  const cl = doc.content_loss;
-  if (!cl) return "pending";
-  return cl.verdict;
-}
-
-function contentLossSubtitle(doc: DriftDocument): string | undefined {
-  const cl = doc.content_loss;
-  if (!cl) return undefined;
-  const preserved = cl.preserved_entries.length;
-  const dropped = cl.dropped_entries.length;
-  if (preserved === 0 && dropped === 0) {
-    return "No high-impact entries to verify";
-  }
-  return `${preserved} preserved · ${dropped} dropped`;
-}
-
-function keywordStuffingVerdict(doc: DriftDocument): DriftVerdict {
-  const ks = doc.keyword_stuffing;
-  if (!ks) return "pending";
-  return ks.verdict;
-}
-
-function keywordStuffingSubtitle(doc: DriftDocument): string | undefined {
-  const ks = doc.keyword_stuffing;
-  if (!ks) return undefined;
-  const densityCount = ks.density_violations.length;
-  const dumpCount = ks.dump_paragraph_locations.length;
-  if (densityCount === 0 && dumpCount === 0) {
-    return "No keyword-stuffing signals";
-  }
-  return `${densityCount} density · ${dumpCount} dump-paragraph${
-    dumpCount === 1 ? "" : "s"
-  }`;
-}
-
-function FabricationContent({ check }: { check: FabricationCheck }) {
-  if (check.verdict === "pass") {
-    return (
-      <div className="flex flex-col gap-stack-md">
-        <div className="rounded-lg border border-outline-variant bg-surface p-stack-md flex flex-col gap-stack-xs">
-          <p className="text-body-md font-body-md text-on-surface">
-            No fabricated claims detected.
-          </p>
-          <p className="text-label-md font-label-md text-on-surface-variant">
-            Every one of the {check.claims_total} extracted claim
-            {check.claims_total === 1 ? "" : "s"} traces back to a canonical-CV
-            entry.
-          </p>
-        </div>
-        {/* Sourced traces — show diff evidence even for pass verdict */}
-        {check.traces.length > 0 && (
-          <TraceDiffList traces={check.traces} />
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-stack-md">
-      <p className="text-body-md font-body-md text-on-surface-variant">
-        {check.claims_unsourced} of {check.claims_total} claim
-        {check.claims_total === 1 ? "" : "s"} could not be traced back to the
-        canonical CV.
-      </p>
-      {/* Unsourced (fabricated) claims */}
-      {check.unsourced_claims.length > 0 && (
-        <>
-        <DiffLegend />
-        <ul className="flex flex-col gap-stack-sm">
-          {check.unsourced_claims.map((claim) => (
-            <li
-              key={claim.claim_id}
-              className="rounded-lg border border-error/40 bg-error-container/40 p-stack-md flex flex-col gap-stack-xs"
-            >
-              <div className="flex items-start justify-between gap-stack-md">
-                <p className="text-body-md font-body-md text-on-surface font-medium break-words">
-                  {claim.claim_text}
-                </p>
-                <span className="shrink-0 text-label-md font-label-md text-on-error-container uppercase tracking-wider">
-                  no source entry found
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-stack-md text-label-md font-label-md text-on-surface-variant">
-                <span>
-                  <span className="uppercase tracking-wider">Artifact:</span>{" "}
-                  <code className="font-mono text-on-surface">
-                    {claim.source_artifact}
-                  </code>
-                </span>
-                <span>
-                  <span className="uppercase tracking-wider">Line:</span>{" "}
-                  <code className="font-mono text-on-surface">
-                    {claim.line_number}
-                  </code>
-                </span>
-                <span>
-                  <span className="uppercase tracking-wider">Claim ID:</span>{" "}
-                  <code className="font-mono text-on-surface">
-                    {claim.claim_id}
-                  </code>
-                </span>
-              </div>
-              {/* Split-diff pane: null source = fabrication state */}
-              <SemanticTraceDiff
-                claimText={claim.claim_text}
-                sourceText={null}
-                traceId={claim.claim_id}
-              />
-              <details className="group rounded-lg border border-outline-variant bg-surface-container-lowest mt-stack-xs">
-                <summary className="cursor-pointer list-none px-stack-md py-stack-sm text-label-md font-label-md uppercase tracking-wider text-on-surface-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg hover:text-primary group-open:text-primary flex items-center justify-between">
-                  <span>Near-miss detail</span>
-                  <span className="text-label-md font-label-md group-open:hidden">
-                    expand
-                  </span>
-                  <span className="text-label-md font-label-md hidden group-open:inline">
-                    collapse
-                  </span>
-                </summary>
-                <div className="px-stack-md pb-stack-md text-body-md font-body-md text-on-surface-variant">
-                  <p>
-                    <span className="uppercase tracking-wider text-label-md">
-                      Reason:
-                    </span>{" "}
-                    <code className="font-mono text-on-surface">
-                      {claim.reason}
-                    </code>
-                  </p>
-                  <p className="mt-stack-xs italic">
-                    Candidate canonical-CV near-misses will be surfaced here once
-                    the matcher emits them (future enhancement to
-                    package.drift.json).
-                  </p>
-                </div>
-              </details>
-            </li>
-          ))}
-        </ul>
-        </>
-      )}
-      {/* Sourced traces — show diff evidence */}
-      {check.traces.length > 0 && (
-        <TraceDiffList traces={check.traces} />
-      )}
-    </div>
-  );
-}
-
-/** One-line colour-coding legend rendered once above a list of diffs. */
-function DiffLegend() {
-  return (
-    <div className="flex items-center gap-stack-md text-label-md font-label-md text-on-surface-variant">
-      <span className="flex items-center gap-stack-xs">
-        <span className="inline-block w-3 h-3 rounded-sm bg-error-container border border-error/30" />
-        <span>− removed</span>
-      </span>
-      <span className="flex items-center gap-stack-xs">
-        <strong className="inline-block w-3 h-3 rounded-sm bg-[#dcfce7] border border-[#86efac]" />
-        <span>+ added (bold)</span>
-      </span>
-    </div>
-  );
-}
-
-/**
- * Renders the list of sourced traces as SemanticTraceDiff split-panes,
- * wrapped in a collapsible section so the page doesn't get overwhelming.
- */
-function TraceDiffList({ traces }: { traces: Trace[] }) {
-  return (
-    <details className="group rounded-xl border border-outline-variant bg-surface-container-lowest overflow-hidden">
-      <summary className="cursor-pointer list-none px-stack-md py-stack-sm bg-surface-container-low text-label-md font-label-md uppercase tracking-wider text-on-surface-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:text-primary group-open:text-primary flex items-center justify-between">
-        <span>
-          Trace evidence ({traces.length} claim
-          {traces.length === 1 ? "" : "s"})
-        </span>
-        <span className="group-open:hidden">expand</span>
-        <span className="hidden group-open:inline">collapse</span>
-      </summary>
-      <div className="flex flex-col gap-stack-md p-stack-md">
-        {/* Legend rendered once at the top of the trace list */}
-        <DiffLegend />
-        {traces.map((trace) => (
-          <div key={trace.claim_id} className="flex flex-col gap-stack-xs">
-            <div className="flex flex-wrap items-center gap-stack-md text-label-md font-label-md text-on-surface-variant">
-              <code className="font-mono text-on-surface truncate max-w-xs">
-                {trace.claim_id}
-              </code>
-              <span className="uppercase tracking-wider">{trace.match_method}</span>
-              <span className="uppercase tracking-wider">
-                score: {trace.match_score.toFixed(3)}
-              </span>
-            </div>
-            <SemanticTraceDiff
-              claimText={trace.claim_text}
-              sourceText={trace.source_text}
-              traceId={trace.claim_id}
-            />
-          </div>
-        ))}
-      </div>
-    </details>
-  );
-}
-
-function PlaceholderContent({ label }: { label: string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-outline-variant bg-surface p-stack-md">
-      <p className="text-body-md font-body-md text-on-surface-variant italic">
-        {label} pending — not yet implemented.
-      </p>
-    </div>
-  );
-}
 
 export function DriftPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -285,41 +14,25 @@ export function DriftPage() {
   useEffect(() => {
     let cancelled = false;
     if (!slug) {
-      setFetchState({
-        kind: "error",
-        status: null,
-        message: "missing_slug_in_route",
-      });
+      setFetchState({ kind: "error", status: null, message: "missing_slug_in_route" });
       return;
     }
     setFetchState({ kind: "loading" });
     async function load() {
       try {
-        const response = await fetch(
-          `/api/package/${encodeURIComponent(slug!)}/drift`,
-        );
+        const response = await fetch(`/api/package/${encodeURIComponent(slug!)}/drift`);
         const body = await response.json();
         if (cancelled) return;
         if (!response.ok) {
           const message =
-            typeof body.detail === "string"
-              ? body.detail
-              : JSON.stringify(body.detail);
-          setFetchState({
-            kind: "error",
-            status: response.status,
-            message,
-          });
+            typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+          setFetchState({ kind: "error", status: response.status, message });
           return;
         }
         setFetchState({ kind: "ready", payload: body as DriftDocument });
       } catch (exc) {
         if (cancelled) return;
-        setFetchState({
-          kind: "error",
-          status: null,
-          message: String(exc),
-        });
+        setFetchState({ kind: "error", status: null, message: String(exc) });
       }
     }
     load();
@@ -361,10 +74,7 @@ export function DriftPage() {
           >
             Back to package
           </Link>
-          <Link
-            to="/"
-            className="text-primary underline text-body-md font-body-md"
-          >
+          <Link to="/" className="text-primary underline text-body-md font-body-md">
             Back to dashboard
           </Link>
         </div>
@@ -372,87 +82,9 @@ export function DriftPage() {
     );
   }
 
-  const { payload } = fetchState;
-  const fabrication = payload.fabrication_check;
-  const fabVerdict = fabricationVerdict(payload);
-
   return (
-    <div className="p-margin-mobile md:p-margin-desktop max-w-container-max mx-auto w-full flex flex-col gap-stack-lg">
-      {/* 05-10: Detail stat strip — Fabrication / Content Loss / Keyword Density */}
-      <DriftStatStrip
-        fabrication={payload.fabrication_check}
-        contentLoss={payload.content_loss}
-        keywordStuffing={payload.keyword_stuffing}
-      />
-
-      <header className="flex flex-col gap-stack-xs">
-        <div className="flex items-center gap-stack-sm text-label-md font-label-md uppercase tracking-wider text-on-surface-variant">
-          <Link to="/" className="hover:text-primary">
-            Dashboard
-          </Link>
-          <span>/</span>
-          <Link
-            to={`/packages/${slug ?? ""}`}
-            className="hover:text-primary"
-          >
-            {slug}
-          </Link>
-          <span>/</span>
-          <span>Drift</span>
-        </div>
-        <h1 className="text-display font-display text-on-surface break-words">
-          Drift Check Diagnostics
-        </h1>
-        <p className="text-body-lg font-body-lg text-on-surface-variant max-w-2xl">
-          Per-claim traceability between the tailored output and your canonical
-          CV. Fabrication detection is live; content-loss and keyword-stuffing
-          land in Epics 4 and 5.
-        </p>
-      </header>
-
-      <div className="grid grid-cols-1 gap-stack-md">
-        <DriftSection
-          title="Fabrication"
-          verdict={fabVerdict}
-          subtitle={
-            fabrication
-              ? `${fabrication.claims_sourced}/${fabrication.claims_total} claims sourced`
-              : undefined
-          }
-        >
-          {fabrication ? (
-            <FabricationContent check={fabrication} />
-          ) : (
-            <p className="text-body-md font-body-md text-on-surface-variant italic">
-              No fabrication_check block present in the drift report.
-            </p>
-          )}
-        </DriftSection>
-
-        <DriftSection
-          title="Content Loss"
-          verdict={contentLossVerdict(payload)}
-          subtitle={contentLossSubtitle(payload)}
-        >
-          {payload.content_loss ? (
-            <ContentLossSection block={payload.content_loss} />
-          ) : (
-            <PlaceholderContent label="Content-loss block not present in this drift report." />
-          )}
-        </DriftSection>
-
-        <DriftSection
-          title="Keyword Stuffing"
-          verdict={keywordStuffingVerdict(payload)}
-          subtitle={keywordStuffingSubtitle(payload)}
-        >
-          {payload.keyword_stuffing ? (
-            <KeywordStuffingSection block={payload.keyword_stuffing} />
-          ) : (
-            <PlaceholderContent label="Keyword-stuffing block not present in this drift report." />
-          )}
-        </DriftSection>
-      </div>
+    <div className="p-margin-mobile md:p-margin-desktop max-w-container-max mx-auto w-full">
+      <DriftDetailPane slug={slug!} doc={fetchState.payload} showPageHeader />
     </div>
   );
 }
