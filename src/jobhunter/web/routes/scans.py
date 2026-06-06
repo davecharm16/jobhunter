@@ -45,12 +45,25 @@ def _sidecar_timestamp(sidecar: dict[str, Any]) -> str:
     return str(sidecar.get("created_at", ""))
 
 
-def _is_pass(sidecar: dict[str, Any]) -> bool:
-    """Return True iff every drift verdict on the sidecar is `pass`."""
+def _run_status(sidecar: dict[str, Any]) -> str:
+    """Return the run status string for a single sidecar.
+
+    Three distinct outcomes:
+    - ``'pending'``: ``drift_verdicts`` is absent or empty — the JD was
+      ingested but the drift check has not run yet. This is the most common
+      real state for freshly ingested JDs and must NOT be surfaced as a
+      failure (that would make the UI show red errors for every new ingest).
+    - ``'fail'``: at least one verdict is the literal string ``'fail'`` — a
+      real drift check ran and found a fabrication / content-loss / keyword
+      problem.
+    - ``'pass'``: every verdict is ``'pass'``.
+    """
     verdicts = sidecar.get("drift_verdicts") or {}
     if not isinstance(verdicts, dict) or not verdicts:
-        return False
-    return all(verdict == "pass" for verdict in verdicts.values())
+        return "pending"
+    if any(verdict == "fail" for verdict in verdicts.values()):
+        return "fail"
+    return "pass"
 
 
 def _aggregate_flow(
@@ -71,7 +84,7 @@ def _aggregate_flow(
     # as the fallback). String comparison is correct because both fields are
     # written as ISO-8601 UTC with a trailing `Z`.
     most_recent = max(matched, key=_sidecar_timestamp)
-    status = "pass" if _is_pass(most_recent) else "fail"
+    status = _run_status(most_recent)
 
     return {
         "flow_name": flow_name,

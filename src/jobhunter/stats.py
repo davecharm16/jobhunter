@@ -57,6 +57,7 @@ class StatsAggregate:
     interview_conversion_rate_30app: str
     interview_window_n: int
     cost_regression_window: bool
+    drift_catches_total: int = 0
 
     def to_response(self) -> dict[str, Any]:
         """Render the aggregate as the JSON-serializable response body."""
@@ -69,6 +70,7 @@ class StatsAggregate:
             "override_rate": self.override_rate,
             "interview_conversion_rate_30app": self.interview_conversion_rate_30app,
             "cost_regression_window": self.cost_regression_window,
+            "drift_catches_total": self.drift_catches_total,
         }
         if self.interview_conversion_rate_30app == INSUFFICIENT_DATA:
             body["n"] = self.interview_window_n
@@ -187,6 +189,20 @@ def _is_held(md: dict[str, Any]) -> bool:
     return any(v == "fail" for v in verdicts.values())
 
 
+def _is_fabrication_hold(md: dict[str, Any]) -> bool:
+    """Return True iff the sidecar was held specifically for a fabrication fail.
+
+    Reads ``drift_verdicts.fabrication`` from the metadata sidecar (the key
+    written by the fabrication-matcher pipeline step). This is the numerator
+    for ``drift_catches_total`` — only fabrication holds count as
+    "Fabrications prevented"; content-loss and keyword-stuffing holds do not.
+    """
+    verdicts = md.get("drift_verdicts") or {}
+    if not isinstance(verdicts, dict):
+        return False
+    return verdicts.get("fabrication") == "fail"
+
+
 def _override_applied(md: dict[str, Any]) -> bool:
     override = md.get("override") or {}
     return bool(override.get("applied"))
@@ -255,6 +271,7 @@ def aggregate_stats(
 
     held = sum(1 for md in filtered if _is_held(md))
     overrides = sum(1 for md in filtered if _override_applied(md))
+    fabrication_holds = sum(1 for md in filtered if _is_fabrication_hold(md))
 
     # Interview-conversion: rolling-30 window by created_at (most recent 30).
     # v1: `interview_reached` is not yet emitted by any pipeline — until a
@@ -286,4 +303,5 @@ def aggregate_stats(
         interview_conversion_rate_30app=interview_rate,
         interview_window_n=window_n,
         cost_regression_window=cost_regression,
+        drift_catches_total=fabrication_holds,
     )

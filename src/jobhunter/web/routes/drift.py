@@ -36,6 +36,25 @@ router = APIRouter()
 
 OUT_ROOT: Path = PROJECT_ROOT / "out"
 
+_OVERRIDDEN_DIRNAME = "_overridden"
+
+
+def _resolve_package_dir_for_drift(slug: str, out_root: Path) -> Path:
+    """Return the on-disk directory for *slug*, checking both locations.
+
+    Mirrors the same two-location lookup used by the package detail route:
+    first ``out_root/<slug>`` (fresh and held packages), then
+    ``out_root/_overridden/<slug>`` (approved/overridden packages). Raises
+    ``HTTPException(404)`` if neither exists.
+    """
+    primary = out_root / slug
+    if primary.is_dir():
+        return primary
+    overridden = out_root / _OVERRIDDEN_DIRNAME / slug
+    if overridden.is_dir():
+        return overridden
+    raise HTTPException(status_code=404, detail=f"package_not_found: {slug}")
+
 
 # ---------------------------------------------------------------------------
 # GET /api/package/{slug}/drift  (Story 3.5)
@@ -44,10 +63,13 @@ OUT_ROOT: Path = PROJECT_ROOT / "out"
 
 @router.get("/api/package/{slug}/drift")
 def get_package_drift(slug: str) -> dict[str, Any]:
-    """Return the parsed `package.drift.json` for a single staged package."""
-    package_dir = OUT_ROOT / slug
-    if not package_dir.is_dir():
-        raise HTTPException(status_code=404, detail=f"package_not_found: {slug}")
+    """Return the parsed `package.drift.json` for a single staged package.
+
+    Checks both ``out/<slug>/`` and ``out/_overridden/<slug>/`` so that
+    approved/overridden packages (which the override flow relocates to the
+    ``_overridden`` sub-directory) are found correctly instead of 404-ing.
+    """
+    package_dir = _resolve_package_dir_for_drift(slug, OUT_ROOT)
 
     drift_path = package_dir / "package.drift.json"
     if not drift_path.is_file():

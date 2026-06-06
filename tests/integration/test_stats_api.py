@@ -223,3 +223,70 @@ def test_get_stats_cost_regression_window_false_at_target(
     client = TestClient(create_app())
     body = client.get("/api/stats").json()
     assert body["cost_regression_window"] is False
+
+
+# --- Bug-3 fix: drift_catches_total counts only fabrication holds ---------
+
+
+def test_get_stats_drift_catches_total_present_and_zero_when_no_holds(
+    tmp_path, monkeypatch,
+) -> None:
+    """drift_catches_total must always be present in the response body."""
+    out_root = _stage_out_root(tmp_path, monkeypatch)
+    _write(out_root, _sidecar(slug="a"))  # all-pass verdicts
+
+    body = TestClient(create_app()).get("/api/stats").json()
+    assert "drift_catches_total" in body
+    assert body["drift_catches_total"] == 0
+
+
+def test_get_stats_drift_catches_total_counts_only_fabrication_fails(
+    tmp_path, monkeypatch,
+) -> None:
+    """drift_catches_total counts fabrication=='fail' holds only.
+
+    Before the fix this field was absent, so StatsCard fell back to
+    ``drift_catch_rate * total`` which included content-loss and keyword
+    holds — wrong for "Fabrications prevented".
+    """
+    out_root = _stage_out_root(tmp_path, monkeypatch)
+
+    # fabrication fail → counts
+    _write(
+        out_root,
+        _sidecar(
+            slug="fab-fail",
+            drift={"fabrication": "fail", "content_loss": "pass", "keyword_stuffing": "pass"},
+        ),
+    )
+    # content-loss-only fail → must NOT count
+    _write(
+        out_root,
+        _sidecar(
+            slug="content-fail",
+            drift={"fabrication": "pass", "content_loss": "fail", "keyword_stuffing": "pass"},
+        ),
+    )
+    # keyword-stuffing-only fail → must NOT count
+    _write(
+        out_root,
+        _sidecar(
+            slug="kw-fail",
+            drift={"fabrication": "pass", "content_loss": "pass", "keyword_stuffing": "fail"},
+        ),
+    )
+    # clean pass → must NOT count
+    _write(out_root, _sidecar(slug="clean"))
+
+    body = TestClient(create_app()).get("/api/stats").json()
+    assert body["drift_catches_total"] == 1  # only the fabrication fail
+
+
+def test_get_stats_drift_catches_total_zero_when_no_sidecars(
+    tmp_path, monkeypatch,
+) -> None:
+    """Empty out/ returns drift_catches_total == 0 (not absent, not error)."""
+    _stage_out_root(tmp_path, monkeypatch)
+    body = TestClient(create_app()).get("/api/stats").json()
+    assert "drift_catches_total" in body
+    assert body["drift_catches_total"] == 0

@@ -171,6 +171,46 @@ def test_get_drift_returns_404_for_unknown_slug(
     assert "package_not_found" in response.json()["detail"]
 
 
+# ---- Bug-1 fix: drift route finds packages in out/_overridden/<slug> ----
+
+
+def test_get_drift_returns_200_for_overridden_package(
+    staged_out_root: Path,
+) -> None:
+    """Approved/overridden packages live under out/_overridden/<slug>.
+
+    Before the fix, the route only checked out/<slug> and returned 404 for
+    any package that had been moved to the _overridden sub-directory.  This
+    test verifies the two-location fallback: primary out/<slug> is absent, so
+    the route falls back to out/_overridden/<slug> and returns 200.
+    """
+    slug = "2026-05-23-overridden-cafe01"
+    doc = _fab_pass()
+    # Write the drift report under out/_overridden/<slug>/ only (primary absent).
+    overridden_dir = staged_out_root / "_overridden" / slug
+    overridden_dir.mkdir(parents=True)
+    (overridden_dir / "package.drift.json").write_text(
+        __import__("json").dumps(doc), encoding="utf-8"
+    )
+
+    client = TestClient(create_app())
+    response = client.get(f"/api/package/{slug}/drift")
+
+    assert response.status_code == 200
+    assert response.json() == doc
+
+
+def test_get_drift_returns_404_when_neither_location_exists(
+    staged_out_root: Path,
+) -> None:
+    """404 is still returned when the slug is absent from both locations."""
+    client = TestClient(create_app())
+    response = client.get("/api/package/ghost-slug-000000/drift")
+
+    assert response.status_code == 404
+    assert "package_not_found" in response.json()["detail"]
+
+
 # ---- AC1: 500 when drift sidecar is malformed JSON ----------------------
 
 
