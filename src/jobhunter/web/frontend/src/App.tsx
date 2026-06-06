@@ -24,9 +24,48 @@ type QueueState =
   | { kind: "ready"; queue: QueueResponse }
   | { kind: "error"; message: string };
 
+type GreetingState =
+  | { kind: "loading" }
+  | { kind: "ready"; firstName: string }
+  | { kind: "error" };
+
+function useGreeting(): GreetingState {
+  const [state, setState] = useState<GreetingState>({ kind: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const response = await fetch("/api/canonical-cv");
+        if (!response.ok) {
+          if (!cancelled) setState({ kind: "error" });
+          return;
+        }
+        const body = await response.json();
+        if (cancelled) return;
+        const fullName: string =
+          typeof body?.basics?.name === "string" ? body.basics.name : "";
+        const firstName = fullName.trim().split(/\s+/)[0] || "";
+        setState(
+          firstName ? { kind: "ready", firstName } : { kind: "error" },
+        );
+      } catch {
+        if (!cancelled) setState({ kind: "error" });
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return state;
+}
+
 function DashboardPage() {
   const [jdText, setJdText] = useState("");
   const [queueState, setQueueState] = useState<QueueState>({ kind: "loading" });
+  const greetingState = useGreeting();
 
   useEffect(() => {
     let cancelled = false;
@@ -63,18 +102,28 @@ function DashboardPage() {
   const recent =
     queueState.kind === "ready" ? queueState.queue.recent : [];
 
+  const greetingName =
+    greetingState.kind === "ready" ? greetingState.firstName : null;
+
   return (
     <div className="p-gutter max-w-container-max mx-auto w-full flex flex-col gap-stack-lg">
+      {/* 01-20: Personalized greeting */}
       <div>
         <h3 className="text-display font-display text-on-surface mb-stack-sm">
-          Dashboard
+          {greetingName ? `Hello, ${greetingName}!` : "Hello!"}
         </h3>
         <p className="text-body-lg font-body-lg text-on-surface-variant">
-          What does Job Hunter want from you right now? Held packages, recent
-          verdicts, and a fast path to tailor the next JD.
+          Ready to land your next role? Let&apos;s start tailoring.
         </p>
       </div>
+
+      {/* 01-10: Prominent "Start New Application" card at the top */}
+      <PastePanel jdText={jdText} setJdText={setJdText} />
+
+      {/* 01-22 + 01-11 + 01-13: Three discrete metric cards with icons */}
       <StatsCard />
+
+      {/* Pipeline section */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-stack-md">
         <HeldCountCard heldCount={heldCount} />
         <div className="md:col-span-2 flex flex-col">
@@ -115,9 +164,6 @@ function DashboardPage() {
           )}
         </div>
       </section>
-      <div id="paste-panel">
-        <PastePanel jdText={jdText} setJdText={setJdText} />
-      </div>
     </div>
   );
 }
