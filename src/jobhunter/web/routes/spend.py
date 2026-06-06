@@ -20,7 +20,13 @@ from decimal import Decimal, InvalidOperation
 from fastapi import APIRouter, HTTPException
 
 from jobhunter import spend_tracker
+from jobhunter.config import PROJECT_ROOT
 from jobhunter.spend_tracker import current_month_key, current_month_total_usd, read_ledger
+
+try:
+    from dotenv import load_dotenv as _load_dotenv
+except ModuleNotFoundError:
+    _load_dotenv = None
 
 
 router = APIRouter()
@@ -31,8 +37,12 @@ def _load_cap_usd() -> Decimal:
 
     The full `load_runtime_config()` also requires LLM_API_KEY which is not
     needed here. We only need the cap, so we read it directly from env to keep
-    the spend endpoint usable even when the LLM key is not in scope.
+    the spend endpoint usable even when the LLM key is not in scope. We still
+    load `.env` first (override=False) — same as `load_ingest_token` — so the
+    cap is visible on a fresh app boot before any other config load runs.
     """
+    if _load_dotenv is not None:
+        _load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=False)
     raw = os.environ.get("MONTHLY_SPEND_CAP_USD", "").strip()
     if not raw:
         raise HTTPException(
