@@ -27,67 +27,6 @@ function tokenise(text: string): string[] {
 }
 
 /**
- * Compute LCS-based word diff between `left` and `right` token arrays.
- * Returns a flat array of DiffToken tagged as equal / remove / insert.
- * The classic Myers diff: O(ND) but capped at 2000 tokens per side; for
- * longer texts we fall back to a simpler two-pointer approach.
- */
-function wordDiff(leftText: string, rightText: string): DiffToken[] {
-  const L = tokenise(leftText);
-  const R = tokenise(rightText);
-
-  // LCS via DP — acceptable for CV-sized strings (few hundred words).
-  const m = L.length;
-  const n = R.length;
-
-  // Safety cap: if either side is huge, emit whole-text as single token.
-  if (m > 2000 || n > 2000) {
-    return [
-      { text: leftText, op: "equal" },
-    ];
-  }
-
-  // dp[i][j] = length of LCS(L[0..i-1], R[0..j-1])
-  const dp: number[][] = Array.from({ length: m + 1 }, () =>
-    new Array(n + 1).fill(0),
-  );
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (L[i - 1] === R[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
-      } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-      }
-    }
-  }
-
-  // Back-track to build ops.
-  const leftOps: DiffToken[] = [];
-  const rightOps: DiffToken[] = [];
-  let i = m;
-  let j = n;
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && L[i - 1] === R[j - 1]) {
-      leftOps.push({ text: L[i - 1], op: "equal" });
-      rightOps.push({ text: R[j - 1], op: "equal" });
-      i--;
-      j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      rightOps.push({ text: R[j - 1], op: "insert" });
-      j--;
-    } else {
-      leftOps.push({ text: L[i - 1], op: "remove" });
-      i--;
-    }
-  }
-
-  leftOps.reverse();
-  rightOps.reverse();
-
-  return leftOps.concat(rightOps);
-}
-
-/**
  * Build a split-diff result: separate token lists for left pane and right pane.
  */
 function splitDiff(
@@ -163,12 +102,12 @@ function DiffSpans({ tokens }: { tokens: DiffToken[] }) {
         }
         if (tok.op === "insert") {
           return (
-            <span
+            <strong
               key={idx}
-              className="bg-[#dcfce7] text-[#14532d] rounded-sm px-[1px]"
+              className="bg-[#dcfce7] text-[#14532d] rounded-sm px-[1px] font-semibold underline decoration-[#14532d]/50"
             >
               {tok.text}
-            </span>
+            </strong>
           );
         }
         // equal — plain text, preserve whitespace
@@ -192,9 +131,20 @@ type Props = {
   sourceText: string | null;
   /** Unique id used for accessible region labelling. */
   traceId: string;
+  /**
+   * When true, renders the colour-coding legend in the diff header.
+   * Defaults to false so callers that render a viewer-level legend once
+   * (e.g. TraceDiffList / DriftPage) avoid repeating it per instance.
+   */
+  showLegend?: boolean;
 };
 
-export function SemanticTraceDiff({ claimText, sourceText, traceId }: Props) {
+export function SemanticTraceDiff({
+  claimText,
+  sourceText,
+  traceId,
+  showLegend = false,
+}: Props) {
   const hasSource = sourceText !== null && sourceText !== undefined;
 
   const { leftTokens, rightTokens } = hasSource
@@ -210,21 +160,23 @@ export function SemanticTraceDiff({ claimText, sourceText, traceId }: Props) {
       role="region"
       aria-label={`Semantic trace diff ${traceId}`}
     >
-      {/* Diff viewer header — label + legend */}
+      {/* Diff viewer header — label + optional legend */}
       <div className="flex items-center justify-between gap-stack-md px-stack-md py-stack-sm bg-surface-container-low border-b border-outline-variant flex-wrap gap-y-stack-xs">
         <span className="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">
           Semantic Trace Diff
         </span>
-        <div className="flex items-center gap-stack-md text-label-md font-label-md text-on-surface-variant">
-          <span className="flex items-center gap-stack-xs">
-            <span className="inline-block w-3 h-3 rounded-sm bg-error-container border border-error/30" />
-            <span>− removed</span>
-          </span>
-          <span className="flex items-center gap-stack-xs">
-            <span className="inline-block w-3 h-3 rounded-sm bg-[#dcfce7] border border-[#86efac]" />
-            <span>+ added</span>
-          </span>
-        </div>
+        {showLegend && (
+          <div className="flex items-center gap-stack-md text-label-md font-label-md text-on-surface-variant">
+            <span className="flex items-center gap-stack-xs">
+              <span className="inline-block w-3 h-3 rounded-sm bg-error-container border border-error/30" />
+              <span>− removed</span>
+            </span>
+            <span className="flex items-center gap-stack-xs">
+              <strong className="inline-block w-3 h-3 rounded-sm bg-[#dcfce7] border border-[#86efac]" />
+              <span>+ added</span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Split panes */}
@@ -238,7 +190,7 @@ export function SemanticTraceDiff({ claimText, sourceText, traceId }: Props) {
             {hasSource ? (
               <DiffSpans tokens={leftTokens} />
             ) : (
-              <span className="inline-flex items-center gap-stack-xs text-error italic not-italic">
+              <span className="inline-flex items-center gap-stack-xs text-error italic">
                 <span
                   className="inline-block w-2 h-2 rounded-full bg-error shrink-0"
                   aria-hidden="true"
@@ -263,6 +215,3 @@ export function SemanticTraceDiff({ claimText, sourceText, traceId }: Props) {
   );
 }
 
-// Re-export the unused wordDiff so the import isn't tree-shaken in a way that
-// triggers a TS "declared but not used" error in strict mode.
-export { wordDiff };

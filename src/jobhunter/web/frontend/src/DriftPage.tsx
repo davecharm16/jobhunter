@@ -130,6 +130,8 @@ function FabricationContent({ check }: { check: FabricationCheck }) {
       </p>
       {/* Unsourced (fabricated) claims */}
       {check.unsourced_claims.length > 0 && (
+        <>
+        <DiffLegend />
         <ul className="flex flex-col gap-stack-sm">
           {check.unsourced_claims.map((claim) => (
             <li
@@ -199,11 +201,28 @@ function FabricationContent({ check }: { check: FabricationCheck }) {
             </li>
           ))}
         </ul>
+        </>
       )}
       {/* Sourced traces — show diff evidence */}
       {check.traces.length > 0 && (
         <TraceDiffList traces={check.traces} />
       )}
+    </div>
+  );
+}
+
+/** One-line colour-coding legend rendered once above a list of diffs. */
+function DiffLegend() {
+  return (
+    <div className="flex items-center gap-stack-md text-label-md font-label-md text-on-surface-variant">
+      <span className="flex items-center gap-stack-xs">
+        <span className="inline-block w-3 h-3 rounded-sm bg-error-container border border-error/30" />
+        <span>− removed</span>
+      </span>
+      <span className="flex items-center gap-stack-xs">
+        <strong className="inline-block w-3 h-3 rounded-sm bg-[#dcfce7] border border-[#86efac]" />
+        <span>+ added (bold)</span>
+      </span>
     </div>
   );
 }
@@ -224,6 +243,8 @@ function TraceDiffList({ traces }: { traces: Trace[] }) {
         <span className="hidden group-open:inline">collapse</span>
       </summary>
       <div className="flex flex-col gap-stack-md p-stack-md">
+        {/* Legend rendered once at the top of the trace list */}
+        <DiffLegend />
         {traces.map((trace) => (
           <div key={trace.claim_id} className="flex flex-col gap-stack-xs">
             <div className="flex flex-wrap items-center gap-stack-md text-label-md font-label-md text-on-surface-variant">
