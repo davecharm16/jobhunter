@@ -732,12 +732,14 @@ export function PackagePage() {
               );
             })}
             <div className="ml-auto flex items-center px-stack-md">
-              <span
-                className="text-label-md font-label-md text-on-surface-variant border border-outline-variant rounded-lg px-stack-sm py-stack-xs"
+              <Link
+                to={`/packages/${encodeURIComponent(payload.slug)}/drift`}
+                className="inline-flex items-center gap-1 text-label-md font-label-md text-on-surface-variant border border-outline-variant rounded-lg px-stack-sm py-stack-xs hover:text-primary hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors cursor-pointer"
                 style={{ fontFamily: "var(--font-mono)" }}
+                aria-label="Drift Check Active — view drift diagnostics for this package"
               >
                 Drift Check Active
-              </span>
+              </Link>
             </div>
           </div>
 
