@@ -72,7 +72,7 @@ export function PastePanel({ jdText, setJdText }: Props) {
   }
 
   return (
-    <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter shadow-sm flex flex-col gap-stack-md">
+    <section id="paste-panel" className="bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter shadow-sm flex flex-col gap-stack-md">
       {/* Header row with icon + title */}
       <div className="flex items-center gap-stack-md">
         <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary shrink-0">

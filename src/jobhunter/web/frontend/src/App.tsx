@@ -98,7 +98,7 @@ function DashboardPage() {
   }, []);
 
   const heldCount =
-    queueState.kind === "ready" ? queueState.queue.held_count : 0;
+    queueState.kind === "ready" ? queueState.queue.held_count : null;
   const recent =
     queueState.kind === "ready" ? queueState.queue.recent : [];
 

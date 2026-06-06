@@ -8,11 +8,13 @@ type FetchState =
   | { kind: "ready"; doc: CanonicalCV }
   | { kind: "error"; message: string };
 
+type ValidationError = { path: string; message: string };
+
 type SaveState =
   | { kind: "idle" }
   | { kind: "saving" }
   | { kind: "saved"; path: string }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; errors?: ValidationError[] };
 
 type EditorTab = "form" | "raw";
 
@@ -157,7 +159,7 @@ type RawSaveState =
   | { kind: "idle" }
   | { kind: "saving" }
   | { kind: "saved" }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; errors?: ValidationError[] };
 
 function RawEditor() {
   const [rawText, setRawText] = useState<string>("");
@@ -213,7 +215,11 @@ function RawEditor() {
           typeof body.detail === "string"
             ? body.detail
             : JSON.stringify(body);
-        setRawSaveState({ kind: "error", message });
+        const errors: ValidationError[] | undefined =
+          Array.isArray(body.errors) && body.errors.length > 0
+            ? body.errors
+            : undefined;
+        setRawSaveState({ kind: "error", message, errors });
         return;
       }
       setOriginalRaw(rawText);
@@ -249,9 +255,18 @@ function RawEditor() {
             </span>
           )}
           {saveState.kind === "error" && (
-            <span className="text-label-md font-label-md text-error max-w-prose">
-              {saveState.message}
-            </span>
+            <div className="text-label-md font-label-md text-error max-w-prose flex flex-col gap-stack-xs">
+              <span>{saveState.message}</span>
+              {saveState.errors && saveState.errors.length > 0 && (
+                <ul className="list-disc pl-stack-md flex flex-col gap-stack-xs">
+                  {saveState.errors.map((err, idx) => (
+                    <li key={idx}>
+                      <span className="font-medium">{err.path}</span>: {err.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
         </div>
         <button
@@ -395,7 +410,11 @@ export function SettingsPage() {
           typeof body.detail === "string"
             ? body.detail
             : JSON.stringify(body);
-        setSaveState({ kind: "error", message });
+        const errors: ValidationError[] | undefined =
+          Array.isArray(body.errors) && body.errors.length > 0
+            ? body.errors
+            : undefined;
+        setSaveState({ kind: "error", message, errors });
         return;
       }
       setOriginal(deepClone(working));
@@ -463,8 +482,17 @@ export function SettingsPage() {
       </div>
 
       {activeTab === "form" && saveState.kind === "error" && (
-        <div className="mb-stack-md border border-error bg-error-container text-on-error-container rounded-lg p-stack-md text-body-md font-body-md">
-          {saveState.message}
+        <div className="mb-stack-md border border-error bg-error-container text-on-error-container rounded-lg p-stack-md text-body-md font-body-md flex flex-col gap-stack-xs">
+          <span>{saveState.message}</span>
+          {saveState.errors && saveState.errors.length > 0 && (
+            <ul className="list-disc pl-stack-md flex flex-col gap-stack-xs">
+              {saveState.errors.map((err, idx) => (
+                <li key={idx}>
+                  <span className="font-medium">{err.path}</span>: {err.message}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

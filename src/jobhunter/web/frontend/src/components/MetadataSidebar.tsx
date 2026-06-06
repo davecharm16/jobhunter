@@ -210,20 +210,11 @@ export function MetadataSidebar({ metadata }: Props) {
       </Card>
 
       <Card title="Override">
-        <p className="text-body-md font-body-md text-on-surface-variant mb-stack-sm">
+        <p className="text-body-md font-body-md text-on-surface-variant">
           {overrideAvailable
             ? "Drift fail detected. Override gates approval."
             : "All drift checks pending. No override needed."}
         </p>
-        <button
-          type="button"
-          disabled
-          title="Override available after Epic 6 ships"
-          aria-label="Approve override"
-          className="w-full bg-primary text-on-primary text-body-md font-body-md font-medium py-stack-sm px-stack-md rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Approve override
-        </button>
       </Card>
     </aside>
   );

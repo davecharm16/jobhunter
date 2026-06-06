@@ -12,7 +12,7 @@ export function QueueEmptyState() {
         href="#paste-panel"
         className="text-primary text-body-md font-body-md font-medium hover:underline"
       >
-        Jump to the paste panel below
+        Jump to the paste panel above
       </a>
     </div>
   );
