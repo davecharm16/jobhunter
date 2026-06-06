@@ -12,6 +12,8 @@ import {
   KeywordStuffingSection,
   type KeywordStuffingBlock,
 } from "./components/KeywordStuffingSection";
+import { SemanticTraceDiff } from "./components/SemanticTraceDiff";
+import { DriftStatStrip } from "./components/DriftStatStrip";
 
 // The drift.json shape mirrors `jobhunter.fabrication_matcher.FabricationCheck`
 // at the wire. Stories 4.4 + 5.4 added sibling keys (`content_loss`,
@@ -23,6 +25,8 @@ type Trace = {
   matched_canonical_entry_id: string;
   match_method: "exact_string" | "substring" | "semantic";
   match_score: number;
+  /** D2: canonical CV original text that was matched. Null for unsourced claims. */
+  source_text: string | null;
 };
 
 type UnsourcedClaim = {
@@ -98,15 +102,21 @@ function keywordStuffingSubtitle(doc: DriftDocument): string | undefined {
 function FabricationContent({ check }: { check: FabricationCheck }) {
   if (check.verdict === "pass") {
     return (
-      <div className="rounded-lg border border-outline-variant bg-surface p-stack-md flex flex-col gap-stack-xs">
-        <p className="text-body-md font-body-md text-on-surface">
-          No fabricated claims detected.
-        </p>
-        <p className="text-label-md font-label-md text-on-surface-variant">
-          Every one of the {check.claims_total} extracted claim
-          {check.claims_total === 1 ? "" : "s"} traces back to a canonical-CV
-          entry.
-        </p>
+      <div className="flex flex-col gap-stack-md">
+        <div className="rounded-lg border border-outline-variant bg-surface p-stack-md flex flex-col gap-stack-xs">
+          <p className="text-body-md font-body-md text-on-surface">
+            No fabricated claims detected.
+          </p>
+          <p className="text-label-md font-label-md text-on-surface-variant">
+            Every one of the {check.claims_total} extracted claim
+            {check.claims_total === 1 ? "" : "s"} traces back to a canonical-CV
+            entry.
+          </p>
+        </div>
+        {/* Sourced traces — show diff evidence even for pass verdict */}
+        {check.traces.length > 0 && (
+          <TraceDiffList traces={check.traces} />
+        )}
       </div>
     );
   }
@@ -118,70 +128,122 @@ function FabricationContent({ check }: { check: FabricationCheck }) {
         {check.claims_total === 1 ? "" : "s"} could not be traced back to the
         canonical CV.
       </p>
-      <ul className="flex flex-col gap-stack-sm">
-        {check.unsourced_claims.map((claim) => (
-          <li
-            key={claim.claim_id}
-            className="rounded-lg border border-error/40 bg-error-container/40 p-stack-md flex flex-col gap-stack-xs"
-          >
-            <div className="flex items-start justify-between gap-stack-md">
-              <p className="text-body-md font-body-md text-on-surface font-medium break-words">
-                {claim.claim_text}
-              </p>
-              <span className="shrink-0 text-label-md font-label-md text-on-error-container uppercase tracking-wider">
-                no source entry found
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-stack-md text-label-md font-label-md text-on-surface-variant">
-              <span>
-                <span className="uppercase tracking-wider">Artifact:</span>{" "}
-                <code className="font-mono text-on-surface">
-                  {claim.source_artifact}
-                </code>
-              </span>
-              <span>
-                <span className="uppercase tracking-wider">Line:</span>{" "}
-                <code className="font-mono text-on-surface">
-                  {claim.line_number}
-                </code>
-              </span>
-              <span>
-                <span className="uppercase tracking-wider">Claim ID:</span>{" "}
-                <code className="font-mono text-on-surface">
-                  {claim.claim_id}
-                </code>
-              </span>
-            </div>
-            <details className="group rounded-lg border border-outline-variant bg-surface-container-lowest mt-stack-xs">
-              <summary className="cursor-pointer list-none px-stack-md py-stack-sm text-label-md font-label-md uppercase tracking-wider text-on-surface-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg hover:text-primary group-open:text-primary flex items-center justify-between">
-                <span>Near-miss detail</span>
-                <span className="text-label-md font-label-md group-open:hidden">
-                  expand
-                </span>
-                <span className="text-label-md font-label-md hidden group-open:inline">
-                  collapse
-                </span>
-              </summary>
-              <div className="px-stack-md pb-stack-md text-body-md font-body-md text-on-surface-variant">
-                <p>
-                  <span className="uppercase tracking-wider text-label-md">
-                    Reason:
-                  </span>{" "}
-                  <code className="font-mono text-on-surface">
-                    {claim.reason}
-                  </code>
+      {/* Unsourced (fabricated) claims */}
+      {check.unsourced_claims.length > 0 && (
+        <ul className="flex flex-col gap-stack-sm">
+          {check.unsourced_claims.map((claim) => (
+            <li
+              key={claim.claim_id}
+              className="rounded-lg border border-error/40 bg-error-container/40 p-stack-md flex flex-col gap-stack-xs"
+            >
+              <div className="flex items-start justify-between gap-stack-md">
+                <p className="text-body-md font-body-md text-on-surface font-medium break-words">
+                  {claim.claim_text}
                 </p>
-                <p className="mt-stack-xs italic">
-                  Candidate canonical-CV near-misses will be surfaced here once
-                  the matcher emits them (future enhancement to
-                  package.drift.json).
-                </p>
+                <span className="shrink-0 text-label-md font-label-md text-on-error-container uppercase tracking-wider">
+                  no source entry found
+                </span>
               </div>
-            </details>
-          </li>
-        ))}
-      </ul>
+              <div className="flex flex-wrap gap-stack-md text-label-md font-label-md text-on-surface-variant">
+                <span>
+                  <span className="uppercase tracking-wider">Artifact:</span>{" "}
+                  <code className="font-mono text-on-surface">
+                    {claim.source_artifact}
+                  </code>
+                </span>
+                <span>
+                  <span className="uppercase tracking-wider">Line:</span>{" "}
+                  <code className="font-mono text-on-surface">
+                    {claim.line_number}
+                  </code>
+                </span>
+                <span>
+                  <span className="uppercase tracking-wider">Claim ID:</span>{" "}
+                  <code className="font-mono text-on-surface">
+                    {claim.claim_id}
+                  </code>
+                </span>
+              </div>
+              {/* Split-diff pane: null source = fabrication state */}
+              <SemanticTraceDiff
+                claimText={claim.claim_text}
+                sourceText={null}
+                traceId={claim.claim_id}
+              />
+              <details className="group rounded-lg border border-outline-variant bg-surface-container-lowest mt-stack-xs">
+                <summary className="cursor-pointer list-none px-stack-md py-stack-sm text-label-md font-label-md uppercase tracking-wider text-on-surface-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg hover:text-primary group-open:text-primary flex items-center justify-between">
+                  <span>Near-miss detail</span>
+                  <span className="text-label-md font-label-md group-open:hidden">
+                    expand
+                  </span>
+                  <span className="text-label-md font-label-md hidden group-open:inline">
+                    collapse
+                  </span>
+                </summary>
+                <div className="px-stack-md pb-stack-md text-body-md font-body-md text-on-surface-variant">
+                  <p>
+                    <span className="uppercase tracking-wider text-label-md">
+                      Reason:
+                    </span>{" "}
+                    <code className="font-mono text-on-surface">
+                      {claim.reason}
+                    </code>
+                  </p>
+                  <p className="mt-stack-xs italic">
+                    Candidate canonical-CV near-misses will be surfaced here once
+                    the matcher emits them (future enhancement to
+                    package.drift.json).
+                  </p>
+                </div>
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
+      {/* Sourced traces — show diff evidence */}
+      {check.traces.length > 0 && (
+        <TraceDiffList traces={check.traces} />
+      )}
     </div>
+  );
+}
+
+/**
+ * Renders the list of sourced traces as SemanticTraceDiff split-panes,
+ * wrapped in a collapsible section so the page doesn't get overwhelming.
+ */
+function TraceDiffList({ traces }: { traces: Trace[] }) {
+  return (
+    <details className="group rounded-xl border border-outline-variant bg-surface-container-lowest overflow-hidden">
+      <summary className="cursor-pointer list-none px-stack-md py-stack-sm bg-surface-container-low text-label-md font-label-md uppercase tracking-wider text-on-surface-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:text-primary group-open:text-primary flex items-center justify-between">
+        <span>
+          Trace evidence ({traces.length} claim
+          {traces.length === 1 ? "" : "s"})
+        </span>
+        <span className="group-open:hidden">expand</span>
+        <span className="hidden group-open:inline">collapse</span>
+      </summary>
+      <div className="flex flex-col gap-stack-md p-stack-md">
+        {traces.map((trace) => (
+          <div key={trace.claim_id} className="flex flex-col gap-stack-xs">
+            <div className="flex flex-wrap items-center gap-stack-md text-label-md font-label-md text-on-surface-variant">
+              <code className="font-mono text-on-surface truncate max-w-xs">
+                {trace.claim_id}
+              </code>
+              <span className="uppercase tracking-wider">{trace.match_method}</span>
+              <span className="uppercase tracking-wider">
+                score: {trace.match_score.toFixed(3)}
+              </span>
+            </div>
+            <SemanticTraceDiff
+              claimText={trace.claim_text}
+              sourceText={trace.source_text}
+              traceId={trace.claim_id}
+            />
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -295,6 +357,13 @@ export function DriftPage() {
 
   return (
     <div className="p-margin-mobile md:p-margin-desktop max-w-container-max mx-auto w-full flex flex-col gap-stack-lg">
+      {/* 05-10: Detail stat strip — Fabrication / Content Loss / Keyword Density */}
+      <DriftStatStrip
+        fabrication={payload.fabrication_check}
+        contentLoss={payload.content_loss}
+        keywordStuffing={payload.keyword_stuffing}
+      />
+
       <header className="flex flex-col gap-stack-xs">
         <div className="flex items-center gap-stack-sm text-label-md font-label-md uppercase tracking-wider text-on-surface-variant">
           <Link to="/" className="hover:text-primary">
