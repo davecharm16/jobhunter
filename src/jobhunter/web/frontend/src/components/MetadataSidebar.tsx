@@ -1,3 +1,8 @@
+type RedFlag = {
+  text?: string;
+  reason?: string;
+};
+
 type ParsedJD = {
   must_haves?: string[];
   nice_to_haves?: string[];
@@ -5,6 +10,14 @@ type ParsedJD = {
   seniority?: string;
   budget?: string;
   expected_tone?: string;
+  /** Red flags surfaced by the JD parser (may live here OR at top-level metadata.red_flags) */
+  red_flags?: Array<RedFlag | string>;
+  /** Job title extracted from the JD */
+  job_title?: string | null;
+  /** Company name extracted from the JD */
+  company_name?: string | null;
+  /** Location string extracted from the JD */
+  location?: string | null;
 };
 
 type CallLog = {
@@ -20,11 +33,6 @@ type Cost = {
   per_app_target_usd: string;
   exceeded_per_app_target: boolean;
   calls: CallLog[];
-};
-
-type RedFlag = {
-  text?: string;
-  reason?: string;
 };
 
 export type PackageMetadata = {
@@ -67,6 +75,14 @@ export function MetadataSidebar({ metadata }: Props) {
   const cost = metadata.cost;
   const promptTemplates = metadata.prompt_templates ?? {};
   const overrideAvailable = hasAnyDriftFail(drift);
+  // 04-7: budget/tone shown for all boards (not gated on Upwork)
+  const hasBudgetOrTone = !!(parsed.budget || parsed.expected_tone);
+  // 04-6: red_flags may live in parsed_jd.red_flags (primary) or top-level metadata.red_flags
+  const redFlags: Array<RedFlag | string> = (
+    parsed.red_flags && parsed.red_flags.length > 0
+      ? parsed.red_flags
+      : metadata.red_flags ?? []
+  );
 
   return (
     <aside className="w-full lg:w-80 shrink-0 flex flex-col gap-stack-md">
@@ -96,24 +112,20 @@ export function MetadataSidebar({ metadata }: Props) {
         )}
       </Card>
 
-      {upwork && (
-        <Card title="Upwork signals">
+      {/* 04-7: Budget/Tone shown for all boards, not just Upwork */}
+      {hasBudgetOrTone && (
+        <Card title={upwork ? "Upwork signals" : "JD signals"}>
           {parsed.budget && <Row label="Budget" value={parsed.budget} />}
           {parsed.expected_tone && (
             <Row label="Expected tone" value={parsed.expected_tone} />
           )}
-          {!parsed.budget && !parsed.expected_tone && (
-            <p className="text-label-md font-label-md text-on-surface-variant">
-              No Upwork-specific fields captured yet.
-            </p>
-          )}
         </Card>
       )}
 
-      {metadata.red_flags && metadata.red_flags.length > 0 && (
+      {redFlags.length > 0 && (
         <Card title="Red flags" tone="error">
           <ul className="flex flex-col gap-stack-xs">
-            {metadata.red_flags.map((flag, idx) => (
+            {redFlags.map((flag, idx) => (
               <li
                 key={idx}
                 className="text-body-md font-body-md text-on-surface-variant"

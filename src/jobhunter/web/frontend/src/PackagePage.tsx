@@ -5,6 +5,8 @@ import {
   InlineDriftHighlight,
   type DriftTrace,
 } from "./components/InlineDriftHighlight";
+import { DriftAndJDHighlight } from "./components/DriftAndJDHighlight";
+import { InlineJDHighlight } from "./components/InlineJDHighlight";
 import { MarkdownRenderer } from "./components/MarkdownRenderer";
 import {
   MarginDiffTicks,
@@ -311,6 +313,27 @@ export function PackagePage() {
   const board = payload.metadata.source_board ?? "unknown";
   const parsed = payload.metadata.parsed_jd ?? {};
   const driftVerdicts = payload.metadata.drift_verdicts ?? {};
+  // 04-5: job title + company for the page header
+  const jobTitle = parsed.job_title ?? null;
+  const companyName = parsed.company_name ?? null;
+  const jobLocation = parsed.location ?? null;
+  const headerTitle =
+    jobTitle && companyName
+      ? `${jobTitle} at ${companyName}`
+      : jobTitle
+        ? jobTitle
+        : companyName
+          ? `Role at ${companyName}`
+          : null;
+  // 04-6: red flags — prefer parsed_jd.red_flags over top-level metadata.red_flags
+  const redFlags: Array<string | { text?: string; reason?: string }> =
+    (parsed.red_flags && parsed.red_flags.length > 0
+      ? parsed.red_flags
+      : payload.metadata.red_flags ?? []) as Array<
+      string | { text?: string; reason?: string }
+    >;
+  // 04-1: must-haves for JD keyword highlights in the CV
+  const mustHaves: string[] = parsed.must_haves ?? [];
   const fabricationFailed = driftVerdicts.fabrication === "fail";
   // Story 6.4: a package is held until either the server-side `held` flag
   // says so OR the optimistic flag from a successful override flips it
@@ -359,10 +382,21 @@ export function PackagePage() {
         </div>
         <h1
           className="text-display font-display text-on-surface break-words"
-          style={{ fontFamily: "var(--font-mono)" }}
+          style={{ fontFamily: headerTitle ? "var(--font-ui)" : "var(--font-mono)" }}
         >
-          {payload.slug}
+          {headerTitle ?? payload.slug}
         </h1>
+        {/* 04-5: sub-headline with slug + location when we have a resolved title */}
+        {headerTitle && (
+          <p className="text-body-md font-body-md text-on-surface-variant" style={{ fontFamily: "var(--font-mono)" }}>
+            {payload.slug}
+            {jobLocation && (
+              <span className="ml-stack-md text-on-surface-variant/70">
+                {jobLocation}
+              </span>
+            )}
+          </p>
+        )}
         <p className="text-body-md font-body-md text-on-surface-variant">
           Source board: <span className="font-medium">{board}</span>
         </p>
@@ -523,6 +557,119 @@ export function PackagePage() {
         )}
       </header>
 
+      {/* 04-6: Red Flags — prominent card shown near the top when non-empty */}
+      {redFlags.length > 0 && (
+        <div
+          className="rounded-xl border border-error/40 bg-error-container/20 p-stack-md flex flex-col gap-stack-sm shadow-sm"
+          role="alert"
+          aria-label="Red flags detected in this job description"
+        >
+          <div className="flex items-center gap-stack-sm">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+              style={{ color: "var(--color-error, #ba1a1a)" }}
+              aria-hidden="true"
+            >
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <h2
+              className="text-body-lg font-body-lg font-semibold"
+              style={{
+                color: "var(--color-error, #ba1a1a)",
+                fontFamily: "var(--font-ui)",
+              }}
+            >
+              Red Flags
+            </h2>
+          </div>
+          <ul className="flex flex-col gap-stack-xs">
+            {redFlags.map((flag, idx) => {
+              const text =
+                typeof flag === "string"
+                  ? flag
+                  : flag.text && flag.reason
+                    ? `${flag.text} — ${flag.reason}`
+                    : flag.text ?? flag.reason ?? JSON.stringify(flag);
+              return (
+                <li
+                  key={idx}
+                  className="flex items-start gap-stack-sm text-body-md font-body-md text-on-surface-variant"
+                  style={{ fontFamily: "var(--font-ui)" }}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="mt-0.5 shrink-0"
+                    style={{ color: "var(--color-error, #ba1a1a)" }}
+                    aria-hidden="true"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                  {text}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {/* 04-7: Budget Range + Expected Tone stat cards for all boards */}
+      {(parsed.budget || parsed.expected_tone) && (
+        <div className="flex flex-wrap gap-stack-md">
+          {parsed.budget && (
+            <div className="flex-1 min-w-[140px] bg-surface-container rounded-xl border border-outline-variant p-stack-md">
+              <p
+                className="text-label-md font-label-md uppercase tracking-wider text-on-surface-variant mb-stack-xs"
+                style={{ fontFamily: "var(--font-ui)" }}
+              >
+                Budget Range
+              </p>
+              <p
+                className="text-body-lg font-body-lg font-semibold text-on-surface"
+                style={{ fontFamily: "var(--font-ui)" }}
+              >
+                {parsed.budget}
+              </p>
+            </div>
+          )}
+          {parsed.expected_tone && (
+            <div className="flex-1 min-w-[140px] bg-surface-container rounded-xl border border-outline-variant p-stack-md">
+              <p
+                className="text-label-md font-label-md uppercase tracking-wider text-on-surface-variant mb-stack-xs"
+                style={{ fontFamily: "var(--font-ui)" }}
+              >
+                Expected Tone
+              </p>
+              <p
+                className="text-body-lg font-body-lg font-semibold text-on-surface"
+                style={{ fontFamily: "var(--font-ui)" }}
+              >
+                {parsed.expected_tone}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col lg:flex-row gap-gutter">
         <section className="lg:w-1/3 flex flex-col gap-stack-md">
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-md shadow-sm flex flex-col gap-stack-sm">
@@ -601,11 +748,24 @@ export function PackagePage() {
               />
               <div className="pl-stack-sm">
                 {activeArtifact ? (
-                  activeTraces.length > 0 ? (
-                    /* 04-2: render with inline drift highlights */
+                  activeTraces.length > 0 && mustHaves.length > 0 ? (
+                    /* 04-1 + 04-2: both drift highlights and JD tailoring highlights */
+                    <DriftAndJDHighlight
+                      source={activeArtifact}
+                      traces={activeTraces}
+                      mustHaves={mustHaves}
+                    />
+                  ) : activeTraces.length > 0 ? (
+                    /* 04-2: drift highlights only */
                     <InlineDriftHighlight
                       source={activeArtifact}
                       traces={activeTraces}
+                    />
+                  ) : mustHaves.length > 0 ? (
+                    /* 04-1: JD tailoring highlights only */
+                    <InlineJDHighlight
+                      source={activeArtifact}
+                      mustHaves={mustHaves}
                     />
                   ) : (
                     <MarkdownRenderer source={activeArtifact} />
