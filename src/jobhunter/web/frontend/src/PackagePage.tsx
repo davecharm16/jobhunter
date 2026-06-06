@@ -63,6 +63,12 @@ export function PackagePage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [overrideApplied, setOverrideApplied] = useState(false);
   const [overrideNote, setOverrideNote] = useState<string | null>(null);
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [regenNotes, setRegenNotes] = useState("");
+  const [regenJdText, setRegenJdText] = useState("");
+  const [regenNeedsJd, setRegenNeedsJd] = useState(false);
+  const [regenLoading, setRegenLoading] = useState(false);
+  const [regenError, setRegenError] = useState<string | null>(null);
   // Story 8.3: drift data for fabrication margin ticks
   const [driftClaims, setDriftClaims] = useState<UnsourcedClaim[]>([]);
   // Story 8.3: toast flash for copy/download feedback
@@ -362,6 +368,14 @@ export function PackagePage() {
               >
                 Approve override
               </button>
+              <button
+                type="button"
+                onClick={() => setRegenOpen(!regenOpen)}
+                aria-label="Regenerate with correction notes"
+                className="inline-flex items-center gap-stack-sm px-stack-md py-stack-sm rounded-lg border border-outline-variant text-body-md font-body-md text-on-surface-variant hover:text-primary hover:border-primary transition-colors"
+              >
+                {regenOpen ? "Cancel regenerate" : "Regenerate with notes"}
+              </button>
             </>
           )}
         </div>
@@ -371,6 +385,109 @@ export function PackagePage() {
             className="mt-stack-md border border-primary/40 bg-secondary-container text-on-surface rounded-lg p-stack-sm text-body-md font-body-md"
           >
             {overrideNote}
+          </div>
+        )}
+        {regenOpen && (
+          <div className="mt-stack-md border border-outline-variant rounded-xl p-stack-md bg-surface-container-lowest flex flex-col gap-stack-sm">
+            <label
+              htmlFor="regen-notes"
+              className="text-body-md font-body-md font-semibold text-on-surface"
+              style={{ fontFamily: "var(--font-ui)" }}
+            >
+              Correction notes for the AI
+            </label>
+            {regenNeedsJd && (
+              <>
+                <label
+                  htmlFor="regen-jd"
+                  className="text-body-md font-body-md font-semibold text-on-surface"
+                  style={{ fontFamily: "var(--font-ui)" }}
+                >
+                  Original JD text <span className="text-error">(required — not saved in this package)</span>
+                </label>
+                <textarea
+                  id="regen-jd"
+                  value={regenJdText}
+                  onChange={(e) => setRegenJdText(e.target.value)}
+                  placeholder="Paste the original job description here..."
+                  rows={6}
+                  className="w-full rounded-lg border border-outline-variant bg-surface p-stack-sm text-body-md font-body-md text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary resize-y"
+                />
+              </>
+            )}
+            <textarea
+              id="regen-notes"
+              value={regenNotes}
+              onChange={(e) => setRegenNotes(e.target.value)}
+              placeholder="e.g. 'Remove the claim about coaching habits', 'Add more detail about Shopify work', 'Keep it to 1 page'"
+              rows={4}
+              className="w-full rounded-lg border border-outline-variant bg-surface p-stack-sm text-body-md font-body-md text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary resize-y"
+              style={{ fontFamily: "var(--font-mono)" }}
+            />
+            {regenError && (
+              <p className="text-body-md font-body-md text-error">{regenError}</p>
+            )}
+            <div className="flex gap-stack-sm">
+              <button
+                type="button"
+                disabled={regenLoading || !regenNotes.trim() || (regenNeedsJd && !regenJdText.trim())}
+                onClick={async () => {
+                  setRegenLoading(true);
+                  setRegenError(null);
+                  try {
+                    const reqBody: Record<string, string> = { notes: regenNotes.trim() };
+                    if (regenJdText.trim()) {
+                      reqBody.jd_text = regenJdText.trim();
+                    }
+                    const resp = await fetch(
+                      `/api/package/${encodeURIComponent(slug!)}/regenerate`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(reqBody),
+                      },
+                    );
+                    const body = await resp.json();
+                    if (!resp.ok) {
+                      const detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+                      if (detail.includes("no_jd_text_found")) {
+                        setRegenNeedsJd(true);
+                        setRegenError("This package doesn't have the JD saved. Paste the original JD text above, then try again.");
+                      } else {
+                        setRegenError(detail);
+                      }
+                      return;
+                    }
+                    window.location.href = `/packages/${encodeURIComponent(body.slug)}`;
+                  } catch (err) {
+                    setRegenError(`Network error: ${err}`);
+                  } finally {
+                    setRegenLoading(false);
+                  }
+                }}
+                className="inline-flex items-center gap-stack-sm px-stack-md py-stack-sm rounded-lg bg-primary text-on-primary text-body-md font-body-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {regenLoading ? (
+                  <>
+                    <span className="inline-block w-4 h-4 border-2 border-on-primary/30 border-t-on-primary rounded-full animate-spin" />
+                    Regenerating...
+                  </>
+                ) : (
+                  "Regenerate"
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRegenOpen(false);
+                  setRegenNotes("");
+                  setRegenError(null);
+                }}
+                className="px-stack-md py-stack-sm rounded-lg border border-outline-variant text-body-md font-body-md text-on-surface-variant hover:text-on-surface transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
       </header>

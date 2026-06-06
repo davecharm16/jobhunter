@@ -280,6 +280,8 @@ def test_run_tailoring_metadata_sits_next_to_artifacts(tmp_path) -> None:
     # any drift check fails (the same condition that produces `package.held.json`).
     # The minimal CV used by this test still triggers a fabrication fail so
     # the report sidecar also lands here.
+    # Regenerate feature: the raw JD text is persisted as `jd.txt` so a held
+    # package can be re-tailored with author correction notes against the same JD.
     assert files == {
         "cv.md",
         "cover-letter.md",
@@ -289,4 +291,5 @@ def test_run_tailoring_metadata_sits_next_to_artifacts(tmp_path) -> None:
         "tailoring.trace.json",
         "metadata.json",
         "drift-report.md",
+        "jd.txt",
     }

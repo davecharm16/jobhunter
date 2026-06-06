@@ -300,6 +300,7 @@ def run_tailoring(
         (tmp_dir / "cover-letter.md").write_text(
             result.cover_letter_markdown, encoding="utf-8"
         )
+        (tmp_dir / "jd.txt").write_text(jd_text, encoding="utf-8")
 
         # Story 2.7: proposal generation lands inside the same tmp_dir so the
         # single os.replace below is atomic across every artifact in the package.
