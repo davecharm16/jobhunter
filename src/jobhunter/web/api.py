@@ -224,6 +224,17 @@ def create_app() -> FastAPI:
         def index() -> FileResponse:
             return FileResponse(FRONTEND_DIST / "index.html")
 
+        # SPA fallback: serve index.html for any non-API, non-asset GET so the
+        # client-side router (react-router) handles deep links and page
+        # refreshes (e.g. /drift, /settings, /packages/<slug>) instead of the
+        # server 404ing. API routers are registered above, so real endpoints
+        # still match first; unknown /api or /assets paths get a real 404.
+        @app.get("/{full_path:path}")
+        def spa_fallback(full_path: str) -> FileResponse:
+            if full_path.startswith(("api/", "assets/")) or full_path == "healthz":
+                raise HTTPException(status_code=404, detail="not_found")
+            return FileResponse(FRONTEND_DIST / "index.html")
+
     return app
 
 
