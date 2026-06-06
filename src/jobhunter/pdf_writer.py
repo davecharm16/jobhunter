@@ -178,35 +178,40 @@ def _extract_header_from_cv(md: str) -> tuple[str, str, str, str]:
     while i < len(lines) and not lines[i].strip():
         i += 1
 
-    # Name line: starts with ## but is NOT a known section heading
-    if i < len(lines) and lines[i].startswith("## "):
+    # Name line: starts with # or ## but is NOT a known section heading
+    if i < len(lines) and lines[i].startswith("#"):
         candidate = lines[i].lstrip("# ").strip()
         if candidate.lower() in _KNOWN_CV_SECTIONS:
-            # Not a name — treat everything from here as body
             remaining = "\n".join(lines[i:])
             return name, label, contact, remaining
         name = candidate
         i += 1
 
-    # Label line (non-empty, not a heading, not a rule)
-    if i < len(lines) and lines[i].strip() and not lines[i].startswith("#") and not lines[i].startswith("---"):
-        label = lines[i].strip()
-        i += 1
-
-    # Blank line between label and contact
+    # Skip blank lines after name
     while i < len(lines) and not lines[i].strip():
         i += 1
 
-    # Contact line (contains @ or | or links)
-    if i < len(lines) and (
-        "@" in lines[i] or "|" in lines[i] or "[" in lines[i]
-    ):
-        # Clean markdown links: [text](url) -> text
-        raw_contact = lines[i].strip()
-        raw_contact = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", raw_contact)
-        # Replace " | " with " · "
-        contact = raw_contact.replace(" | ", " · ")
+    # Label line (non-empty, not a heading, not a rule) — strip **bold**
+    if i < len(lines) and lines[i].strip() and not lines[i].startswith("#") and not lines[i].startswith("---"):
+        label = lines[i].strip().strip("*").strip()
         i += 1
+
+    # Skip blank lines between label and contact
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+
+    # Contact lines: may span multiple lines (contains @ or | or links or http)
+    contact_parts = []
+    while i < len(lines) and lines[i].strip() and not lines[i].startswith("#") and not lines[i].startswith("---"):
+        line = lines[i].strip()
+        if "@" in line or "|" in line or "[" in line or "http" in line:
+            cleaned = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
+            cleaned = cleaned.replace(" | ", " · ").rstrip("  ")
+            contact_parts.append(cleaned)
+            i += 1
+        else:
+            break
+    contact = " · ".join(contact_parts) if contact_parts else ""
 
     # Skip until next ## heading or --- rule
     while i < len(lines):
