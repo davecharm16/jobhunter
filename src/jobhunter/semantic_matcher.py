@@ -247,6 +247,7 @@ def make_semantic_step(
             matched_canonical_entry_id=best_entry.entry_id,
             match_method="semantic",
             match_score=round(best_score, 4),
+            source_text=best_entry.text,  # D2: canonical original
         )
 
     return semantic_step

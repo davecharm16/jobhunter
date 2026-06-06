@@ -314,37 +314,42 @@ def test_write_drift_report_atomic_no_tmp_after_success(tmp_path: Path) -> None:
 
 
 def test_drift_report_trace_shape_matches_ac1(tmp_path: Path) -> None:
-    """Each trace entry has the documented 5-field shape (AC1)."""
+    """Each trace entry has the documented 6-field shape (AC1 + D2: source_text)."""
     check = run_matcher([_claim("Python")], _cv())
     out = tmp_path / "out"
     out.mkdir()
     write_drift_report(out, check)
     doc = json.loads((out / "package.drift.json").read_text(encoding="utf-8"))
     trace = doc["fabrication_check"]["traces"][0]
+    # D2: source_text is the new 6th field carrying the canonical CV original.
     assert set(trace.keys()) == {
         "claim_id",
         "claim_text",
         "matched_canonical_entry_id",
         "match_method",
         "match_score",
+        "source_text",
     }
 
 
 def test_drift_report_unsourced_shape_matches_ac3(tmp_path: Path) -> None:
-    """Each unsourced entry has the documented 5-field shape (AC3 / FR24)."""
+    """Each unsourced entry has the documented 6-field shape (AC3/FR24 + D2: source_text)."""
     check = run_matcher([_claim("invented acme metric: 500% growth")], _cv())
     out = tmp_path / "out"
     out.mkdir()
     write_drift_report(out, check)
     doc = json.loads((out / "package.drift.json").read_text(encoding="utf-8"))
     unsourced = doc["fabrication_check"]["unsourced_claims"][0]
+    # D2: source_text is null for unsourced/fabricated claims (no canonical match).
     assert set(unsourced.keys()) == {
         "claim_id",
         "claim_text",
         "source_artifact",
         "line_number",
         "reason",
+        "source_text",
     }
+    assert unsourced["source_text"] is None
 
 
 def test_drift_report_is_diffable_across_runs(tmp_path: Path) -> None:
@@ -399,3 +404,84 @@ def test_fabrication_check_is_frozen() -> None:
     )
     with pytest.raises(Exception):
         c.verdict = "fail"  # type: ignore[misc]
+
+
+# ---- D2: source_text on traces + unsourced_claims -------------------------
+
+
+def test_d2_exact_match_trace_carries_canonical_source_text() -> None:
+    """D2: an exact-string matched trace carries the canonical original as source_text."""
+    check = run_matcher([_claim("Python")], _cv())
+    trace = check.traces[0]
+    assert trace.match_method == "exact_string"
+    # The canonical entry text is "Python"; source_text must equal that original.
+    assert trace.source_text == "Python"
+
+
+def test_d2_substring_match_trace_carries_canonical_source_text() -> None:
+    """D2: a substring-matched trace carries the full canonical entry text as source_text."""
+    # "engineering team" is a substring of "Led the engineering team".
+    check = run_matcher([_claim("engineering team")], _cv())
+    trace = check.traces[0]
+    assert trace.match_method == "substring"
+    assert trace.source_text == "Led the engineering team"
+
+
+def test_d2_semantic_match_trace_carries_canonical_source_text() -> None:
+    """D2: a semantic-step-matched trace carries the matched canonical text as source_text."""
+    semantic_entry_id = "test:00000000"
+    canonical_text = "Led the engineering team"
+
+    def fake_step(claim, candidates):
+        return Trace(
+            claim_id=claim.claim_id,
+            claim_text=claim.claim_text,
+            matched_canonical_entry_id=semantic_entry_id,
+            match_method="semantic",
+            match_score=0.87,
+            source_text=canonical_text,  # caller must populate D2 field
+        )
+
+    check = run_matcher(
+        [_claim("managed the engineering pod")],
+        _cv(),
+        semantic_step=fake_step,
+    )
+    assert check.traces[0].source_text == canonical_text
+
+
+def test_d2_unsourced_claim_has_source_text_null() -> None:
+    """D2: unsourced (fabricated) claims carry source_text=None."""
+    check = run_matcher([_claim("invented 500% growth metric")], _cv())
+    assert check.unsourced_claims[0].source_text is None
+
+
+def test_d2_source_text_survives_round_trip_through_drift_json(tmp_path: Path) -> None:
+    """D2: source_text is preserved in package.drift.json for both traces and unsourced."""
+    claims = [_claim("Python"), _claim("invented 500% growth metric")]
+    check = run_matcher(claims, _cv())
+    out = tmp_path / "out"
+    out.mkdir()
+    write_drift_report(out, check)
+
+    doc = json.loads((out / "package.drift.json").read_text(encoding="utf-8"))
+    # Sourced trace: source_text is the canonical original string.
+    trace = doc["fabrication_check"]["traces"][0]
+    assert trace["source_text"] == "Python"
+    # Unsourced claim: source_text is null (JSON null).
+    unsourced = doc["fabrication_check"]["unsourced_claims"][0]
+    assert unsourced["source_text"] is None
+
+
+def test_d2_source_text_default_none_on_trace_for_backward_compat() -> None:
+    """D2: Trace.source_text defaults to None so callers that build Trace
+    manually (e.g. fake semantic_step stubs in older tests) don't break."""
+    t = Trace(
+        claim_id="x",
+        claim_text="y",
+        matched_canonical_entry_id="z",
+        match_method="exact_string",
+        match_score=1.0,
+    )
+    # source_text defaults to None — additive, backward-compatible.
+    assert t.source_text is None

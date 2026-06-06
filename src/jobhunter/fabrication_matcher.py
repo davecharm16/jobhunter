@@ -60,6 +60,9 @@ class Trace:
     matched_canonical_entry_id: str
     match_method: Literal["exact_string", "substring", "semantic"]
     match_score: float
+    # D2: canonical CV original text the claim was matched against.
+    # None only for fabricated/unsourced claims (which never produce a Trace).
+    source_text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +74,8 @@ class UnsourcedClaim:
     source_artifact: str
     line_number: int
     reason: str
+    # D2: always null for unsourced/fabricated claims (no canonical match).
+    source_text: None = None
 
 
 @dataclass(frozen=True)
@@ -217,6 +222,7 @@ def _try_exact(claim: Claim, entries: list[CanonicalEntry]) -> Trace | None:
                 matched_canonical_entry_id=entry.entry_id,
                 match_method="exact_string",
                 match_score=1.0,
+                source_text=entry.text,  # D2: canonical original
             )
     return None
 
@@ -237,6 +243,7 @@ def _try_substring(claim: Claim, entries: list[CanonicalEntry]) -> Trace | None:
                 matched_canonical_entry_id=entry.entry_id,
                 match_method="substring",
                 match_score=1.0,
+                source_text=entry.text,  # D2: canonical original
             )
     return None
 

@@ -430,16 +430,21 @@ def test_drift_json_trace_carries_documented_five_fields(tmp_path, monkeypatch) 
     slug_dir = next(p for p in out_root.iterdir() if p.is_dir())
     doc = json.loads((slug_dir / "package.drift.json").read_text(encoding="utf-8"))
     trace = doc["fabrication_check"]["traces"][0]
+    # D2: source_text is the 6th field — the canonical CV original text.
     assert set(trace.keys()) == {
         "claim_id",
         "claim_text",
         "matched_canonical_entry_id",
         "match_method",
         "match_score",
+        "source_text",
     }
     # AC5: the canonical-entry id encodes the section path so authors can
     # locate the source by reading the id alone.
     assert trace["matched_canonical_entry_id"].startswith("skills[")
+    # D2: source_text carries the actual canonical text the claim matched.
+    assert isinstance(trace["source_text"], str)
+    assert len(trace["source_text"]) > 0
 
 
 def test_drift_json_is_diffable_across_runs(tmp_path, monkeypatch) -> None:
@@ -475,3 +480,78 @@ def test_drift_json_is_diffable_across_runs(tmp_path, monkeypatch) -> None:
     ids_a = [t["matched_canonical_entry_id"] for t in doc_a["fabrication_check"]["traces"]]
     ids_b = [t["matched_canonical_entry_id"] for t in doc_b["fabrication_check"]["traces"]]
     assert ids_a == ids_b
+
+
+# ---- D2: source_text in package.drift.json end-to-end --------------------
+
+
+def test_d2_drift_json_sourced_trace_carries_source_text(
+    tmp_path, monkeypatch,
+) -> None:
+    """D2: a sourced claim's trace in package.drift.json includes the canonical
+    CV original as source_text (non-null string), enabling the side-by-side diff UI."""
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+    stage_canonical_cv(tmp_path, monkeypatch)
+    extractor = _make_extractor(
+        cv_claims=[
+            {"claim_type": "skill", "claim_text": "Python", "line_number": 1},
+        ],
+        cover_claims=[],
+    )
+    out_root, _ = _stage(
+        tmp_path, monkeypatch, extractor=extractor,
+        cv="Python\n", cover="hi\n",
+    )
+
+    client = TestClient(create_app())
+    client.post(
+        "/api/paste",
+        json={"jd_text": "Senior Python role.\n", "source": "browser"},
+    )
+    slug_dir = next(p for p in out_root.iterdir() if p.is_dir())
+    doc = json.loads((slug_dir / "package.drift.json").read_text(encoding="utf-8"))
+    trace = doc["fabrication_check"]["traces"][0]
+    # D2: source_text is the canonical CV original text the claim was matched against.
+    assert "source_text" in trace
+    assert isinstance(trace["source_text"], str)
+    assert len(trace["source_text"]) > 0
+    # The claim "Python" matched the canonical keyword "Python" exactly.
+    assert trace["source_text"] == "Python"
+
+
+def test_d2_drift_json_unsourced_claim_has_null_source_text(
+    tmp_path, monkeypatch,
+) -> None:
+    """D2: an unsourced (fabricated) claim's entry in unsourced_claims has
+    source_text: null in package.drift.json."""
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
+    stage_canonical_cv(tmp_path, monkeypatch)
+    extractor = _make_extractor(
+        cv_claims=[
+            {
+                "claim_type": "metric",
+                "claim_text": "led a 47-person engineering platform org",
+                "line_number": 9,
+            },
+        ],
+        cover_claims=[],
+    )
+    out_root, _ = _stage(
+        tmp_path, monkeypatch, extractor=extractor,
+        cv="led a 47-person engineering platform org\n", cover="hi\n",
+    )
+
+    client = TestClient(create_app())
+    client.post(
+        "/api/paste",
+        json={"jd_text": "Senior Python role.\n", "source": "browser"},
+    )
+    slug_dir = next(p for p in out_root.iterdir() if p.is_dir())
+    doc = json.loads((slug_dir / "package.drift.json").read_text(encoding="utf-8"))
+    unsourced = doc["fabrication_check"]["unsourced_claims"]
+    assert len(unsourced) == 1
+    # D2: no canonical source exists for a fabricated claim — source_text is null.
+    assert "source_text" in unsourced[0]
+    assert unsourced[0]["source_text"] is None
