@@ -7,6 +7,7 @@ the matching history row are written in one transaction.
 
 import builtins
 import os
+import uuid
 from typing import Any, Self
 
 import psycopg
@@ -20,6 +21,14 @@ from jobhunter.application_tracker import (
 )
 
 _ISO = "YYYY-MM-DD\"T\"HH24:MI:SS\"Z\""  # render timestamptz as ISO-8601 Z in SQL
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(str(value))
+    except (ValueError, AttributeError, TypeError):
+        return False
+    return True
 
 
 def _iso_cols(prefix: str = "") -> str:
@@ -82,6 +91,8 @@ class PostgresApplicationStore:
             return _row_to_app(row)
 
     def get(self, app_id) -> Application | None:
+        if not _is_uuid(app_id):
+            return None
         with self._connect() as conn:
             row = conn.execute(
                 f"select {_iso_cols()} from applications where id = %s", (app_id,)
@@ -110,6 +121,8 @@ class PostgresApplicationStore:
             return [_row_to_app(r) for r in rows]
 
     def update(self, app_id, *, status=None, notes=None) -> Application | None:
+        if not _is_uuid(app_id):
+            return None
         with self._connect() as conn:
             current = conn.execute(
                 "select status from applications where id = %s", (app_id,)
@@ -139,6 +152,8 @@ class PostgresApplicationStore:
             return _row_to_app(row)
 
     def history(self, app_id) -> builtins.list[StatusChange]:
+        if not _is_uuid(app_id):
+            return []
         with self._connect() as conn:
             rows = conn.execute(
                 "select from_status, to_status, "

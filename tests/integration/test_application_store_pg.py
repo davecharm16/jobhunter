@@ -71,3 +71,9 @@ def test_list_filters_by_status(store):
 
 def test_update_missing_returns_none(store):
     assert store.update("00000000-0000-0000-0000-000000000000", status="offer") is None
+
+
+def test_malformed_id_is_treated_as_not_found(store):
+    assert store.get("nope") is None
+    assert store.update("nope", status="offer") is None
+    assert store.history("nope") == []

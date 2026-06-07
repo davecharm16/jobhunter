@@ -81,3 +81,9 @@ def test_get_one_includes_history(client_and_store):
     body = client.get(f"/api/applications/{app['id']}").json()
     assert body["status"] == "interviewing"
     assert [h["to_status"] for h in body["history"]] == ["applied", "interviewing"]
+
+
+def test_get_malformed_id_is_404(client_and_store):
+    client, _ = client_and_store
+    resp = client.get("/api/applications/not-a-uuid")
+    assert resp.status_code == 404
