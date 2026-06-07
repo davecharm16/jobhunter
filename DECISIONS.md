@@ -156,3 +156,24 @@ Re-export with the Stitch MCP and overwrite this directory if the Stitch source 
 ---
 
 *Last updated: 2026-05-23 (§6 added — web-only architecture; supersedes CLI-first stance from §1 and §5).*
+
+---
+
+## §7: Supabase for application-tracker state (2026-06-07)
+
+Supersedes the §6 "no new persistence layer / no database" rule **for mutable
+application-tracker state only**. §6's revisit trigger (§3: the per-application
+`./out/<slug>/` write pattern degrades under mutable state) fired: status,
+status history, notes, and the job link are mutable, queryable, relational
+data — a poor fit for write-once JSON sidecars.
+
+- **Store:** Supabase Postgres. Tables `applications` + `application_status_history`
+  (migration `supabase/migrations/20260607000000_application_tracker.sql`).
+- **Access:** server-side from FastAPI via `psycopg` v3, connection string in
+  `SUPABASE_DB_URL`. The React app does NOT talk to Supabase directly (no anon
+  key / RLS — single-user app).
+- **Unchanged:** CV/drift artifacts stay on disk under `./out/<slug>/`. A tracker
+  row references a package by nullable `slug`; package-less rows are allowed for
+  future "save without tailoring".
+- **Consequence:** the tracker requires a network connection + credentials.
+  Package *generation* still works offline; only tracking needs the DB.

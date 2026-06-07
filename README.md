@@ -48,6 +48,21 @@ Paste a job description into the dashboard textarea and click "Tailor this JD". 
 
 The canonical CV must be a text format (JSON Resume v1.0.0 today; markdown or YAML if the fall-back criterion in [`DECISIONS.md`](./DECISIONS.md) §2 fires). `.pdf`, `.docx`, and `.doc` paths are rejected by extension before any read attempt — Job Hunter never parses binary CV formats.
 
+### Application tracker (Supabase)
+
+The application tracker stores status/history in Supabase Postgres.
+
+**Local dev:**
+1. Install the Supabase CLI and run `supabase start` (boots local Postgres on `:54322`).
+2. `supabase db reset` applies the migration in `supabase/migrations/`.
+3. Set `SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres` in `.env`.
+
+**Hosted:** create a Supabase project, run `supabase db push` to apply migrations,
+and set `SUPABASE_DB_URL` to the project's connection string (URI).
+
+**Run the DB-backed tests:**
+`TEST_DATABASE_URL=$SUPABASE_DB_URL python -m pytest tests/integration/test_application_store_pg.py`
+
 ## Reproducible installs (uv)
 
 `uv.lock` pins the full dependency graph (web + dev extras). For a byte-for-byte
