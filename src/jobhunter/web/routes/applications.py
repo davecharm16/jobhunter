@@ -16,7 +16,6 @@ from pydantic import BaseModel, Field
 from jobhunter.application_store_pg import PostgresApplicationStore
 from jobhunter.application_tracker import ApplicationStore, validate_status
 
-
 router = APIRouter()
 
 
@@ -69,7 +68,7 @@ def update_application(
         try:
             validate_status(payload.status)
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     updated = store.update(app_id, status=payload.status, notes=payload.notes)
     if updated is None:
         raise HTTPException(status_code=404, detail="application not found")
@@ -85,7 +84,7 @@ def list_applications(
         try:
             validate_status(status)
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     return [a.to_dict() for a in store.list(status=status)]
 
 
@@ -97,7 +96,7 @@ def get_application(
     app = store.get(app_id)
     if app is None:
         raise HTTPException(status_code=404, detail="application not found")
-    body = app.to_dict()
+    body: dict[str, Any] = app.to_dict()
     body["history"] = [h.to_dict() for h in store.history(app_id)]
     return body
 

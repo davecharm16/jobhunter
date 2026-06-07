@@ -71,6 +71,9 @@ extend-exclude = ["src/jobhunter/web/frontend"]
 select = ["E", "F", "I", "B", "UP", "C4"]
 ignore = ["E501"]  # line length is handled by the formatter, not linting
 
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body"]
+
 [tool.mypy]
 python_version = "3.11"
 mypy_path = "src"

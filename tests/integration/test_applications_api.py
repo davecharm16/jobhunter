@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.fake_application_store import FakeApplicationStore
 
 from jobhunter.web.api import create_app
 from jobhunter.web.routes.applications import get_store
-from tests.fake_application_store import FakeApplicationStore
 
 
 @pytest.fixture()

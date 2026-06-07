@@ -5,9 +5,9 @@ operation (single-user app, low volume) — no pool needed. Status changes and
 the matching history row are written in one transaction.
 """
 
-from __future__ import annotations
-
+import builtins
 import os
+from typing import Any, Self
 
 import psycopg
 from psycopg.rows import dict_row
@@ -33,7 +33,7 @@ def _iso_cols(prefix: str = "") -> str:
     )
 
 
-def _row_to_app(row: dict) -> Application:
+def _row_to_app(row: dict[str, Any]) -> Application:
     return Application(
         id=row["id"],
         slug=row["slug"],
@@ -53,13 +53,13 @@ class PostgresApplicationStore:
         self._db_url = db_url
 
     @classmethod
-    def from_env(cls) -> "PostgresApplicationStore":
+    def from_env(cls) -> Self:
         db_url = os.environ.get("SUPABASE_DB_URL")
         if not db_url:
             raise RuntimeError("SUPABASE_DB_URL is not set")
         return cls(db_url)
 
-    def _connect(self) -> psycopg.Connection:
+    def _connect(self) -> psycopg.Connection[dict[str, Any]]:
         return psycopg.connect(self._db_url, row_factory=dict_row)
 
     def create(self, *, slug, job_title, company, url) -> Application:
@@ -72,6 +72,7 @@ class PostgresApplicationStore:
                 """,
                 (slug, job_title, company, url, INITIAL_STATUS),
             ).fetchone()
+            assert row is not None
             conn.execute(
                 "insert into application_status_history (application_id, from_status, to_status) "
                 "values (%s, null, %s)",
@@ -94,7 +95,7 @@ class PostgresApplicationStore:
             ).fetchone()
             return _row_to_app(row) if row else None
 
-    def list(self, *, status=None) -> list[Application]:
+    def list(self, *, status=None) -> builtins.list[Application]:
         with self._connect() as conn:
             if status is not None:
                 rows = conn.execute(
@@ -133,10 +134,11 @@ class PostgresApplicationStore:
                 """,
                 (status, notes, app_id),
             ).fetchone()
+            assert row is not None
             conn.commit()
             return _row_to_app(row)
 
-    def history(self, app_id) -> list[StatusChange]:
+    def history(self, app_id) -> builtins.list[StatusChange]:
         with self._connect() as conn:
             rows = conn.execute(
                 "select from_status, to_status, "

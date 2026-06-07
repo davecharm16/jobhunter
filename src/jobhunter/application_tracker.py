@@ -5,11 +5,9 @@ is import-safe without a database so the route layer can be unit-tested
 against an in-memory fake (see tests/fake_application_store.py).
 """
 
-from __future__ import annotations
-
+import builtins
 from dataclasses import asdict, dataclass
 from typing import Protocol
-
 
 STATUSES: tuple[str, ...] = (
     "applied",
@@ -70,7 +68,7 @@ class ApplicationStore(Protocol):
 
     def get_by_slug(self, slug: str) -> Application | None: ...
 
-    def list(self, *, status: str | None = None) -> list[Application]: ...
+    def list(self, *, status: str | None = None) -> builtins.list[Application]: ...
 
     def update(
         self,
@@ -80,7 +78,7 @@ class ApplicationStore(Protocol):
         notes: str | None = None,
     ) -> Application | None: ...
 
-    def history(self, app_id: str) -> list[StatusChange]: ...
+    def history(self, app_id: str) -> builtins.list[StatusChange]: ...
 
 
 __all__ = [

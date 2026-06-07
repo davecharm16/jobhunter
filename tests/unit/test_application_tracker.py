@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from tests.fake_application_store import FakeApplicationStore
 
 from jobhunter.application_tracker import (
     INITIAL_STATUS,
@@ -8,7 +9,6 @@ from jobhunter.application_tracker import (
     Application,
     validate_status,
 )
-from tests.fake_application_store import FakeApplicationStore
 
 
 def test_initial_status_is_applied():
