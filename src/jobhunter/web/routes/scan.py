@@ -8,6 +8,8 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from jobhunter.canonical_cv import read_canonical_cv
+from jobhunter.canonical_profile import build_canonical_profile
 from jobhunter.notifier import build_scan_message, notify_scan
 from jobhunter.runtime_config import load_runtime_config
 from jobhunter.scan import (
@@ -94,6 +96,11 @@ class ResultsRequest(BaseModel):
     status: Literal["completed", "partial"] = "completed"
     site_summary: dict[str, Any] = Field(default_factory=dict)
     candidates: list[CandidatePayload] = Field(default_factory=list)
+
+
+@router.get("/api/canonical-profile", dependencies=[Depends(require_ingest_token)])
+def canonical_profile() -> dict[str, Any]:
+    return build_canonical_profile(read_canonical_cv())
 
 
 @router.get("/api/scan/known-urls", dependencies=[Depends(require_ingest_token)])
