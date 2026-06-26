@@ -56,12 +56,12 @@ class SettingsRequest(BaseModel):
     enabled: bool
 
 
-@router.get("/api/scan/settings")
+@router.get("/api/scan/settings", dependencies=[Depends(require_ingest_token)])
 def get_settings(store: ScanStore = Depends(get_store)) -> dict[str, Any]:
     return store.get_settings().to_dict()
 
 
-@router.put("/api/scan/settings")
+@router.put("/api/scan/settings", dependencies=[Depends(require_ingest_token)])
 def put_settings(
     payload: SettingsRequest, store: ScanStore = Depends(get_store)
 ) -> dict[str, Any]:
