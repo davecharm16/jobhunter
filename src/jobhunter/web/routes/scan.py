@@ -12,6 +12,7 @@ from jobhunter.runtime_config import load_runtime_config
 from jobhunter.scan import (
     CandidateInput,
     ScanStore,
+    validate_candidate_status,
     validate_settings,
     validate_site,
 )
@@ -120,6 +121,43 @@ def post_results(
     return {
         "scan_id": scan.id, "received": len(cands), "new": new, "skipped": skipped,
     }
+
+
+class CandidatePatch(BaseModel):
+    status: str
+
+
+@router.get("/api/scan/candidates")
+def list_candidates(
+    status: str | None = None, scan_id: str | None = None,
+    store: ScanStore = Depends(get_store),
+) -> list[dict[str, Any]]:
+    if status is not None:
+        try:
+            validate_candidate_status(status)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return [c.to_dict() for c in store.list_candidates(status=status, scan_id=scan_id)]
+
+
+@router.get("/api/scan/scans")
+def list_scans(store: ScanStore = Depends(get_store)) -> list[dict[str, Any]]:
+    return [s.to_dict() for s in store.list_scans()]
+
+
+@router.patch("/api/scan/candidates/{candidate_id}")
+def patch_candidate(
+    candidate_id: str, payload: CandidatePatch,
+    store: ScanStore = Depends(get_store),
+) -> dict[str, Any]:
+    try:
+        validate_candidate_status(payload.status)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    updated = store.set_candidate_status(candidate_id, status=payload.status)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="candidate not found")
+    return updated.to_dict()
 
 
 __all__ = ["router", "get_store"]
