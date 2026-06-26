@@ -97,6 +97,23 @@ def post_results(
         status=payload.status, site_summary=payload.site_summary,
         candidates=cands,
     )
+    if new > 0:
+        from jobhunter.notifier import build_scan_message, notify_scan
+        from jobhunter.runtime_config import load_runtime_config
+        try:
+            cfg = load_runtime_config()
+            webhook = cfg.gchat_webhook_url
+        except Exception:  # noqa: BLE001 - config issues must not fail ingest
+            webhook = None
+        if webhook:
+            notify_scan(
+                webhook,
+                build_scan_message(
+                    new_count=new,
+                    site_summary=payload.site_summary,
+                    dashboard_url="http://127.0.0.1:8765/job-scan",
+                ),
+            )
     return {
         "scan_id": scan.id, "received": len(cands), "new": new, "skipped": skipped,
     }
