@@ -9,6 +9,7 @@ import { DriftPage } from "./DriftPage";
 import { DriftHistoryPage } from "./DriftHistoryPage";
 import { ScansPage } from "./ScansPage";
 import { ApplicationsPage } from "./ApplicationsPage";
+import { JobScanPage } from "./JobScanPage";
 import { NotFound } from "./NotFound";
 import { HeldCountCard } from "./components/HeldCountCard";
 import { type QueueEntry } from "./components/RecentPackagesTable";
@@ -188,6 +189,7 @@ export function App() {
             <Route path="/scans" element={<ScansPage />} />
             <Route path="/drift" element={<DriftHistoryPage />} />
             <Route path="/applications" element={<ApplicationsPage />} />
+            <Route path="/job-scan" element={<JobScanPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
