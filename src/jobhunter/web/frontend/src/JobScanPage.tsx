@@ -8,12 +8,14 @@ export function JobScanPage() {
   const [scans, setScans] = useState<Scan[]>([]);
   const [cands, setCands] = useState<Candidate[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const refresh = () => {
-    listScans().then(setScans);
-    listCandidates().then(setCands);
+    Promise.all([listScans(), listCandidates()])
+      .then(([s, c]) => { setScans(s); setCands(c); })
+      .finally(() => setLoading(false));
   };
-  useEffect(refresh, []);
+  useEffect(() => { refresh(); }, []);
 
   const onGenerate = async (id: string) => {
     setBusy(id);
@@ -27,9 +29,22 @@ export function JobScanPage() {
   };
 
   const onDismiss = async (id: string) => {
-    await dismissCandidate(id);
-    refresh();
+    try {
+      await dismissCandidate(id);
+      refresh();
+    } catch (e) {
+      alert(`Dismiss failed: ${(e as Error).message}`);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="p-gutter">
+        <h1 className="text-headline-md font-bold mb-stack-md">Job Scan</h1>
+        <p className="text-on-surface-variant">Loading…</p>
+      </div>
+    );
+  }
 
   if (scans.length === 0) {
     return (
@@ -50,7 +65,7 @@ export function JobScanPage() {
         return (
           <section key={scan.id} className="mb-stack-lg border-b pb-stack-md">
             <div className="flex items-center gap-stack-sm mb-stack-sm">
-              <h2 className="text-title-lg font-bold">{scan.created_at}</h2>
+              <h2 className="text-title-lg font-bold">{new Date(scan.created_at).toLocaleString()}</h2>
               {Object.entries(scan.site_summary).map(([site, info]) => (
                 <span key={site} className="text-label-sm px-2 py-0.5 rounded bg-surface-container-high">
                   {SITE_LABEL[site as Site] ?? site}: {info.status} ({info.count})
