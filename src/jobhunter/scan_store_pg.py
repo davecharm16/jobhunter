@@ -12,7 +12,11 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from jobhunter.scan import (
-    Candidate, CandidateInput, Scan, ScanSettings, validate_candidate_status,
+    Candidate,
+    CandidateInput,
+    Scan,
+    ScanSettings,
+    validate_candidate_status,
 )
 
 _ISO = "YYYY-MM-DD\"T\"HH24:MI:SS\"Z\""
@@ -79,7 +83,7 @@ class PostgresScanStore:
             return [r["url"] for r in rows]
 
     def record_scan(self, *, started_at, finished_at, status, site_summary,
-                    candidates) -> tuple[Scan, int, int]:
+                    candidates: builtins.list[CandidateInput]) -> tuple[Scan, int, int]:
         with self._connect() as conn:
             scan_row = conn.execute(
                 f"""
@@ -121,7 +125,9 @@ class PostgresScanStore:
         if status is not None:
             clauses.append("status = %s")
             params.append(status)
-        if scan_id is not None and _is_uuid(scan_id):
+        if scan_id is not None:
+            if not _is_uuid(scan_id):
+                return []
             clauses.append("scan_id = %s")
             params.append(scan_id)
         where = f"where {' and '.join(clauses)}" if clauses else ""
