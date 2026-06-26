@@ -177,3 +177,50 @@ data — a poor fit for write-once JSON sidecars.
   future "save without tailoring".
 - **Consequence:** the tracker requires a network connection + credentials.
   Package *generation* still works offline; only tracking needs the DB.
+
+---
+
+## §8: Automated Job Scan — external ingestion agent (2026-06-26)
+
+Spec source of truth: `docs/superpowers/specs/2026-06-26-job-scan-feature-overview.md`
+and `docs/superpowers/specs/2026-06-26-job-scan-design.md`.
+
+### (a) The scanner is an external ingestion agent — §4 (one LLM provider) intact
+
+The scanner runs *outside* the app boundary, in the same category as the
+existing n8n Upwork/OnlineJobs/LinkedIn flows that POST to `/api/paste`. The
+scan engine is an n8n workflow on Railway using a custom Docker image
+(`claude -p "<scan prompt>" + Playwright MCP`) that scrapes, ranks, and POSTs
+structured results. The app exposes one ingest endpoint:
+
+```
+POST /api/scan/results   (Bearer INGEST_TOKEN)
+```
+
+The app side handles dedup, persistence, and notification only — no browser
+automation, no job-board HTTP calls. The scanner's LLM usage is upstream,
+outside the app boundary, exactly like today's n8n scraper flows. **§4 is
+unchanged:** the app still has one LLM provider (`llm_client.py`); "Generate
+CV" (F6) reuses `run_tailoring()` via `POST /api/paste` with no new LLM path.
+
+### (b) Persistence reuses Supabase — extends §7, does not contradict it
+
+Three new tables live alongside the §7 tracker tables in the same Supabase
+project:
+
+- `scan_settings` — single-row config (titles, sites, picks/site, enabled).
+- `scans` — one row per scan run, stores per-site summary (ok/blocked/empty).
+- `scan_candidates` — one row per discovered job; `UNIQUE(url)` is the
+  permanent dedup key (re-POSTing the same URL is a no-op, not an error).
+
+Migration: `supabase/migrations/20260626000000_job_scan.sql`. Access model
+is identical to §7: server-side via `psycopg` v3; the React app never talks to
+Supabase directly.
+
+### (c) Notifications link to the dashboard only — no-job-board-hostname guardrail preserved
+
+GChat scan notifications reuse `notifier.py` and contain **no job-board
+hostnames** — only a link to the local app's Job Scan dashboard page. This
+preserves the existing FR44/FR11 "no-job-board-link" guardrail and keeps
+discovery structurally separate from submission. The human still presses submit
+(§5/§6 intact). When a scan yields zero new candidates, no notification is sent.

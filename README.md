@@ -63,6 +63,46 @@ and set `SUPABASE_DB_URL` to the project's connection string (URI).
 **Run the DB-backed tests:**
 `TEST_DATABASE_URL=$SUPABASE_DB_URL python -m pytest tests/integration/test_application_store_pg.py`
 
+### Job Scan (automated candidate discovery)
+
+Job Scan is a scheduled discovery pipeline: an external scan engine periodically
+searches configured job boards, picks the best-fit roles against your canonical
+CV, and files them as de-duplicated candidates. You review them on the **Job
+Scan** dashboard page and hit **Generate CV** to run the full tailoring pipeline
+— no copy-paste required.
+
+**Settings** live in the UI at `/settings` under "Job Scan": search titles,
+enabled sites (Indeed, OnlineJobs PH, JobStreet, LinkedIn), picks per site
+(1–10), and a master on/off toggle. Settings are stored in the Supabase
+`scan_settings` table (same project as the application tracker).
+
+**App-side endpoints** (`/api/scan/*`):
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `GET`/`PUT` | `/api/scan/settings` | session | Read / save scan settings |
+| `POST` | `/api/scan/results` | Bearer `INGEST_TOKEN` | Ingest a scan run (dedup by URL) |
+| `GET` | `/api/scan/known-urls` | Bearer `INGEST_TOKEN` | Skip-list for the scanner |
+| `GET` | `/api/scan/candidates` | session | List candidates (filterable by status) |
+| `PATCH` | `/api/scan/candidates/{id}` | session | Dismiss a candidate |
+| `POST` | `/api/scan/candidates/{id}/generate` | session | One-click Generate CV |
+
+The two machine endpoints (`results`, `known-urls`) use the existing
+`INGEST_TOKEN` Bearer token (same as the n8n `/api/paste` flows). Set
+`INGEST_TOKEN` in `.env`.
+
+**Supabase setup** (in addition to the application tracker steps above):
+the migration `supabase/migrations/20260626000000_job_scan.sql` creates
+`scan_settings`, `scans`, and `scan_candidates`. Run `supabase db reset`
+locally or `supabase db push` on hosted after pulling this migration.
+
+> **Scan engine (F2) is a separate component.** The app side only ingests
+> results — it does not schedule or run browser automation. The scan engine
+> (n8n custom image with Claude Code + Playwright MCP on Railway) is documented
+> in the F2 implementation plan. See
+> `docs/superpowers/specs/2026-06-26-job-scan-feature-overview.md` for the full
+> feature spec and architecture diagram.
+
 ## Reproducible installs (uv)
 
 `uv.lock` pins the full dependency graph (web + dev extras). For a byte-for-byte
