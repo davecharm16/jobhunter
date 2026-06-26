@@ -83,6 +83,7 @@ enabled sites (Indeed, OnlineJobs PH, JobStreet, LinkedIn), picks per site
 | `GET`/`PUT` | `/api/scan/settings` | session | Read / save scan settings |
 | `POST` | `/api/scan/results` | Bearer `INGEST_TOKEN` | Ingest a scan run (dedup by URL) |
 | `GET` | `/api/scan/known-urls` | Bearer `INGEST_TOKEN` | Skip-list for the scanner |
+| `GET` | `/api/scan/scans` | session | List all scans (newest first) |
 | `GET` | `/api/scan/candidates` | session | List candidates (filterable by status) |
 | `PATCH` | `/api/scan/candidates/{id}` | session | Dismiss a candidate |
 | `POST` | `/api/scan/candidates/{id}/generate` | session | One-click Generate CV |
