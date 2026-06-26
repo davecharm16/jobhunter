@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -34,20 +34,19 @@ from jobhunter.runtime_config import (
 )
 from jobhunter.spend_tracker import SpendCapExceeded, SpendLedgerCorrupt
 from jobhunter.tailoring import run_tailoring
-from jobhunter.web.auth import _is_loopback_request, require_ingest_token
+from jobhunter.web.auth import require_ingest_token
+from jobhunter.web.routes.applications import router as applications_router
 from jobhunter.web.routes.canonical_cv import router as canonical_cv_router
 from jobhunter.web.routes.download import router as download_router
 from jobhunter.web.routes.drift import router as drift_router
 from jobhunter.web.routes.override import router as override_router
 from jobhunter.web.routes.package import router as package_router
 from jobhunter.web.routes.queue import router as queue_router
-from jobhunter.web.routes.scans import router as scans_router
 from jobhunter.web.routes.regenerate import router as regenerate_router
-from jobhunter.web.routes.applications import router as applications_router
 from jobhunter.web.routes.scan import router as scan_router
+from jobhunter.web.routes.scans import router as scans_router
 from jobhunter.web.routes.spend import router as spend_router
 from jobhunter.web.routes.stats import router as stats_router
-
 
 FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
 
