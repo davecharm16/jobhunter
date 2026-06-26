@@ -1,0 +1,6 @@
+.git
+.venv
+**/node_modules
+out
+src/jobhunter/web/frontend/dist
+*.pdf
