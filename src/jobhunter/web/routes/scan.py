@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,6 +26,26 @@ router = APIRouter()
 def get_store() -> ScanStore:
     """Production store. Overridden in tests via app.dependency_overrides."""
     return PostgresScanStore.from_env()
+
+
+TailorFn = Callable[[str, str, str], str]  # (jd_text, url, source) -> slug
+
+
+def get_tailor() -> TailorFn:
+    """Production tailor: runs the existing pipeline, returns the new slug.
+
+    Overridden in tests. Keeps DECISIONS.md §4 — the only LLM path is
+    run_tailoring()."""
+    def _run(jd_text: str, url: str, source: str) -> str:
+        from jobhunter.canonical_cv import read_canonical_cv
+        from jobhunter.runtime_config import load_runtime_config
+        from jobhunter.tailoring import run_tailoring
+        outcome = run_tailoring(
+            read_canonical_cv(), jd_text, config=load_runtime_config(),
+            jd_source=source, url=url or None,
+        )
+        return outcome.out_dir.name
+    return _run
 
 
 class SettingsRequest(BaseModel):
@@ -160,4 +181,21 @@ def patch_candidate(
     return updated.to_dict()
 
 
-__all__ = ["router", "get_store"]
+@router.post("/api/scan/candidates/{candidate_id}/generate")
+def generate_from_candidate(
+    candidate_id: str,
+    store: ScanStore = Depends(get_store),
+    tailor: TailorFn = Depends(get_tailor),
+) -> dict[str, Any]:
+    cand = store.get_candidate(candidate_id)
+    if cand is None:
+        raise HTTPException(status_code=404, detail="candidate not found")
+    try:
+        slug = tailor(cand.jd_text, cand.url, cand.site)
+    except Exception as exc:  # noqa: BLE001 - leave candidate retryable
+        raise HTTPException(status_code=502, detail=f"tailoring failed: {exc}") from exc
+    store.set_candidate_status(candidate_id, status="generated", slug=slug)
+    return {"slug": slug, "status": "generated"}
+
+
+__all__ = ["router", "get_store", "get_tailor"]
