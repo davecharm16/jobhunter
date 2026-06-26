@@ -1,9 +1,11 @@
 # tests/unit/test_scan_settings_api.py
 import pytest
 from fastapi.testclient import TestClient
+from tests.fake_scan_store import FakeScanStore
+
 from jobhunter.web.api import create_app
 from jobhunter.web.routes.scan import get_store
-from tests.fake_scan_store import FakeScanStore
+
 
 @pytest.fixture
 def client():
@@ -37,5 +39,12 @@ def test_put_settings_rejects_unknown_site(client):
     r = client.put("/api/scan/settings", json={
         "search_titles": ["Dev"], "sites_enabled": ["monster"],
         "picks_per_site": 3, "enabled": True,
+    })
+    assert r.status_code == 422
+
+def test_put_settings_rejects_out_of_range_picks(client):
+    r = client.put("/api/scan/settings", json={
+        "search_titles": ["Dev"], "sites_enabled": ["linkedin"],
+        "picks_per_site": 11, "enabled": True,
     })
     assert r.status_code == 422
