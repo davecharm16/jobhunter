@@ -32,6 +32,9 @@ class RuntimeConfig:
     # Story 6.1: optional Google Chat webhook URL for pass-only notifications.
     # Missing / empty value disables notifications without raising.
     gchat_webhook_url: str | None = None
+    # Job Scan: optional n8n trigger webhook the "Run scan now" button pings to
+    # kick off an external scan. Missing / empty disables manual triggering.
+    n8n_scan_trigger_url: str | None = None
 
 
 def load_runtime_config(env_path: Path | None = None) -> RuntimeConfig:
@@ -50,6 +53,7 @@ def load_runtime_config(env_path: Path | None = None) -> RuntimeConfig:
     )
     ingest_token = _optional_token("INGEST_TOKEN")
     gchat_webhook_url = _optional_token("GCHAT_WEBHOOK_URL")
+    n8n_scan_trigger_url = _optional_token("N8N_SCAN_TRIGGER_URL")
 
     return RuntimeConfig(
         llm_api_key=llm_api_key,
@@ -57,6 +61,7 @@ def load_runtime_config(env_path: Path | None = None) -> RuntimeConfig:
         llm_call_timeout_seconds=llm_call_timeout_seconds,
         ingest_token=ingest_token,
         gchat_webhook_url=gchat_webhook_url,
+        n8n_scan_trigger_url=n8n_scan_trigger_url,
     )
 
 

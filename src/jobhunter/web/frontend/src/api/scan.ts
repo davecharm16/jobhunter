@@ -92,3 +92,20 @@ export async function generateFromCandidate(
     "generateFromCandidate",
   );
 }
+
+// Manually trigger a scan run via the external n8n engine. Surfaces the API's
+// detail string on failure (e.g. "scan engine not configured").
+export async function runScan(): Promise<{ triggered: boolean }> {
+  const resp = await fetch("/api/scan/run", { method: "POST" });
+  if (!resp.ok) {
+    let detail = `${resp.status}`;
+    try {
+      const body = await resp.json();
+      if (body?.detail) detail = body.detail;
+    } catch {
+      // non-JSON error body; keep the status code
+    }
+    throw new Error(detail);
+  }
+  return resp.json();
+}

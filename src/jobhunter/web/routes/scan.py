@@ -200,4 +200,45 @@ def generate_from_candidate(
     return {"slug": slug, "status": "generated"}
 
 
-__all__ = ["router", "get_store", "get_tailor"]
+ScanTriggerFn = Callable[[str], None]  # (n8n trigger webhook url) -> None
+
+
+def get_scan_trigger() -> ScanTriggerFn:
+    """Production trigger: POST to the n8n scan webhook. Overridden in tests.
+
+    The app never scrapes (DECISIONS.md §8) — this only kicks the external
+    n8n engine, which scrapes and POSTs back to /api/scan/results."""
+
+    def _trigger(url: str) -> None:
+        import httpx
+
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.post(url, json={"trigger": "manual"})
+            resp.raise_for_status()
+
+    return _trigger
+
+
+@router.post("/api/scan/run")
+def run_scan(
+    trigger: ScanTriggerFn = Depends(get_scan_trigger),
+) -> dict[str, Any]:
+    try:
+        url = load_runtime_config().n8n_scan_trigger_url
+    except Exception:  # noqa: BLE001 - config issues shouldn't surface as a 500
+        url = None
+    if not url:
+        raise HTTPException(
+            status_code=503,
+            detail="scan engine not configured (set N8N_SCAN_TRIGGER_URL)",
+        )
+    try:
+        trigger(url)
+    except Exception as exc:  # noqa: BLE001 - report engine unreachable as 502
+        raise HTTPException(
+            status_code=502, detail=f"failed to reach scan engine: {exc}"
+        ) from exc
+    return {"triggered": True}
+
+
+__all__ = ["router", "get_store", "get_tailor", "get_scan_trigger"]

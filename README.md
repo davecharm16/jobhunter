@@ -87,6 +87,7 @@ enabled sites (Indeed, OnlineJobs PH, JobStreet, LinkedIn), picks per site
 | `GET` | `/api/scan/candidates` | session | List candidates (filterable by status) |
 | `PATCH` | `/api/scan/candidates/{id}` | session | Dismiss a candidate |
 | `POST` | `/api/scan/candidates/{id}/generate` | session | One-click Generate CV |
+| `POST` | `/api/scan/run` | session | Manually trigger a scan via the n8n engine (`N8N_SCAN_TRIGGER_URL`) |
 
 The two machine endpoints (`results`, `known-urls`) use the existing
 `INGEST_TOKEN` Bearer token (same as the n8n `/api/paste` flows). Set

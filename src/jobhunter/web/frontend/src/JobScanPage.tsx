@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  listScans, listCandidates, dismissCandidate, generateFromCandidate,
+  listScans, listCandidates, dismissCandidate, generateFromCandidate, runScan,
   SITE_LABEL, type Scan, type Candidate, type Site,
 } from "./api/scan";
 
@@ -9,6 +9,7 @@ export function JobScanPage() {
   const [cands, setCands] = useState<Candidate[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
 
   const refresh = () => {
     Promise.all([listScans(), listCandidates()])
@@ -16,6 +17,36 @@ export function JobScanPage() {
       .finally(() => setLoading(false));
   };
   useEffect(() => { refresh(); }, []);
+
+  const onRun = async () => {
+    setRunning(true);
+    try {
+      await runScan();
+      alert("Scan started — new candidates will appear here shortly. Refresh in a moment.");
+    } catch (e) {
+      alert(`Couldn't start scan: ${(e as Error).message}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const RunButton = () => (
+    <button
+      type="button"
+      disabled={running}
+      onClick={onRun}
+      className="px-4 py-2 bg-primary text-on-primary rounded text-body-md disabled:opacity-50"
+    >
+      {running ? "Starting…" : "Run scan now (3 per site)"}
+    </button>
+  );
+
+  const Header = () => (
+    <div className="flex items-center justify-between mb-stack-md">
+      <h1 className="text-headline-md font-bold">Job Scan</h1>
+      <RunButton />
+    </div>
+  );
 
   const onGenerate = async (id: string) => {
     setBusy(id);
@@ -49,7 +80,7 @@ export function JobScanPage() {
   if (scans.length === 0) {
     return (
       <div className="p-gutter">
-        <h1 className="text-headline-md font-bold mb-stack-md">Job Scan</h1>
+        <Header />
         <p className="text-on-surface-variant">No scans yet.</p>
       </div>
     );
@@ -57,7 +88,7 @@ export function JobScanPage() {
 
   return (
     <div className="p-gutter">
-      <h1 className="text-headline-md font-bold mb-stack-md">Job Scan</h1>
+      <Header />
       {scans.map((scan) => {
         const scanCands = cands.filter((c) => c.scan_id === scan.id);
         const bySite: Record<string, Candidate[]> = {};
