@@ -24,7 +24,7 @@
 
 - **P1.** App deployed at a public `APP_BASE_URL` (or a `cloudflared` tunnel for testing).
 - **P2.** `INGEST_TOKEN` value known and identical on app (`.env`) and n8n (workflow env `INGEST_SHARED_TOKEN`).
-- **P3.** An Anthropic API key for the scanner (`ANTHROPIC_API_KEY` in the n8n container). May reuse the app's `LLM_API_KEY` value.
+- **P3.** A Claude Code **OAuth token** for the scanner, so it runs on your Claude **subscription** (Pro/Max) rather than a metered API key. Mint it once on your machine: `claude setup-token` (requires a Pro/Max/Team/Enterprise plan; prints a ~1-year token to stdout — it is not saved for you). Store it as `CLAUDE_CODE_OAUTH_TOKEN` on the n8n service. **Critical:** `ANTHROPIC_API_KEY` must NOT be set in the n8n container — if it is, it takes precedence and the API key (metered billing) is used instead of your subscription. (Subscription usage counts against your Pro/Max plan's usage limits. Docs: https://code.claude.com/docs/en/authentication.md)
 - **P4.** Railway project lets you deploy a **custom Dockerfile** for the n8n service (Railway supports Dockerfile builds).
 
 ---
@@ -383,7 +383,9 @@ CMD ["n8n", "start"]
 # stdin (n8n pipes it in), runs Claude headless with the Playwright MCP, and
 # prints Claude's result JSON to stdout for n8n to parse.
 #
-# Required env (set on the n8n service): ANTHROPIC_API_KEY.
+# Auth (set on the n8n service): CLAUDE_CODE_OAUTH_TOKEN (runs on your Claude
+# subscription). Do NOT set ANTHROPIC_API_KEY in this container — it overrides
+# the OAuth token. The `claude` CLI reads CLAUDE_CODE_OAUTH_TOKEN from the env.
 set -euo pipefail
 
 PROMPT="$(cat)"   # n8n writes the assembled prompt to stdin
@@ -416,10 +418,10 @@ Expected: image builds; `claude --version` prints a version; `/opt/scan` lists `
 - [ ] **Step 5: Smoke-test Claude + Playwright MCP end-to-end (cheap, no job sites)**
 
 ```bash
-docker run --rm -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" jobhunter-n8n-scan:dev \
+docker run --rm -e CLAUDE_CODE_OAUTH_TOKEN="$CLAUDE_CODE_OAUTH_TOKEN" jobhunter-n8n-scan:dev \
   sh -lc 'echo "Use the Playwright tools to open https://example.com and return ONLY the page <h1> text as JSON {\"h1\":\"...\"}." | /opt/scan/run-scan.sh'
 ```
-Expected: JSON output containing the example.com heading (proves Claude can drive Playwright MCP headless in the image). If it errors on flags, fix per the Task 3 NOTE and re-run.
+Expected: JSON output containing the example.com heading (proves Claude can drive Playwright MCP headless in the image, authenticated via your subscription token). If it errors on flags, fix per the Task 3 NOTE and re-run. (Mint `CLAUDE_CODE_OAUTH_TOKEN` first with `claude setup-token` and export it in your shell.)
 
 - [ ] **Step 6: Commit**
 
@@ -441,7 +443,8 @@ In the Railway n8n service settings, set the build to use `deploy/n8n/Dockerfile
 - [ ] **Step 2: Set the n8n service environment variables**
 
 On the Railway n8n service add:
-- `ANTHROPIC_API_KEY` = the scanner's Anthropic key (P3).
+- `CLAUDE_CODE_OAUTH_TOKEN` = the token from `claude setup-token` (P3) — runs the scanner on your Claude subscription.
+- **Do NOT set `ANTHROPIC_API_KEY`** on this service — it would override the OAuth token and switch to metered API billing.
 - `INGEST_SHARED_TOKEN` = the same value as the app's `INGEST_TOKEN` (P2).
 - `APP_BASE_URL` = the app's public base URL (P1), e.g. `https://<app-host>`.
 - Keep n8n's existing persistence env (DB/encryption key) unchanged.
@@ -555,5 +558,5 @@ git commit -m "docs(scan-engine): deployment + contract for the n8n scan engine 
 
 - **Anti-bot on Railway datacenter IP** — Indeed/LinkedIn/JobStreet may return `blocked` often. Mitigations beyond stealth/pacing (residential proxy, persistent logged-in profile volume) are deferred; flagged here so a mostly-`blocked` first run is read as "expected," not "broken."
 - **Image size / Railway memory** — the Playwright base + Chromium is large; confirm the Railway plan has headroom (Task 4).
-- **Claude CLI non-interactive tool permissions** — `--permission-mode bypassPermissions` (or `--dangerously-skip-permissions`) is required for headless MCP tool use; verify the exact flag on the installed version (Task 3/4 notes).
-- **Cost per run** — each scan is a multi-step agentic Claude run with browser tool calls; tokens add up. The scheduled cadence (Cron) and `picks_per_site` bound it. Not gated by the app's `MONTHLY_SPEND_CAP_USD` (that guards the app's own `run_tailoring`, a separate provider/key).
+- **Claude CLI non-interactive tool permissions** — `--permission-mode bypassPermissions` (== `--dangerously-skip-permissions`) is required for headless MCP tool use. Confirmed against the docs (2026-06); still re-verify on the installed image version (Task 3/4 notes).
+- **Cost / quota per run** — each scan is a multi-step agentic Claude run with browser tool calls; tokens add up. Because the scanner uses your **Claude subscription** (`CLAUDE_CODE_OAUTH_TOKEN`), each run draws on your **Pro/Max usage limits** — the *same* quota you use for coding. A frequent Cron cadence could eat into that; tune the schedule and `picks_per_site` accordingly. (This is separate from the app's `MONTHLY_SPEND_CAP_USD`, which guards only the app's own `run_tailoring`.)
