@@ -51,7 +51,6 @@ import httpx
 
 from jobhunter.metadata import PackageMetadata
 
-
 __all__ = [
     "HUMAN_SUBMITS_REMINDER",
     "NotificationPayload",
@@ -223,13 +222,13 @@ def build_scan_message(
     return "\n".join(parts)
 
 
-def notify_scan(webhook_url: str, message: str, *, retries: int = 3) -> None:
+def notify_scan(webhook_url: str, message: str) -> None:
     """Fire-and-forget POST to GChat. Failures are logged, never raised."""
     try:
         with httpx.Client(timeout=10.0) as client:
             client.post(webhook_url, json={"text": message})
     except Exception as exc:  # noqa: BLE001 - non-fatal by contract
-        logging.getLogger(__name__).warning("scan notification failed: %s", exc)
+        _log.warning("scan notification failed: %s", exc)
 
 
 def _format_fit_summary(

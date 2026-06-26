@@ -7,8 +7,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from jobhunter.notifier import build_scan_message, notify_scan
+from jobhunter.runtime_config import load_runtime_config
 from jobhunter.scan import (
-    CandidateInput, ScanStore, validate_settings, validate_site,
+    CandidateInput,
+    ScanStore,
+    validate_settings,
+    validate_site,
 )
 from jobhunter.scan_store_pg import PostgresScanStore
 from jobhunter.web.auth import require_ingest_token
@@ -98,8 +103,6 @@ def post_results(
         candidates=cands,
     )
     if new > 0:
-        from jobhunter.notifier import build_scan_message, notify_scan
-        from jobhunter.runtime_config import load_runtime_config
         try:
             cfg = load_runtime_config()
             webhook = cfg.gchat_webhook_url
