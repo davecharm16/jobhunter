@@ -1,12 +1,11 @@
 # tests/unit/test_scan_generate_api.py
 import pytest
 from fastapi.testclient import TestClient
-from jobhunter.web.api import create_app
-from jobhunter.web.routes.scan import get_store, get_tailor
 from tests.fake_scan_store import FakeScanStore
 
-class _FakeOutcome:
-    def __init__(self, slug): self.slug = slug
+from jobhunter.web.api import create_app
+from jobhunter.web.routes.scan import get_store, get_tailor
+
 
 @pytest.fixture
 def store():
@@ -50,6 +49,5 @@ def test_generate_failure_leaves_new(client):
 def test_generate_unknown_candidate_404(client):
     app, store = client
     app.dependency_overrides[get_tailor] = lambda: (lambda jd_text, url, source: "s")
-    from fastapi.testclient import TestClient
     r = TestClient(app).post("/api/scan/candidates/nope/generate")
     assert r.status_code == 404

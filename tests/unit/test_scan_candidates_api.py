@@ -1,9 +1,11 @@
 # tests/unit/test_scan_candidates_api.py
 import pytest
 from fastapi.testclient import TestClient
+from tests.fake_scan_store import FakeScanStore
+
 from jobhunter.web.api import create_app
 from jobhunter.web.routes.scan import get_store
-from tests.fake_scan_store import FakeScanStore
+
 
 @pytest.fixture
 def store():
@@ -42,6 +44,16 @@ def test_patch_invalid_status_422(client):
     cid = client.get("/api/scan/candidates").json()[0]["id"]
     r = client.patch(f"/api/scan/candidates/{cid}", json={"status": "archived"})
     assert r.status_code == 422
+
+def test_patch_invalid_transition_409(client):
+    _seed(client)
+    cid = client.get("/api/scan/candidates").json()[0]["id"]
+    # First dismiss succeeds (new -> dismissed)
+    r = client.patch(f"/api/scan/candidates/{cid}", json={"status": "dismissed"})
+    assert r.status_code == 200
+    # Second attempt: current status is now "dismissed", not "new" -> 409
+    r = client.patch(f"/api/scan/candidates/{cid}", json={"status": "dismissed"})
+    assert r.status_code == 409
 
 def test_list_scans(client):
     _seed(client)

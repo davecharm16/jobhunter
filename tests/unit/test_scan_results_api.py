@@ -1,4 +1,6 @@
 # tests/unit/test_scan_results_api.py
+from types import SimpleNamespace
+
 import pytest
 from fastapi.testclient import TestClient
 from tests.fake_scan_store import FakeScanStore
@@ -51,6 +53,30 @@ def test_known_urls(client):
     r = client.get("/api/scan/known-urls")
     assert r.status_code == 200
     assert r.json()["urls"] == ["https://jobs.example.com/1"]
+
+def test_zero_new_sends_no_notification(client):
+    # First POST inserts the candidate (new=1)
+    client.post("/api/scan/results", json=_payload())
+    # Re-POST the same candidate: new=0, no notification attempted; must still be 200
+    r = client.post("/api/scan/results", json=_payload())
+    assert r.status_code == 200
+    assert r.json()["new"] == 0
+
+def test_notify_failure_does_not_fail_ingest(client, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise RuntimeError("notify boom")
+
+    # Monkeypatch notify_scan to raise so we can verify ingest still succeeds
+    monkeypatch.setattr("jobhunter.web.routes.scan.notify_scan", _boom)
+    # Monkeypatch load_runtime_config to expose a truthy webhook so notify path is entered
+    monkeypatch.setattr(
+        "jobhunter.web.routes.scan.load_runtime_config",
+        lambda: SimpleNamespace(gchat_webhook_url="http://x"),
+    )
+    # A fresh URL ensures new > 0, which triggers the notify path
+    r = client.post("/api/scan/results", json=_payload("https://jobs.example.com/notify-test"))
+    assert r.status_code == 200
+    assert r.json()["new"] == 1
 
 def test_results_mixed_new_and_known(client):
     # Post a candidate with a known URL first

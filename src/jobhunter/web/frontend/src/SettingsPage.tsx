@@ -170,10 +170,12 @@ function JobScanSettingsSection() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    getScanSettings().then((data) => {
-      setS(data);
-      setTitles(data.search_titles.join("\n"));
-    });
+    getScanSettings()
+      .then((data) => {
+        setS(data);
+        setTitles(data.search_titles.join("\n"));
+      })
+      .catch(() => setErr("Failed to load scan settings."));
   }, []);
 
   if (!s) return null;

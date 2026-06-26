@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -38,7 +38,6 @@ def get_tailor() -> TailorFn:
     run_tailoring()."""
     def _run(jd_text: str, url: str, source: str) -> str:
         from jobhunter.canonical_cv import read_canonical_cv
-        from jobhunter.runtime_config import load_runtime_config
         from jobhunter.tailoring import run_tailoring
         outcome = run_tailoring(
             read_canonical_cv(), jd_text, config=load_runtime_config(),
@@ -92,7 +91,7 @@ class CandidatePayload(BaseModel):
 class ResultsRequest(BaseModel):
     started_at: str | None = None
     finished_at: str | None = None
-    status: str = "completed"
+    status: Literal["completed", "partial"] = "completed"
     site_summary: dict[str, Any] = Field(default_factory=dict)
     candidates: list[CandidatePayload] = Field(default_factory=list)
 
@@ -128,17 +127,17 @@ def post_results(
         try:
             cfg = load_runtime_config()
             webhook = cfg.gchat_webhook_url
-        except Exception:  # noqa: BLE001 - config issues must not fail ingest
-            webhook = None
-        if webhook:
-            notify_scan(
-                webhook,
-                build_scan_message(
-                    new_count=new,
-                    site_summary=payload.site_summary,
-                    dashboard_url="http://127.0.0.1:8765/job-scan",
-                ),
-            )
+            if webhook:
+                notify_scan(
+                    webhook,
+                    build_scan_message(
+                        new_count=new,
+                        site_summary=payload.site_summary,
+                        dashboard_url="http://127.0.0.1:8765/job-scan",
+                    ),
+                )
+        except Exception:  # noqa: BLE001 - notification issues must not fail ingest
+            pass
     return {
         "scan_id": scan.id, "received": len(cands), "new": new, "skipped": skipped,
     }
@@ -175,10 +174,13 @@ def patch_candidate(
         validate_candidate_status(payload.status)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    updated = store.set_candidate_status(candidate_id, status=payload.status)
-    if updated is None:
+    cand = store.get_candidate(candidate_id)
+    if cand is None:
         raise HTTPException(status_code=404, detail="candidate not found")
-    return updated.to_dict()
+    if not (cand.status == "new" and payload.status == "dismissed"):
+        raise HTTPException(status_code=409, detail="invalid status transition")
+    updated = store.set_candidate_status(candidate_id, status="dismissed")
+    return updated.to_dict()  # type: ignore[union-attr]
 
 
 @router.post("/api/scan/candidates/{candidate_id}/generate")
