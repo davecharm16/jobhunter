@@ -51,6 +51,10 @@ RUN pip install --no-cache-dir -e ".[web]"
 # .env is NEVER baked — secrets arrive through the container environment.
 COPY canonical-cv.json config.yaml ./
 COPY schemas/ ./schemas/
+# Versioned prompt templates — tailoring reads these via PROMPTS_DIR
+# (PROJECT_ROOT/prompts). Without this, generation fails with
+# "prompts directory does not exist: /app/prompts".
+COPY prompts/ ./prompts/
 
 # Baked config: Caddyfile (front door) + supervisord (process manager).
 COPY Caddyfile /etc/caddy/Caddyfile
