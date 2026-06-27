@@ -56,6 +56,18 @@ class ScanSettings:
 
 
 @dataclass
+class ScanStatus:
+    status: str  # idle | running | completed | error
+    started_at: str | None
+    finished_at: str | None
+    new_count: int
+    site_summary: dict
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
 class CandidateInput:
     site: str
     url: str
@@ -139,10 +151,18 @@ class ScanStore(Protocol):
 
     def list_scans(self) -> builtins.list[Scan]: ...
 
+    def mark_scan_running(self) -> ScanStatus: ...
+
+    def mark_scan_completed(
+        self, *, new_count: int, site_summary: dict
+    ) -> ScanStatus: ...
+
+    def get_scan_status(self) -> ScanStatus: ...
+
 
 __all__ = [
     "SITES", "CANDIDATE_STATUSES", "SCAN_STATUSES", "INITIAL_CANDIDATE_STATUS",
     "PICKS_MIN", "PICKS_MAX", "validate_site", "validate_candidate_status",
-    "validate_settings", "ScanSettings", "CandidateInput", "Candidate", "Scan",
-    "ScanStore",
+    "validate_settings", "ScanSettings", "ScanStatus", "CandidateInput",
+    "Candidate", "Scan", "ScanStore",
 ]

@@ -5,7 +5,8 @@ from __future__ import annotations
 import itertools
 
 from jobhunter.scan import (
-    Candidate, CandidateInput, Scan, ScanSettings, validate_candidate_status,
+    Candidate, CandidateInput, Scan, ScanSettings, ScanStatus,
+    validate_candidate_status,
 )
 
 _FIXED_TS = "2026-06-26T00:00:00Z"
@@ -21,6 +22,10 @@ class FakeScanStore:
         self._scans: dict[str, Scan] = {}
         self._candidates: dict[str, Candidate] = {}
         self._urls: set[str] = set()
+        self._status = ScanStatus(
+            status="idle", started_at=None, finished_at=None,
+            new_count=0, site_summary={},
+        )
         self._scan_ids = (f"scan-{n}" for n in itertools.count(1))
         self._cand_ids = (f"cand-{n}" for n in itertools.count(1))
 
@@ -85,3 +90,20 @@ class FakeScanStore:
 
     def list_scans(self) -> list[Scan]:
         return sorted(self._scans.values(), key=lambda s: s.id, reverse=True)
+
+    def mark_scan_running(self) -> ScanStatus:
+        self._status = ScanStatus(
+            status="running", started_at=_FIXED_TS, finished_at=None,
+            new_count=0, site_summary={},
+        )
+        return self._status
+
+    def mark_scan_completed(self, *, new_count, site_summary) -> ScanStatus:
+        self._status = ScanStatus(
+            status="completed", started_at=self._status.started_at,
+            finished_at=_FIXED_TS, new_count=new_count, site_summary=site_summary,
+        )
+        return self._status
+
+    def get_scan_status(self) -> ScanStatus:
+        return self._status

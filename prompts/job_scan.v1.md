@@ -33,6 +33,11 @@ For EACH enabled site, and for EACH search title (keyword):
 
 Pace yourself like a human (small delays, no rapid-fire navigation).
 
+**Do all of this synchronously in THIS turn.** Do NOT defer the work to a
+background task, do NOT end your turn early with a "I'll report when it finishes"
+message, and do NOT promise a later result. Keep working until every site is
+done, then output the final JSON below as your LAST message.
+
 ## Fit rules (quality over quantity)
 
 Judge each listing against the candidate profile and keep only real matches:

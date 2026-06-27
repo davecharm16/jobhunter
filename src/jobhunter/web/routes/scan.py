@@ -143,6 +143,10 @@ def post_results(
         status=payload.status, site_summary=payload.site_summary,
         candidates=cands,
     )
+    try:
+        store.mark_scan_completed(new_count=new, site_summary=payload.site_summary)
+    except Exception:  # noqa: BLE001 - status tracking must not fail ingest
+        pass
     if new > 0:
         try:
             cfg = load_runtime_config()
@@ -248,6 +252,7 @@ def get_scan_trigger() -> ScanTriggerFn:
 @router.post("/api/scan/run")
 def run_scan(
     trigger: ScanTriggerFn = Depends(get_scan_trigger),
+    store: ScanStore = Depends(get_store),
 ) -> dict[str, Any]:
     try:
         url = load_runtime_config().n8n_scan_trigger_url
@@ -264,7 +269,16 @@ def run_scan(
         raise HTTPException(
             status_code=502, detail=f"failed to reach scan engine: {exc}"
         ) from exc
+    try:
+        store.mark_scan_running()
+    except Exception:  # noqa: BLE001 - status tracking must not fail the trigger
+        pass
     return {"triggered": True}
+
+
+@router.get("/api/scan/status")
+def scan_status(store: ScanStore = Depends(get_store)) -> dict[str, Any]:
+    return store.get_scan_status().to_dict()
 
 
 # --- Screenshot → JD extraction (Claude Code vision, via n8n) -----------------

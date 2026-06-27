@@ -67,6 +67,18 @@ export async function listScans(): Promise<Scan[]> {
   return json(await fetch("/api/scan/scans"), "listScans");
 }
 
+export type ScanStatus = {
+  status: "idle" | "running" | "completed" | "error";
+  started_at: string | null;
+  finished_at: string | null;
+  new_count: number;
+  site_summary: Record<string, { status: string; count: number }>;
+};
+
+export async function getScanStatus(): Promise<ScanStatus> {
+  return json(await fetch("/api/scan/status"), "getScanStatus");
+}
+
 export async function listCandidates(scanId?: string): Promise<Candidate[]> {
   const q = scanId ? `?scan_id=${encodeURIComponent(scanId)}` : "";
   return json(await fetch(`/api/scan/candidates${q}`), "listCandidates");

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   listScans, listCandidates, dismissCandidate, generateFromCandidate, runScan,
-  SITES, SITE_LABEL, type Scan, type Candidate, type Site,
+  getScanStatus, SITES, SITE_LABEL,
+  type Scan, type Candidate, type Site, type ScanStatus,
 } from "./api/scan";
 
 type Tab = "all" | Site;
@@ -12,6 +13,8 @@ export function JobScanPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [status, setStatus] = useState<ScanStatus | null>(null);
+  const prevStatusRef = useRef<string | null>(null);
 
   // filters
   const [tab, setTab] = useState<Tab>("all");
@@ -26,11 +29,38 @@ export function JobScanPage() {
   };
   useEffect(() => { refresh(); }, []);
 
+  // Poll live scan status; when it transitions running -> completed, refresh list.
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const st = await getScanStatus();
+        if (cancelled) return;
+        setStatus(st);
+        if (prevStatusRef.current === "running" && st.status !== "running") {
+          refresh();
+        }
+        prevStatusRef.current = st.status;
+      } catch {
+        /* ignore transient poll errors */
+      }
+    };
+    tick();
+    const id = setInterval(tick, 5000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  const isRunning = status?.status === "running" || running;
+
   const onRun = async () => {
     setRunning(true);
     try {
       await runScan();
-      alert("Scan started — new candidates will appear here shortly. Refresh in a moment.");
+      setStatus({
+        status: "running", started_at: new Date().toISOString(),
+        finished_at: null, new_count: 0, site_summary: {},
+      });
+      prevStatusRef.current = "running";
     } catch (e) {
       alert(`Couldn't start scan: ${(e as Error).message}`);
     } finally {
@@ -100,13 +130,31 @@ export function JobScanPage() {
         <h1 className="text-headline-md font-bold">Job Scan</h1>
         <button
           type="button"
-          disabled={running}
+          disabled={isRunning}
           onClick={onRun}
           className="px-4 py-2 bg-primary text-on-primary rounded text-body-md disabled:opacity-50"
         >
-          {running ? "Starting…" : "Run scan now"}
+          {isRunning ? "Scanning…" : "Run scan now"}
         </button>
       </div>
+
+      {/* live scan-in-progress banner */}
+      {status?.status === "running" && (
+        <div className="flex items-center gap-stack-sm mb-stack-md p-3 rounded-lg border border-primary bg-secondary-container">
+          <span className="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <span className="text-body-md font-bold text-on-surface">Scan in progress…</span>
+          <span className="text-body-sm text-on-surface-variant">
+            {status.started_at
+              ? `started ${Math.max(0, Math.round((Date.now() - new Date(status.started_at).getTime()) / 1000))}s ago — browsing the sites, this takes a few minutes`
+              : "browsing the sites…"}
+          </span>
+        </div>
+      )}
+      {status?.status === "completed" && status.finished_at && (
+        <div className="mb-stack-md p-3 rounded-lg border border-outline-variant bg-surface-container-low text-body-sm text-on-surface-variant">
+          ✅ Last scan finished {new Date(status.finished_at).toLocaleString()} — {status.new_count} new candidate{status.new_count === 1 ? "" : "s"}.
+        </div>
+      )}
 
       {/* latest-scan per-site status chips */}
       {latestScan && (
