@@ -1,71 +1,46 @@
 #!/usr/bin/env bash
 # Invoked by the n8n Execute Command node. Reads BASE64-encoded JSON scan inputs
-# on stdin (base64 is shell-safe: no quotes/newlines to escape through n8n),
-# fills the baked-in prompt template /opt/scan/job_scan.v1.md with those inputs,
-# runs Claude headless with the Playwright MCP, and prints Claude's result JSON
-# envelope to stdout for n8n to parse.
+# on stdin, then scans the enabled sites ONE AT A TIME — a separate Claude +
+# Playwright run per site (sites_enabled=[that site]). Keeping each run small
+# (7 titles × 1 site) means Claude finishes in a single turn instead of deferring
+# the work to a background task (which used to hang / return prose). All sites'
+# candidates are aggregated into ONE combined JSON printed to stdout for n8n.
+# Per-site progress + Claude's own logs go to stderr (visible in the n8n node).
 #
-# stdin: base64 of JSON { search_titles, sites_enabled, picks_per_site,
+# stdin: base64 of JSON { search_titles, sites_enabled, picks_per_site, location,
 #                         canonical_profile, known_urls }
 #
-# Auth (set on the n8n service): CLAUDE_CODE_OAUTH_TOKEN (runs on your Claude
-# subscription). Do NOT set ANTHROPIC_API_KEY in this container — it overrides
-# the OAuth token. The `claude` CLI reads CLAUDE_CODE_OAUTH_TOKEN from the env.
+# Auth (set on the n8n service): CLAUDE_CODE_OAUTH_TOKEN. Do NOT set
+# ANTHROPIC_API_KEY (it overrides the OAuth token).
 set -euo pipefail
 
-# The n8n container runs as root, and Claude Code refuses
-# --permission-mode bypassPermissions / --dangerously-skip-permissions as root
-# unless it's told it's in a sandbox. IS_SANDBOX=1 is that escape hatch (this IS
-# an isolated container, so it's appropriate).
+# Root container → Claude needs the sandbox escape hatch for bypassPermissions.
 export IS_SANDBOX=1
-
-# Claude was deferring the scan to a background task and ending its turn early
-# ("I'll report when it finishes"), then Claude Code killed the background work
-# at the default 600s ceiling — so the result was prose, not JSON. Wait
-# indefinitely for background work to finish so the real JSON is returned.
-export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0
+# Finite ceiling (15 min) so a stuck site can't hang the whole run forever.
+# (Was 0 = infinite, which let a deferred scan hang indefinitely.)
+export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=900000
 
 INPUTS_JSON="$(cat | base64 -d)"
 
-# Fill the template with the inputs (robust replace in Node — avoids sed/quoting
-# pitfalls with multi-line JSON values).
-PROMPT="$(INPUTS_JSON="$INPUTS_JSON" node -e '
-  const fs = require("fs");
-  const t = fs.readFileSync("/opt/scan/job_scan.v1.md", "utf8");
-  const i = JSON.parse(process.env.INPUTS_JSON);
-  const out = t
-    .split("{{SEARCH_TITLES}}").join(JSON.stringify(i.search_titles))
-    .split("{{SITES_ENABLED}}").join(JSON.stringify(i.sites_enabled))
-    .split("{{LOCATION}}").join(i.location || "(none — search broadly / use profile location)")
-    .split("{{PICKS_PER_SITE}}").join(String(i.picks_per_site))
-    .split("{{CANONICAL_PROFILE}}").join(JSON.stringify(i.canonical_profile))
-    .split("{{KNOWN_URLS}}").join(JSON.stringify(i.known_urls));
-  process.stdout.write(out);
-')"
-
-# Generate the Playwright MCP config (referenced by /opt/scan/mcp.json). If
-# SCAN_PROXY_HOSTS is set, route the browser through a residential proxy so
-# Cloudflare-gated sites (Indeed, JobStreet) don't block the datacenter IP. One
-# host is picked at random per run for IP rotation. Creds come from env only —
-# never committed. No proxy env → direct connection (LinkedIn/OnlineJobs still work).
-PW_CONFIG=/opt/scan/pw-config.json
-# Anti-bot hardening (helps with DataDome/Cloudflare on JobStreet/Indeed): a real
-# desktop Chrome UA + viewport + locale, and disable the automation flag that
-# leaks navigator.webdriver. (Full playwright-extra stealth would need a custom
-# MCP; this is the config-level layer that @playwright/mcp supports.)
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-PROXY_JSON=""
-if [ -n "${SCAN_PROXY_HOSTS:-}" ]; then
-  PROXY_HOST="$(printf '%s' "$SCAN_PROXY_HOSTS" | tr ',; ' '\n\n\n' | grep -v '^[[:space:]]*$' | shuf -n1 | tr -d '[:space:]')"
-  PROXY_JSON=", \"proxy\": { \"server\": \"http://${PROXY_HOST}\", \"username\": \"${SCAN_PROXY_USERNAME:-}\", \"password\": \"${SCAN_PROXY_PASSWORD:-}\" }"
-  echo "scan: routing browser through residential proxy ${PROXY_HOST}" >&2
-fi
-cat > "$PW_CONFIG" <<EOF
+PW_CONFIG=/opt/scan/pw-config.json
+
+# (Re)write the Playwright MCP config, picking a fresh residential proxy IP each
+# call so each site rotates to a different exit IP. Anti-bot hardening: real
+# desktop UA + viewport + locale, and disable the navigator.webdriver flag.
+write_pw_config() {
+  local proxy_json="" host
+  if [ -n "${SCAN_PROXY_HOSTS:-}" ]; then
+    host="$(printf '%s' "$SCAN_PROXY_HOSTS" | tr ',; ' '\n\n\n' | grep -v '^[[:space:]]*$' | shuf -n1 | tr -d '[:space:]')"
+    proxy_json=", \"proxy\": { \"server\": \"http://${host}\", \"username\": \"${SCAN_PROXY_USERNAME:-}\", \"password\": \"${SCAN_PROXY_PASSWORD:-}\" }"
+    echo "scan: proxy ${host}" >&2
+  fi
+  cat > "$PW_CONFIG" <<EOF
 { "browser": {
   "browserName": "chromium",
   "launchOptions": {
     "headless": true,
-    "args": ["--disable-blink-features=AutomationControlled", "--no-sandbox"]${PROXY_JSON}
+    "args": ["--disable-blink-features=AutomationControlled", "--no-sandbox"]${proxy_json}
   },
   "contextOptions": {
     "userAgent": "${UA}",
@@ -74,9 +49,65 @@ cat > "$PW_CONFIG" <<EOF
   }
 } }
 EOF
+}
 
-claude -p "$PROMPT" \
-  --mcp-config /opt/scan/mcp.json \
-  --allowedTools "mcp__playwright__*" \
-  --permission-mode bypassPermissions \
-  --output-format json
+SITES="$(printf '%s' "$INPUTS_JSON" | node -e 'const i=JSON.parse(require("fs").readFileSync(0,"utf8"));process.stdout.write((i.sites_enabled||[]).join(" "))')"
+
+TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR"' EXIT
+
+for site in $SITES; do
+  echo "scan: ===== ${site}: starting =====" >&2
+  write_pw_config
+  PROMPT="$(INPUTS_JSON="$INPUTS_JSON" SITE="$site" node -e '
+    const fs = require("fs");
+    const t = fs.readFileSync("/opt/scan/job_scan.v1.md", "utf8");
+    const i = JSON.parse(process.env.INPUTS_JSON);
+    const site = process.env.SITE;
+    const out = t
+      .split("{{SEARCH_TITLES}}").join(JSON.stringify(i.search_titles))
+      .split("{{SITES_ENABLED}}").join(JSON.stringify([site]))
+      .split("{{LOCATION}}").join(i.location || "(none — search broadly / use profile location)")
+      .split("{{PICKS_PER_SITE}}").join(String(i.picks_per_site))
+      .split("{{CANONICAL_PROFILE}}").join(JSON.stringify(i.canonical_profile))
+      .split("{{KNOWN_URLS}}").join(JSON.stringify(i.known_urls));
+    process.stdout.write(out);
+  ')"
+  if claude -p "$PROMPT" \
+       --mcp-config /opt/scan/mcp.json \
+       --allowedTools "mcp__playwright__*" \
+       --permission-mode bypassPermissions \
+       --output-format json > "$TMPDIR/${site}.json"; then
+    echo "scan: ===== ${site}: done =====" >&2
+  else
+    echo "scan: ===== ${site}: claude exited nonzero =====" >&2
+  fi
+done
+
+# Aggregate every site's result into ONE combined object for n8n's Parse node.
+node -e '
+  const fs = require("fs");
+  const dir = process.argv[1];
+  const sites = process.argv.slice(2);
+  const agg = { started_at: null, finished_at: null, site_summary: {}, candidates: [] };
+  for (const site of sites) {
+    let env;
+    try { env = JSON.parse(fs.readFileSync(dir + "/" + site + ".json", "utf8")); }
+    catch (e) { agg.site_summary[site] = { status: "error", count: 0 }; continue; }
+    let inner = (env && env.result !== undefined) ? env.result : env;
+    let payload = null;
+    if (typeof inner === "string") {
+      const a = inner.indexOf("{"), b = inner.lastIndexOf("}");
+      if (a >= 0 && b > a) { try { payload = JSON.parse(inner.slice(a, b + 1)); } catch (e) {} }
+    } else if (inner && typeof inner === "object") {
+      payload = inner;
+    }
+    if (payload && Array.isArray(payload.candidates)) {
+      agg.candidates.push(...payload.candidates);
+      Object.assign(agg.site_summary, payload.site_summary || {});
+    } else {
+      agg.site_summary[site] = { status: "error", count: 0 };
+    }
+  }
+  process.stdout.write(JSON.stringify(agg));
+' "$TMPDIR" $SITES
