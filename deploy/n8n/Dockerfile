@@ -7,8 +7,12 @@ ENV N8N_PORT=5678 \
     NODE_ENV=production \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-# n8n, Claude Code CLI, Playwright MCP (global)
-RUN npm install -g n8n@latest @anthropic-ai/claude-code @playwright/mcp \
+# The Playwright jammy base ships Node 22.11, but n8n REFUSES to start on
+# anything below 22.22. Bump Node to a supported 22.x via `n` before installing.
+RUN npm install -g n && n 22.22.1 && npm cache clean --force
+
+# n8n, Claude Code CLI, Playwright MCP (global) — installed with the bumped Node
+RUN node -v && npm install -g n8n@latest @anthropic-ai/claude-code @playwright/mcp \
     && npm cache clean --force
 
 # Scan assets baked into the image (the workflow references these paths).
