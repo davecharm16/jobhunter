@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   listScans, listCandidates, dismissCandidate, generateFromCandidate, runScan,
   getScanStatus, SITES, SITE_LABEL,
@@ -6,6 +6,14 @@ import {
 } from "./api/scan";
 
 type Tab = "all" | Site;
+
+// "45s" under a minute, "2m 5s" at/over a minute.
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${s}s`;
+}
 
 export function JobScanPage() {
   const [scans, setScans] = useState<Scan[]>([]);
@@ -50,7 +58,76 @@ export function JobScanPage() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
+  // Tick once a second while running so the elapsed-time readout stays live
+  // between the 5s status polls.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (status?.status !== "running") return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [status?.status]);
+
   const isRunning = status?.status === "running" || running;
+
+  const elapsedSeconds = status?.started_at
+    ? Math.max(0, Math.floor((now - new Date(status.started_at).getTime()) / 1000))
+    : 0;
+
+  // The next queued site after the last completed one is the active step.
+  const activeSite: Site | null =
+    status?.status === "running"
+      ? SITES.find((s) => !(status.per_site ?? {})[s]) ?? null
+      : null;
+
+  // One pipeline step per site, visual state driven by per_site[site].
+  const renderStep = (site: Site): ReactNode => {
+    const info = status?.per_site?.[site];
+    const isActive = activeSite === site;
+    let detail: ReactNode = "queued";
+    let cls = "text-on-surface-variant opacity-50";
+    let icon: ReactNode = (
+      <span className="inline-block w-2 h-2 rounded-full bg-outline-variant" />
+    );
+    if (info) {
+      if (info.status === "ok") {
+        cls = "text-primary";
+        detail = `✓ ${info.count}`;
+        icon = null;
+      } else if (info.status === "blocked") {
+        cls = "text-amber-600";
+        detail = "blocked";
+        icon = null;
+      } else if (info.status === "empty") {
+        cls = "text-on-surface-variant";
+        detail = "no matches";
+        icon = null;
+      } else if (info.status === "error") {
+        cls = "text-red-600";
+        detail = "error";
+        icon = null;
+      } else {
+        cls = "text-on-surface-variant";
+        detail = info.status;
+        icon = null;
+      }
+    } else if (isActive) {
+      cls = "text-primary";
+      detail = "scanning…";
+      icon = (
+        <span className="inline-block w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      );
+    }
+    return (
+      <div className={`flex flex-col items-center gap-1 text-center ${cls}`}>
+        <div className="flex items-center gap-1.5">
+          {icon}
+          <span className="text-body-sm font-bold">{SITE_LABEL[site]}</span>
+        </div>
+        <span className="text-label-sm">{detail}</span>
+      </div>
+    );
+  };
 
   const onRun = async () => {
     setRunning(true);
@@ -138,16 +215,35 @@ export function JobScanPage() {
         </button>
       </div>
 
-      {/* live scan-in-progress banner */}
-      {status?.status === "running" && (
-        <div className="flex items-center gap-stack-sm mb-stack-md p-3 rounded-lg border border-primary bg-secondary-container">
-          <span className="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <span className="text-body-md font-bold text-on-surface">Scan in progress…</span>
-          <span className="text-body-sm text-on-surface-variant">
-            {status.started_at
-              ? `started ${Math.max(0, Math.round((Date.now() - new Date(status.started_at).getTime()) / 1000))}s ago — browsing the sites, this takes a few minutes`
-              : "browsing the sites…"}
-          </span>
+      {/* live scan pipeline — one step per site, run sequentially */}
+      {(status?.status === "running" || status?.status === "completed") && (
+        <div className="mb-stack-md p-3 rounded-lg border border-outline-variant bg-surface-container-high">
+          <div className="flex items-center gap-stack-sm mb-stack-sm">
+            {status.status === "running" ? (
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span className="text-body-md font-bold text-on-surface">Scan in progress</span>
+                <span className="text-body-sm text-on-surface-variant">
+                  {formatElapsed(elapsedSeconds)} elapsed — one site at a time
+                </span>
+              </>
+            ) : (
+              <span className="text-body-md font-bold text-on-surface">Last scan pipeline</span>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-stack-xs">
+            {SITES.map((site, i) => (
+              <Fragment key={site}>
+                {renderStep(site)}
+                {i < SITES.length - 1 && (
+                  <span
+                    aria-hidden
+                    className="flex-1 border-t border-dashed border-outline-variant mx-1"
+                  />
+                )}
+              </Fragment>
+            ))}
+          </div>
         </div>
       )}
       {status?.status === "completed" && status.finished_at && (
