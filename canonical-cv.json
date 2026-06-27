@@ -10,7 +10,7 @@
     "email": "davecharm16@gmail.com",
     "phone": "+63-961-478-1574",
     "url": "https://portfolio-poc-web.vercel.app",
-    "summary": "Solutions Designer and Full Stack Developer who bridges technical implementation, architecture, and user-centered design. Currently at Stratpoint driving pre-sales solutioning (NextERP, workforce-management, MDM) and internal initiatives (AI-assisted delivery process mapping, AI enablement training). Hands-on engineer + architect on a Shopify + React/Remix e-commerce venture (Zoomy For Pets / Cedar Tree Brands Inc.), building custom analytics plugins and shipping with Claude Code-driven AI-assisted development. Freelance side-project depth across healthcare (React Native locums-nurse app), sports SaaS (Next.js + Stripe + Inngest tournament platform), and developer tooling (Go + Pixi.js gamified tracker with custom SDK and daemon). Prior production depth in cross-platform mobile (React Native, Flutter, native Android/Java) on fintech and retail apps. Comfortable shipping end-to-end on solo projects — from Arduino capstone hardware to LLM-tooling pipelines.",
+    "summary": "Solutions Designer and Full Stack Developer who bridges technical implementation, architecture, and user-centered design. Currently at Stratpoint driving pre-sales solutioning (NextERP, workforce-management, MDM) and internal initiatives (AI-assisted delivery process mapping, AI enablement training). Hands-on engineer + architect on a Shopify + React/Remix e-commerce venture (Zoomy For Pets / Cedar Tree Brands Inc.), building custom analytics plugins and shipping with Claude Code-driven AI-assisted development. Freelance side-project depth across healthcare (React Native locums-nurse app), sports SaaS (Next.js + Stripe + Inngest tournament platform), and developer tooling (Go + Pixi.js gamified tracker with custom SDK and daemon). Prior production depth in cross-platform mobile (React Native, Flutter, native Android/Java) on fintech and retail apps. Comfortable shipping end-to-end on solo projects \u2014 from Arduino capstone hardware to LLM-tooling pipelines. ",
     "location": {
       "city": "Dagupan",
       "countryCode": "PH",
@@ -34,19 +34,45 @@
       "name": "Stratpoint Global Outsourcing Inc.",
       "position": "Solutions Designer",
       "startDate": "2024-10-01",
-      "summary": "Architecture and Governance Team — driving pre-sales solutioning and internal initiatives spanning MDM vendor selection, AI-assisted delivery process mapping, NextERP and workforce-management pre-sales, an active Shopify + Remix e-commerce venture (Zoomy For Pets / Cedar Tree Brands Inc.), the AI enablement training program, and re-architecting the F1 internal resource-management system.",
+      "summary": "Architecture and Governance Team \u2014 driving pre-sales solutioning and internal initiatives spanning MDM vendor selection, AI-assisted delivery process mapping, NextERP and workforce-management pre-sales, an active Shopify + Remix e-commerce venture (Zoomy For Pets / Cedar Tree Brands Inc.), the AI enablement training program, and re-architecting the F1 internal resource-management system.",
       "highlights": [
-        "MDM Solution Initiative — drove the company-wide Mobile Device Management initiative end-to-end: owned the research, analysis, and qualification of candidate MDM vendors, then presented the recommended solution and trade-offs to the company.",
-        "AI Delivery-Process Initiative — mapped Stratpoint's end-to-end delivery process from pre-sales through project closing, identified where AI can compress or replace work in each stage, and recommended specific tools and the resulting process changes for each step.",
-        "NextERP pre-sales — collaborated on solutioning and co-authored the solutions document for a NextERP engagement; mapped client business requirements to a solution targeting their stated pain points.",
-        "Workforce Management System (WFMS) pre-sales — collaborated on solutioning and co-authored the solutions document; mapped business requirements to an architecture that addresses the client's operational pain points.",
-        "Zoomy For Pets / Cedar Tree Brands Inc. venture — wearing engineer + architect hat on the e-commerce application; built on Shopify with React + Remix, including custom Shopify app plugins for analytics. AI-assisted delivery using Claude Code throughout development.",
-        "AI Enablement Training (first-cohort trainer) — one of the first internal trainers responsible for upskilling employees on AI usage. Authored and curated a prompt-compilation, skills, and agent library targeted at repetitive employee tasks so individual contributors can adopt AI without bespoke prompt engineering.",
-        "F1 — internal resource-management system for resource requests: tasked with revamping the project's solution and architecture (partial engagement).",
-        "Craft technical proposals, system blueprints, and integration strategies for pre-sales — directly influencing deal closures and onboarding of new enterprise clients.",
+        "MDM Solution Initiative \u2014 drove the company-wide Mobile Device Management initiative end-to-end: owned the research, analysis, and qualification of candidate MDM vendors, then presented the recommended solution and trade-offs to the company.",
+        "AI Delivery-Process Initiative \u2014 mapped Stratpoint's end-to-end delivery process from pre-sales through project closing, identified where AI can compress or replace work in each stage, and recommended specific tools and the resulting process changes for each step.",
+        "NextERP pre-sales \u2014 collaborated on solutioning and co-authored the solutions document for a NextERP engagement; mapped client business requirements to a solution targeting their stated pain points.",
+        "Workforce Management System (WFMS) pre-sales \u2014 collaborated on solutioning and co-authored the solutions document; mapped business requirements to an architecture that addresses the client's operational pain points.",
+        "Zoomy For Pets / Cedar Tree Brands Inc. venture \u2014 wearing engineer + architect hat on the e-commerce application; built on Shopify with React + Remix, including custom Shopify app plugins for analytics. AI-assisted delivery using Claude Code throughout development.",
+        "AI Enablement Training (first-cohort trainer) \u2014 one of the first internal trainers responsible for upskilling employees on AI usage. Authored and curated a prompt-compilation, skills, and agent library targeted at repetitive employee tasks so individual contributors can adopt AI without bespoke prompt engineering.",
+        "F1 \u2014 internal resource-management system for resource requests: tasked with revamping the project's solution and architecture (partial engagement).",
+        "Craft technical proposals, system blueprints, and integration strategies for pre-sales \u2014 directly influencing deal closures and onboarding of new enterprise clients.",
         "Bridge technical feasibility with business value, ensuring alignment between stakeholder goals and system capabilities."
       ],
-      "tags": ["software-architecture", "solutions-design", "pre-sales", "mdm", "vendor-qualification", "erp", "nexterp", "workforce-management", "wfms", "ai", "ai-process-mapping", "ai-enablement", "training", "prompt-engineering", "claude-code", "shopify", "remix", "react", "ecommerce", "analytics-plugin", "engineering-architecture", "aws", "cloud-native", "agile", "scrum"],
+      "tags": [
+        "software-architecture",
+        "solutions-design",
+        "pre-sales",
+        "mdm",
+        "vendor-qualification",
+        "erp",
+        "nexterp",
+        "workforce-management",
+        "wfms",
+        "ai",
+        "ai-process-mapping",
+        "ai-enablement",
+        "training",
+        "prompt-engineering",
+        "claude-code",
+        "shopify",
+        "remix",
+        "react",
+        "ecommerce",
+        "analytics-plugin",
+        "engineering-architecture",
+        "aws",
+        "cloud-native",
+        "agile",
+        "scrum"
+      ],
       "highImpact": true
     },
     {
@@ -54,7 +80,7 @@
       "position": "Mobile Developer",
       "startDate": "2024-08-01",
       "endDate": "2024-10-31",
-      "summary": "Cross-platform mobile developer shipping features across financial-services and retail products — USSC Super Service App, USSC Business Solution (UBS Pay1st), and Go Salads POS.",
+      "summary": "Cross-platform mobile developer shipping features across financial-services and retail products \u2014 USSC Super Service App, USSC Business Solution (UBS Pay1st), and Go Salads POS.",
       "highlights": [
         "USSC Super Service App (consumer remittance/bills-payment/prepaid app, nationwide): engineered cross-platform enhancements in React Native, optimizing performance and iOS/Android compatibility.",
         "USSC Super Service App: full refactor of the bank remittance transfer feature, achieving faster transactions and smoother user interactions.",
@@ -66,7 +92,20 @@
         "USSC Business Solution: integrated core-service APIs enabling real-time data exchange between app and backend.",
         "Go Salads POS (in-store point-of-sale + inventory + sales-insights app): provided critical production support; resolved a connectivity bug affecting lower-version Android devices, broadening device-stability coverage."
       ],
-      "tags": ["react-native", "expo", "ios", "android", "java", "realmdb", "mobile", "fintech", "retail", "pos", "production-support", "performance"],
+      "tags": [
+        "react-native",
+        "expo",
+        "ios",
+        "android",
+        "java",
+        "realmdb",
+        "mobile",
+        "fintech",
+        "retail",
+        "pos",
+        "production-support",
+        "performance"
+      ],
       "highImpact": true
     },
     {
@@ -74,15 +113,29 @@
       "position": "Software Engineering Intern (Mobile, Flutter)",
       "startDate": "2024-02-01",
       "endDate": "2024-05-31",
-      "summary": "Cross-platform mobile internship — contributed to Wookie, Stratpoint's internal workspace-booking app, while completing intensive bootcamps on Scrum, Git, DevOps, QA, and Flutter.",
+      "summary": "Cross-platform mobile internship \u2014 contributed to Wookie, Stratpoint's internal workspace-booking app, while completing intensive bootcamps on Scrum, Git, DevOps, QA, and Flutter.",
       "highlights": [
         "Wookie (internal workspace-booking app for reserving workstations and scheduling events): contributed feature work that streamlined the booking workflow and improved user experience.",
         "Wookie: collaborated cross-functionally to ensure seamless integration with other Stratpoint internal systems.",
         "Wookie: built robust, maintainable code applying Flutter, Dart, Domain-Driven Design architecture, database management, and API integration.",
-        "Engaged in code reviews and testing within an Agile/Scrum workflow on YouTrack — upheld code-quality standards on a team-shipped product.",
+        "Engaged in code reviews and testing within an Agile/Scrum workflow on YouTrack \u2014 upheld code-quality standards on a team-shipped product.",
         "Completed intensive bootcamps on Scrum, Git, DevOps, QA, and Flutter (basic-to-advanced) during the internship period."
       ],
-      "tags": ["flutter", "dart", "ddd", "modular-ddd", "mobile", "ios", "android", "git", "gitlab", "youtrack", "agile", "scrum", "internship"],
+      "tags": [
+        "flutter",
+        "dart",
+        "ddd",
+        "modular-ddd",
+        "mobile",
+        "ios",
+        "android",
+        "git",
+        "gitlab",
+        "youtrack",
+        "agile",
+        "scrum",
+        "internship"
+      ],
       "highImpact": true
     },
     {
@@ -90,14 +143,22 @@
       "position": "Frontend Developer",
       "startDate": "2023-06-01",
       "endDate": "2023-12-31",
-      "summary": "Remote frontend contributor on a reservation product — built the front-office web app, a React Native mobile prototype, and site design/prototypes.",
+      "summary": "Remote frontend contributor on a reservation product \u2014 built the front-office web app, a React Native mobile prototype, and site design/prototypes.",
       "highlights": [
         "Worked remotely with developers and project managers to deliver modules for a Reservation Website.",
         "Built the front-office reservation application using Next.js and TypeScript.",
         "Prototyped a React Native mobile application for a Coromar Tech client.",
         "Designed and prototyped the company-facing website."
       ],
-      "tags": ["next.js", "typescript", "react-native", "frontend", "ui-ux", "prototyping", "remote"]
+      "tags": [
+        "next.js",
+        "typescript",
+        "react-native",
+        "frontend",
+        "ui-ux",
+        "prototyping",
+        "remote"
+      ]
     }
   ],
   "education": [
@@ -114,86 +175,296 @@
     {
       "name": "Mobile",
       "level": "Advanced",
-      "keywords": ["React Native", "Flutter", "Dart", "Expo", "iOS", "Android", "Java", "RealmDB", "BLoC", "Riverpod", "GetIt"],
-      "tags": ["mobile", "react-native", "flutter", "ios", "android", "cross-platform"],
+      "keywords": [
+        "React Native",
+        "Flutter",
+        "Dart",
+        "Expo",
+        "iOS",
+        "Android",
+        "Java",
+        "RealmDB",
+        "BLoC",
+        "Riverpod",
+        "GetIt"
+      ],
+      "tags": [
+        "mobile",
+        "react-native",
+        "flutter",
+        "ios",
+        "android",
+        "cross-platform"
+      ],
       "highImpact": true
     },
     {
       "name": "Frontend",
       "level": "Advanced",
-      "keywords": ["React", "Next.js", "Remix", "TypeScript", "JavaScript", "Vue.js", "Redux", "Tailwind CSS", "Vite", "Framer Motion", "Embla Carousel", "Strapi (Headless CMS)", "Figma"],
-      "tags": ["frontend", "spa", "react", "next.js", "remix", "typescript", "strapi", "framer-motion"],
+      "keywords": [
+        "React",
+        "Next.js",
+        "Remix",
+        "TypeScript",
+        "JavaScript",
+        "Vue.js",
+        "Redux",
+        "Tailwind CSS",
+        "Vite",
+        "Framer Motion",
+        "Embla Carousel",
+        "Strapi (Headless CMS)",
+        "Figma"
+      ],
+      "tags": [
+        "frontend",
+        "spa",
+        "react",
+        "next.js",
+        "remix",
+        "typescript",
+        "strapi",
+        "framer-motion"
+      ],
       "highImpact": true
     },
     {
       "name": "E-commerce",
       "level": "Intermediate",
-      "keywords": ["Shopify", "Shopify App Plugins", "Remix", "React", "Analytics Integration"],
-      "tags": ["ecommerce", "shopify", "remix", "analytics-plugin"]
+      "keywords": [
+        "Shopify",
+        "Shopify App Plugins",
+        "Remix",
+        "React",
+        "Analytics Integration"
+      ],
+      "tags": [
+        "ecommerce",
+        "shopify",
+        "remix",
+        "analytics-plugin"
+      ]
     },
     {
       "name": "AI Engineering & Tooling",
       "level": "Advanced",
-      "keywords": ["Claude Code", "AI-Assisted Development", "Prompt Engineering", "Prompt Compilations", "Custom Skills", "Custom Claude Agents", "LLM Tool Use", "AI Process Mapping", "AI Enablement Training", "BMAD Workflow", "Superpowers Extension", "Agent Orchestration"],
-      "tags": ["ai", "claude-code", "prompt-engineering", "llm", "ai-tooling", "ai-enablement", "training", "bmad", "superpowers", "agent-orchestration"],
+      "keywords": [
+        "Claude Code",
+        "AI-Assisted Development",
+        "Prompt Engineering",
+        "Prompt Compilations",
+        "Custom Skills",
+        "Custom Claude Agents",
+        "LLM Tool Use",
+        "AI Process Mapping",
+        "AI Enablement Training",
+        "BMAD Workflow",
+        "Superpowers Extension",
+        "Agent Orchestration"
+      ],
+      "tags": [
+        "ai",
+        "claude-code",
+        "prompt-engineering",
+        "llm",
+        "ai-tooling",
+        "ai-enablement",
+        "training",
+        "bmad",
+        "superpowers",
+        "agent-orchestration"
+      ],
       "highImpact": true
     },
     {
       "name": "Game & Visualization",
       "level": "Intermediate",
-      "keywords": ["Pixi.js", "2D Rendering", "Gamification UX"],
-      "tags": ["pixi.js", "gamification", "2d-rendering"]
+      "keywords": [
+        "Pixi.js",
+        "2D Rendering",
+        "Gamification UX"
+      ],
+      "tags": [
+        "pixi.js",
+        "gamification",
+        "2d-rendering"
+      ]
     },
     {
       "name": "Solutions & Pre-Sales",
       "level": "Advanced",
-      "keywords": ["Pre-Sales Solutioning", "Solutions Documents", "Business Requirements Mapping", "Vendor Qualification", "MDM Vendor Analysis", "ERP Solutioning", "Workforce Management Solutioning", "Process Mapping", "Technical Proposals", "System Blueprints", "Integration Strategies"],
-      "tags": ["pre-sales", "solutions-design", "vendor-qualification", "mdm", "erp", "wfms", "process-mapping"],
+      "keywords": [
+        "Pre-Sales Solutioning",
+        "Solutions Documents",
+        "Business Requirements Mapping",
+        "Vendor Qualification",
+        "MDM Vendor Analysis",
+        "ERP Solutioning",
+        "Workforce Management Solutioning",
+        "Process Mapping",
+        "Technical Proposals",
+        "System Blueprints",
+        "Integration Strategies"
+      ],
+      "tags": [
+        "pre-sales",
+        "solutions-design",
+        "vendor-qualification",
+        "mdm",
+        "erp",
+        "wfms",
+        "process-mapping"
+      ],
       "highImpact": true
     },
     {
       "name": "Backend",
       "level": "Intermediate",
-      "keywords": ["Node.js", "Express", "Go", "GraphQL", "Prisma", "Python", "PHP", "PostgreSQL", "Neon", "MySQL", "MongoDB", "Firebase", "Supabase", "Inngest", "Stripe", "REST APIs", "Custom SDK Design", "Daemon Programming"],
-      "tags": ["backend", "api", "database", "node.js", "go", "python", "stripe", "neon", "inngest", "sdk-design", "daemon"]
+      "keywords": [
+        "Node.js",
+        "Express",
+        "Go",
+        "GraphQL",
+        "Prisma",
+        "Python",
+        "PHP",
+        "PostgreSQL",
+        "Neon",
+        "MySQL",
+        "MongoDB",
+        "Firebase",
+        "Supabase",
+        "Inngest",
+        "Stripe",
+        "REST APIs",
+        "Custom SDK Design",
+        "Daemon Programming"
+      ],
+      "tags": [
+        "backend",
+        "api",
+        "database",
+        "node.js",
+        "go",
+        "python",
+        "stripe",
+        "neon",
+        "inngest",
+        "sdk-design",
+        "daemon"
+      ]
     },
     {
       "name": "Architecture & DevOps",
       "level": "Advanced",
-      "keywords": ["AWS", "AWS RDS", "AWS SNS", "AWS Cognito", "Docker", "Kubernetes", "Nginx", "GitHub Actions / CI-CD", "MonoRepo Architecture", "Software Architecture", "Technical Architecture", "Domain-Driven Design", "Modular DDD", "Legacy Migration (e.g. Parse DB → PostgreSQL)", "SDLC"],
-      "tags": ["aws", "rds", "sns", "cognito", "cloud-native", "devops", "ci-cd", "monorepo", "architecture", "ddd", "solutions-design", "legacy-migration"],
+      "keywords": [
+        "AWS",
+        "AWS RDS",
+        "AWS SNS",
+        "AWS Cognito",
+        "Docker",
+        "Kubernetes",
+        "Nginx",
+        "GitHub Actions / CI-CD",
+        "MonoRepo Architecture",
+        "Software Architecture",
+        "Technical Architecture",
+        "Domain-Driven Design",
+        "Modular DDD",
+        "Legacy Migration (e.g. Parse DB \u2192 PostgreSQL)",
+        "SDLC"
+      ],
+      "tags": [
+        "aws",
+        "rds",
+        "sns",
+        "cognito",
+        "cloud-native",
+        "devops",
+        "ci-cd",
+        "monorepo",
+        "architecture",
+        "ddd",
+        "solutions-design",
+        "legacy-migration"
+      ],
       "highImpact": true
     },
     {
       "name": "Tooling & Methodology",
       "level": "Advanced",
-      "keywords": ["Git", "GitHub", "GitLab", "YouTrack", "Agile", "Scrum", "Unit Testing", "QA/UAT", "Code Review"],
-      "tags": ["tooling", "agile", "scrum", "testing", "git"]
+      "keywords": [
+        "Git",
+        "GitHub",
+        "GitLab",
+        "YouTrack",
+        "Agile",
+        "Scrum",
+        "Unit Testing",
+        "QA/UAT",
+        "Code Review"
+      ],
+      "tags": [
+        "tooling",
+        "agile",
+        "scrum",
+        "testing",
+        "git"
+      ]
     },
     {
       "name": "Embedded / IoT",
       "level": "Intermediate",
-      "keywords": ["Arduino", "C++", "Android", "Object Detection"],
-      "tags": ["iot", "embedded", "arduino", "hardware"]
+      "keywords": [
+        "Arduino",
+        "C++",
+        "Android",
+        "Object Detection"
+      ],
+      "tags": [
+        "iot",
+        "embedded",
+        "arduino",
+        "hardware"
+      ]
     }
   ],
   "projects": [
     {
-      "name": "Zoomy For Pets — Cedar Tree Brands Inc. e-commerce venture",
+      "name": "Zoomy For Pets \u2014 Cedar Tree Brands Inc. e-commerce venture",
       "description": "Active venture project where Dave wears both engineer and architect hat to drive the e-commerce application for Cedar Tree Brands Inc.'s Zoomy For Pets storefront. Tech stack centers on Shopify with React + Remix, plus custom Shopify app plugins for analytics. Delivery uses AI-assisted development with Claude Code throughout.",
       "highlights": [
         "Engineer + architect on the storefront: own both day-to-day implementation and the architecture decisions for the e-commerce application.",
         "Built on Shopify with a React + Remix front end; integrated custom Shopify app plugins for analytics.",
         "AI-assisted development end-to-end with Claude Code as the primary development tool."
       ],
-      "keywords": ["Shopify", "React", "Remix", "TypeScript", "Shopify Apps", "Analytics", "Claude Code", "AI-Assisted Development", "E-commerce"],
+      "keywords": [
+        "Shopify",
+        "React",
+        "Remix",
+        "TypeScript",
+        "Shopify Apps",
+        "Analytics",
+        "Claude Code",
+        "AI-Assisted Development",
+        "E-commerce"
+      ],
       "startDate": "2025-01-01",
       "url": "https://zoomyforpets.com/",
-      "tags": ["shopify", "remix", "react", "ecommerce", "claude-code", "ai-assisted-development", "engineer-architect", "venture"],
+      "tags": [
+        "shopify",
+        "remix",
+        "react",
+        "ecommerce",
+        "claude-code",
+        "ai-assisted-development",
+        "engineer-architect",
+        "venture"
+      ],
       "highImpact": true
     },
     {
-      "name": "Stratpoint AI Enablement Program — First-Cohort Trainer",
+      "name": "Stratpoint AI Enablement Program \u2014 First-Cohort Trainer",
       "description": "First-cohort internal trainer for AI usage across Stratpoint. Facilitated a 30-person cohort across a 3-week program combining face-to-face sessions and async work. Authored and curated a library of prompt compilations, custom Claude skills, and agents that target repetitive employee tasks so individual contributors can adopt AI without bespoke prompt engineering.",
       "highlights": [
         "Selected as one of the first internal trainers responsible for upskilling Stratpoint employees on AI usage.",
@@ -201,34 +472,101 @@
         "Built and curated a prompt-compilation, skills, and agent library targeted at repetitive employee tasks.",
         "Designed offerings so non-engineers can adopt AI without bespoke prompt engineering."
       ],
-      "keywords": ["AI Enablement", "Cohort Facilitation", "30-Person Cohort", "3-Week Program", "Face-to-Face Training", "Async Facilitation", "Claude Code", "Prompt Engineering", "Skills", "AI Agents", "Training", "Curriculum"],
+      "keywords": [
+        "AI Enablement",
+        "Cohort Facilitation",
+        "30-Person Cohort",
+        "3-Week Program",
+        "Face-to-Face Training",
+        "Async Facilitation",
+        "Claude Code",
+        "Prompt Engineering",
+        "Skills",
+        "AI Agents",
+        "Training",
+        "Curriculum"
+      ],
       "startDate": "2025-01-01",
-      "tags": ["ai", "training", "enablement", "facilitation", "cohort", "prompt-engineering", "claude-code", "internal-program"],
+      "tags": [
+        "ai",
+        "training",
+        "enablement",
+        "facilitation",
+        "cohort",
+        "prompt-engineering",
+        "claude-code",
+        "internal-program"
+      ],
       "highImpact": true
     },
     {
-      "name": "F1 — Internal Resource Management System (Stratpoint)",
-      "description": "Internal Stratpoint application for requesting resources. Partial engagement: tasked with revamping the solution and architecture, replacing a React + Parse DB stack with a full-stack Next.js MonoRepo on AWS — PostgreSQL via RDS, AWS SNS for notifications, AWS Cognito for auth, and a GitHub-driven CI/CD pipeline.",
+      "name": "F1 \u2014 Internal Resource Management System (Stratpoint)",
+      "description": "Internal Stratpoint application for requesting resources. Partial engagement: tasked with revamping the solution and architecture, replacing a React + Parse DB stack with a full-stack Next.js MonoRepo on AWS \u2014 PostgreSQL via RDS, AWS SNS for notifications, AWS Cognito for auth, and a GitHub-driven CI/CD pipeline.",
       "highlights": [
         "Re-architected F1 from a React + Parse DB stack to a full-stack Next.js MonoRepo on AWS.",
         "Specified PostgreSQL on AWS RDS as the new persistence layer, AWS SNS for notifications, and AWS Cognito for authentication.",
         "Established a GitHub-driven CI/CD pipeline as part of the new architecture."
       ],
-      "keywords": ["Next.js", "PostgreSQL", "AWS RDS", "AWS SNS", "AWS Cognito", "MonoRepo", "GitHub CI/CD", "Architecture Revamp", "Resource Management", "Legacy Migration", "Parse DB"],
+      "keywords": [
+        "Next.js",
+        "PostgreSQL",
+        "AWS RDS",
+        "AWS SNS",
+        "AWS Cognito",
+        "MonoRepo",
+        "GitHub CI/CD",
+        "Architecture Revamp",
+        "Resource Management",
+        "Legacy Migration",
+        "Parse DB"
+      ],
       "startDate": "2025-01-01",
-      "tags": ["internal-tooling", "architecture-revamp", "resource-management", "next.js", "aws", "rds", "cognito", "sns", "monorepo", "ci-cd", "legacy-migration"]
+      "tags": [
+        "internal-tooling",
+        "architecture-revamp",
+        "resource-management",
+        "next.js",
+        "aws",
+        "rds",
+        "cognito",
+        "sns",
+        "monorepo",
+        "ci-cd",
+        "legacy-migration"
+      ]
     },
     {
       "name": "MDM Solution Initiative (Stratpoint internal)",
-      "description": "Drove Stratpoint's Mobile Device Management (MDM) solution initiative from research through presentation. Evaluated 4 candidate MDM vendors — Sophos, ManageEngine, NinjaOne, and Scalefusion — and delivered the recommendation to internal stakeholders.",
+      "description": "Drove Stratpoint's Mobile Device Management (MDM) solution initiative from research through presentation. Evaluated 4 candidate MDM vendors \u2014 Sophos, ManageEngine, NinjaOne, and Scalefusion \u2014 and delivered the recommendation to internal stakeholders.",
       "highlights": [
         "Owned research and analysis across 4 candidate MDM vendors: Sophos, ManageEngine, NinjaOne, and Scalefusion.",
         "Qualified vendors against company requirements and produced trade-off comparisons.",
         "Presented the recommended MDM solution and findings to internal stakeholders."
       ],
-      "keywords": ["MDM", "Mobile Device Management", "Sophos", "ManageEngine", "NinjaOne", "Scalefusion", "Vendor Analysis", "Vendor Qualification", "Solutioning", "Presentation"],
+      "keywords": [
+        "MDM",
+        "Mobile Device Management",
+        "Sophos",
+        "ManageEngine",
+        "NinjaOne",
+        "Scalefusion",
+        "Vendor Analysis",
+        "Vendor Qualification",
+        "Solutioning",
+        "Presentation"
+      ],
       "startDate": "2025-01-01",
-      "tags": ["mdm", "vendor-qualification", "initiative", "research", "internal", "sophos", "manageengine", "ninjaone", "scalefusion"]
+      "tags": [
+        "mdm",
+        "vendor-qualification",
+        "initiative",
+        "research",
+        "internal",
+        "sophos",
+        "manageengine",
+        "ninjaone",
+        "scalefusion"
+      ]
     },
     {
       "name": "AI Delivery-Process Mapping Initiative (Stratpoint internal)",
@@ -238,26 +576,64 @@
         "Identified per-step AI integration opportunities and the resulting process changes.",
         "Recommended specific AI tools to apply at each step in the process."
       ],
-      "keywords": ["AI Process Mapping", "End-to-End Delivery", "Pre-Sales to Closing", "Tool Selection", "Process Redesign"],
+      "keywords": [
+        "AI Process Mapping",
+        "End-to-End Delivery",
+        "Pre-Sales to Closing",
+        "Tool Selection",
+        "Process Redesign"
+      ],
       "startDate": "2025-01-01",
-      "tags": ["ai", "process-mapping", "initiative", "delivery", "internal"]
+      "tags": [
+        "ai",
+        "process-mapping",
+        "initiative",
+        "delivery",
+        "internal"
+      ]
     },
     {
-      "name": "Stashville — Gamified Project Tracking Tool for Developers (freelance)",
-      "description": "Freelance engagement on Stashville, a gamified project-tracking tool for developers. Stack: Pixi.js, Next.js, and Go. Dave owned the daemon and backend, including a custom SDK enabling third-party daemon/extension integration and the daemon↔website connection. AI-assisted development with Claude Code, custom Claude agents Dave built, BMAD workflow, and the Superpowers extension for brainstorming + agent orchestration.",
+      "name": "Stashville \u2014 Gamified Project Tracking Tool for Developers (freelance)",
+      "description": "Freelance engagement on Stashville, a gamified project-tracking tool for developers. Stack: Pixi.js, Next.js, and Go. Dave owned the daemon and backend, including a custom SDK enabling third-party daemon/extension integration and the daemon\u2194website connection. AI-assisted development with Claude Code, custom Claude agents Dave built, BMAD workflow, and the Superpowers extension for brainstorming + agent orchestration.",
       "highlights": [
         "Owned the daemon and backend for a gamified developer project-tracker built on Pixi.js + Next.js (frontend) and Go (backend).",
         "Designed and shipped a custom SDK so external developers can integrate their own daemons or extensions with Stashville.",
-        "Implemented the daemon↔website connection layer.",
+        "Implemented the daemon\u2194website connection layer.",
         "Delivered with Claude Code + AI-assisted development, leaning on custom Claude agents Dave built himself, the BMAD workflow, and the Superpowers extension for brainstorming and agent orchestration."
       ],
-      "keywords": ["Go", "Pixi.js", "Next.js", "Daemon", "Custom SDK", "Extension API", "Claude Code", "AI-Assisted Development", "Custom Agents", "BMAD", "Superpowers", "Gamification"],
+      "keywords": [
+        "Go",
+        "Pixi.js",
+        "Next.js",
+        "Daemon",
+        "Custom SDK",
+        "Extension API",
+        "Claude Code",
+        "AI-Assisted Development",
+        "Custom Agents",
+        "BMAD",
+        "Superpowers",
+        "Gamification"
+      ],
       "url": "https://stashville.city/",
-      "tags": ["freelance", "side-project", "go", "pixi.js", "next.js", "daemon", "sdk-design", "developer-tools", "gamification", "claude-code", "bmad", "superpowers"],
+      "tags": [
+        "freelance",
+        "side-project",
+        "go",
+        "pixi.js",
+        "next.js",
+        "daemon",
+        "sdk-design",
+        "developer-tools",
+        "gamification",
+        "claude-code",
+        "bmad",
+        "superpowers"
+      ],
       "highImpact": true
     },
     {
-      "name": "Hockey Time — Tournament Management Application (freelance)",
+      "name": "Hockey Time \u2014 Tournament Management Application (freelance)",
       "description": "Freelance AI-assisted developer on Hockey Time, a hockey tournament management application. Stack: Next.js, Neon (Postgres), Inngest (durable workflows), and Stripe. Dave built most of the Stripe integration, the CRM workflows, and the hockey scheduling workflows.",
       "highlights": [
         "Built the Stripe integration powering payments and billing flows for the tournament platform.",
@@ -265,21 +641,62 @@
         "Implemented the hockey-scheduling workflows tying tournaments to matches and timeslots.",
         "Delivered as an AI-assisted developer leveraging modern Next.js + Neon + Inngest patterns."
       ],
-      "keywords": ["Next.js", "Neon", "Inngest", "Stripe", "TypeScript", "CRM Workflows", "Scheduling Workflows", "Payments Integration", "AI-Assisted Development"],
+      "keywords": [
+        "Next.js",
+        "Neon",
+        "Inngest",
+        "Stripe",
+        "TypeScript",
+        "CRM Workflows",
+        "Scheduling Workflows",
+        "Payments Integration",
+        "AI-Assisted Development"
+      ],
       "url": "https://itshockeytime.vercel.app",
-      "tags": ["freelance", "side-project", "next.js", "stripe", "neon", "inngest", "crm", "scheduling", "payments", "sports-tech", "ai-assisted-development"],
+      "tags": [
+        "freelance",
+        "side-project",
+        "next.js",
+        "stripe",
+        "neon",
+        "inngest",
+        "crm",
+        "scheduling",
+        "payments",
+        "sports-tech",
+        "ai-assisted-development"
+      ],
       "highImpact": true
     },
     {
-      "name": "Go1099Pro — Locums Nurse Application (freelance)",
+      "name": "Go1099Pro \u2014 Locums Nurse Application (freelance)",
       "description": "Freelance React Native developer on Go1099Pro, an application for locums (contract / 1099) nurses covering shifts tracking, shift management, profile management, and expense tracking.",
       "highlights": [
         "Built core React Native experiences covering shifts tracking, shift management, profile management, and expense tracking for locums nurses.",
         "Domain: healthcare 1099/contract-worker workflows."
       ],
-      "keywords": ["React Native", "iOS", "Android", "Shifts Tracking", "Profile Management", "Expense Tracking", "Healthcare", "1099 Workforce"],
+      "keywords": [
+        "React Native",
+        "iOS",
+        "Android",
+        "Shifts Tracking",
+        "Profile Management",
+        "Expense Tracking",
+        "Healthcare",
+        "1099 Workforce"
+      ],
       "url": "https://www.go1099pro.com/",
-      "tags": ["freelance", "side-project", "react-native", "mobile", "healthcare", "shifts", "expense-tracking", "1099"]
+      "tags": [
+        "freelance",
+        "side-project",
+        "react-native",
+        "mobile",
+        "healthcare",
+        "shifts",
+        "expense-tracking",
+        "1099"
+      ],
+      "highImpact": true
     },
     {
       "name": "Personal Portfolio (v2)",
@@ -290,102 +707,209 @@
         "Skills grid uses devicon iconography over a categorized data model (Frontend / Backend / Architecture & DevOps).",
         "Motion + carousel interactions via Framer Motion and Embla."
       ],
-      "keywords": ["React", "Vite", "TypeScript", "Tailwind CSS", "Strapi", "Framer Motion", "Embla Carousel", "Code Splitting", "SPA", "Portfolio"],
+      "keywords": [
+        "React",
+        "Vite",
+        "TypeScript",
+        "Tailwind CSS",
+        "Strapi",
+        "Framer Motion",
+        "Embla Carousel",
+        "Code Splitting",
+        "SPA",
+        "Portfolio"
+      ],
       "url": "https://portfolio-poc-web.vercel.app",
-      "tags": ["portfolio", "react", "vite", "spa", "strapi", "tailwind", "framer-motion", "code-splitting", "personal-site"]
+      "tags": [
+        "portfolio",
+        "react",
+        "vite",
+        "spa",
+        "strapi",
+        "tailwind",
+        "framer-motion",
+        "code-splitting",
+        "personal-site"
+      ]
     },
     {
       "name": "jobhunter (this project)",
       "description": "Solo-developer pipeline that ingests pasted job descriptions, tailors a CV + cover letter via a single LLM call, and runs three drift checks (fabrication, content-loss, keyword-stuffing) before notifying the author.",
       "highlights": [
         "Walking-skeleton-first delivery: every epic gates on a runnable end-to-end pipeline rather than a tower of unintegrated modules.",
-        "Filesystem-only persistence in v1 — no DB — with per-application output slugs under ./out/<slug>/.",
+        "Filesystem-only persistence in v1 \u2014 no DB \u2014 with per-application output slugs under ./out/<slug>/.",
         "Drift checks treat the canonical CV as the source of truth; failures hold the package silently rather than spamming notifications."
       ],
-      "keywords": ["LLM", "FastAPI", "React", "TypeScript", "automation", "drift-detection"],
+      "keywords": [
+        "LLM",
+        "FastAPI",
+        "React",
+        "TypeScript",
+        "automation",
+        "drift-detection"
+      ],
       "startDate": "2026-05-17",
       "url": "https://github.com/davecharm16/job_hunter",
-      "tags": ["llm", "automation", "fastapi", "react", "side-project"],
+      "tags": [
+        "llm",
+        "automation",
+        "fastapi",
+        "react",
+        "side-project"
+      ],
       "highImpact": true
     },
     {
-      "name": "Wookie — Workspace Booking App (Stratpoint internal)",
+      "name": "Wookie \u2014 Workspace Booking App (Stratpoint internal)",
       "description": "Internal tool for reserving workstations and scheduling events, with real-time availability and integration into Stratpoint's internal systems. Cross-platform Flutter app built during the Stratpoint internship.",
       "highlights": [
         "Implemented feature work that streamlined the booking workflow and improved overall user experience.",
         "Built on a Domain-Driven Design architecture for maintainability, with Supabase / Firebase backing and YouTrack-driven Agile/Scrum delivery.",
         "Engaged in code reviews and testing to uphold quality standards on a team-shipped internal product."
       ],
-      "keywords": ["Flutter", "Dart", "DDD", "Supabase", "Firebase", "YouTrack", "Agile", "Scrum"],
+      "keywords": [
+        "Flutter",
+        "Dart",
+        "DDD",
+        "Supabase",
+        "Firebase",
+        "YouTrack",
+        "Agile",
+        "Scrum"
+      ],
       "startDate": "2024-04-01",
       "endDate": "2024-05-31",
-      "tags": ["flutter", "ddd", "mobile", "internship-project"]
+      "tags": [
+        "flutter",
+        "ddd",
+        "mobile",
+        "internship-project"
+      ],
+      "highImpact": true
     },
     {
-      "name": "ChatterBox — Real-time Messaging App",
+      "name": "ChatterBox \u2014 Real-time Messaging App",
       "description": "Real-time messaging app built during Stratpoint training, applying BLoC state management, DDD architecture, and Firebase-backed auth and messaging.",
       "highlights": [
         "Implemented real-time message delivery, user authentication, and presence indicators.",
         "Applied DDD principles for scalable, maintainable architecture.",
         "Used BLoC for state management and GetIt for dependency injection."
       ],
-      "keywords": ["Flutter", "Dart", "Firebase", "BLoC", "GetIt", "DDD"],
+      "keywords": [
+        "Flutter",
+        "Dart",
+        "Firebase",
+        "BLoC",
+        "GetIt",
+        "DDD"
+      ],
       "startDate": "2024-04-01",
       "endDate": "2024-04-30",
-      "tags": ["flutter", "firebase", "messaging", "training-project"]
+      "tags": [
+        "flutter",
+        "firebase",
+        "messaging",
+        "training-project"
+      ]
     },
     {
-      "name": "Moviology — Movie Discovery App",
+      "name": "Moviology \u2014 Movie Discovery App",
       "description": "Flutter movie-discovery app integrating a third-party REST API to fetch titles, ratings, posters, and metadata, with Riverpod-managed state and a DDD-organized codebase.",
       "highlights": [
         "Integrated a third-party REST API (RapidAPI) to fetch and display movie data with search support.",
         "Used Riverpod for efficient state management and a DDD-aligned codebase for maintainability."
       ],
-      "keywords": ["Flutter", "Dart", "REST API", "Riverpod", "DDD"],
+      "keywords": [
+        "Flutter",
+        "Dart",
+        "REST API",
+        "Riverpod",
+        "DDD"
+      ],
       "startDate": "2024-03-01",
       "endDate": "2024-03-31",
-      "tags": ["flutter", "rest-api", "riverpod", "training-project"]
+      "tags": [
+        "flutter",
+        "rest-api",
+        "riverpod",
+        "training-project"
+      ]
     },
     {
       "name": "Remote-Controlled Robotic Toy Car (BSIT Capstone)",
       "description": "Capstone project: an Arduino-driven robotic toy car integrated with a precision robotic arm for detecting and collecting lightweight materials from the ground.",
       "highlights": [
-        "Served as Lead Programmer and Project Manager — owned project timelines and QA compliance through to defense.",
+        "Served as Lead Programmer and Project Manager \u2014 owned project timelines and QA compliance through to defense.",
         "Implemented object detection, material-pickup mechanisms, automation controls, and the operator-facing Android control app.",
         "Demonstrated end-to-end problem-solving across embedded firmware (Arduino/C++) and mobile UI (Android)."
       ],
-      "keywords": ["Arduino", "C++", "Android", "Object Detection", "Robotics", "IoT"],
+      "keywords": [
+        "Arduino",
+        "C++",
+        "Android",
+        "Object Detection",
+        "Robotics",
+        "IoT"
+      ],
       "startDate": "2022-06-01",
       "endDate": "2023-03-31",
-      "tags": ["capstone", "embedded", "iot", "robotics", "lead-programmer"],
+      "tags": [
+        "capstone",
+        "embedded",
+        "iot",
+        "robotics",
+        "lead-programmer"
+      ],
       "highImpact": true
     },
     {
-      "name": "PNP ITMS Hackathon 2022 — Champion",
+      "name": "PNP ITMS Hackathon 2022 \u2014 Champion",
       "description": "Hackathon-winning web+mobile solution built for the PNP Information Technology Management Service. Led ideation, development, and pitch to PNP panelists.",
       "highlights": [
         "Spearheaded ideation and proposed the winning strategic solution for the PNP ITMS Hackathon problem statement.",
         "Led development of the web + mobile prototype using ReactJS, Android, and Firebase.",
         "Presented and pitched the solution to PNP panelists, communicating both technical depth and business value."
       ],
-      "keywords": ["ReactJS", "Android", "Firebase", "Hackathon", "Leadership"],
+      "keywords": [
+        "ReactJS",
+        "Android",
+        "Firebase",
+        "Hackathon",
+        "Leadership"
+      ],
       "startDate": "2022-10-01",
       "endDate": "2022-10-31",
-      "tags": ["hackathon", "champion", "leadership", "react", "android", "firebase"],
+      "tags": [
+        "hackathon",
+        "champion",
+        "leadership",
+        "react",
+        "android",
+        "firebase"
+      ],
       "highImpact": true
     },
     {
-      "name": "AIA Hackathon 2022 — Finalist",
-      "description": "Finalist team for the BPI AIA hackathon at BGC Taguig — built a web-based prototype addressing the competition's theme problem.",
+      "name": "AIA Hackathon 2022 \u2014 Finalist",
+      "description": "Finalist team for the BPI AIA hackathon at BGC Taguig \u2014 built a web-based prototype addressing the competition's theme problem.",
       "highlights": [
         "Brainstormed and converged on a solution for the BPI AIA hackathon theme.",
         "Developed a web-based competition prototype in ReactJS + Firebase.",
         "Presented and defended the solution to the panelist Q&A."
       ],
-      "keywords": ["ReactJS", "Firebase", "Hackathon"],
+      "keywords": [
+        "ReactJS",
+        "Firebase",
+        "Hackathon"
+      ],
       "startDate": "2023-02-01",
       "endDate": "2023-02-28",
-      "tags": ["hackathon", "finalist", "react", "firebase"]
+      "tags": [
+        "hackathon",
+        "finalist",
+        "react",
+        "firebase"
+      ]
     }
   ],
   "awards": [
@@ -397,7 +921,7 @@
     {
       "title": "PNP ITMS Hackathon 2022 Champion",
       "date": "2022-10",
-      "awarder": "Philippine National Police — Information Technology Management Service"
+      "awarder": "Philippine National Police \u2014 Information Technology Management Service"
     },
     {
       "title": "AIA Hackathon 2022 Finalist",
@@ -427,22 +951,22 @@
       "issuer": "Stratpoint Global Outsourcing"
     },
     {
-      "name": "ReactJS — Certificate of Proficiency (Top 10%)",
+      "name": "ReactJS \u2014 Certificate of Proficiency (Top 10%)",
       "date": "2023-01-01",
       "issuer": "TestDome"
     },
     {
-      "name": "JavaScript — Intermediate Course Certificate",
+      "name": "JavaScript \u2014 Intermediate Course Certificate",
       "date": "2023-01-01",
       "issuer": "SoloLearn"
     },
     {
-      "name": "HackerRank Problem Solving — Intermediate",
+      "name": "HackerRank Problem Solving \u2014 Intermediate",
       "date": "2020-09-01",
       "issuer": "HackerRank"
     },
     {
-      "name": "HackerRank Problem Solving — Basic",
+      "name": "HackerRank Problem Solving \u2014 Basic",
       "date": "2020-09-01",
       "issuer": "HackerRank"
     }
