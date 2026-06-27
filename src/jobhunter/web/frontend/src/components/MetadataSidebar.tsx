@@ -48,6 +48,8 @@ export type PackageMetadata = {
   /** D1: human-readable role/company extracted from the JD parse (top-level fallback). */
   job_title?: string | null;
   company_name?: string | null;
+  /** Original job posting URL, if captured at ingest time. */
+  url?: string | null;
 };
 
 type Props = {

@@ -121,3 +121,56 @@ The reference flow uses only `HTTP Request`, `Cron` (or manual trigger), and sta
 
 - `INGEST_BASE_URL` — base URL of the Job Hunter pipeline (e.g. `https://jobhunter.example.com`).
 - `INGEST_SHARED_TOKEN` — value of the `.env` `INGEST_TOKEN` on the server.
+
+---
+
+## Scan engine endpoints (F2)
+
+The external scan engine (n8n on Railway, `deploy/n8n/Dockerfile`) calls three
+additional endpoints under the **same** `Authorization: Bearer ${INGEST_SHARED_TOKEN}`
+contract:
+
+| Method | Path | Auth required | Purpose |
+|--------|------|---------------|---------|
+| GET | `/api/scan/settings` | no (public) | Fetch `search_titles`, `sites_enabled`, `picks_per_site`, `enabled` |
+| GET | `/api/scan/known-urls` | yes — Bearer | Fetch already-seen URLs (dedup skip-list) |
+| GET | `/api/canonical-profile` | yes — Bearer | Fetch condensed CV profile for Claude's fit ranking |
+| POST | `/api/scan/results` | yes — Bearer | Deliver `{site_summary, candidates[]}` from a completed scan |
+
+The engine sends `INGEST_SHARED_TOKEN` (equal to the app's `INGEST_TOKEN`) on all
+calls for consistency; `/api/scan/settings` is currently unguarded and will
+accept the request regardless.
+
+**`POST /api/scan/results` body shape** (matches `ResultsRequest` /
+`CandidatePayload` in `src/jobhunter/web/routes/scan.py`):
+
+```json
+{
+  "started_at": "2026-06-27T00:00:00Z",
+  "finished_at": "2026-06-27T00:05:00Z",
+  "status": "completed",
+  "site_summary": {
+    "indeed": {"status": "ok", "count": 3},
+    "linkedin": {"status": "blocked", "count": 0}
+  },
+  "candidates": [
+    {
+      "site": "indeed",
+      "url": "https://example.com/job/123",
+      "title": "Solutions Designer",
+      "company": "Acme Corp",
+      "location": "Remote",
+      "jd_text": "Full job description text...",
+      "fit_reason": "Matches mobile + solutions design background.",
+      "fit_score": 0.87
+    }
+  ]
+}
+```
+
+**Response:** `{"scan_id": "<uuid>", "received": 3, "new": 2, "skipped": 1}`
+
+For the full deployment runbook, image specification, and workflow node design,
+see `docs/deployment/n8n-scan-engine.md`.  
+For the design rationale and data model, see
+`docs/superpowers/specs/2026-06-26-job-scan-design.md`.

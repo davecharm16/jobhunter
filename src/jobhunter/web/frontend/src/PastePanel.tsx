@@ -43,6 +43,7 @@ export function PastePanel({ jdText, setJdText }: Props) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [url, setUrl] = useState("");
 
   async function submit() {
     setBusy(true);
@@ -51,7 +52,11 @@ export function PastePanel({ jdText, setJdText }: Props) {
       const response = await fetch("/api/paste", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jd_text: jdText, source: "browser" }),
+        body: JSON.stringify({
+          jd_text: jdText,
+          source: "browser",
+          ...(url.trim() ? { url: url.trim() } : {}),
+        }),
       });
       const body = await response.json();
       if (!response.ok) {
@@ -95,6 +100,16 @@ export function PastePanel({ jdText, setJdText }: Props) {
         value={jdText}
         onChange={(event) => setJdText(event.target.value)}
         disabled={busy}
+      />
+
+      {/* URL input */}
+      <input
+        type="url"
+        value={url}
+        onChange={(event) => setUrl(event.target.value)}
+        disabled={busy}
+        placeholder="Job posting link (optional)"
+        className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-stack-md text-body-md font-body-md text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:outline-none transition-colors"
       />
 
       {/* CTA row */}

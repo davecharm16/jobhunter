@@ -51,14 +51,15 @@ import httpx
 
 from jobhunter.metadata import PackageMetadata
 
-
 __all__ = [
     "HUMAN_SUBMITS_REMINDER",
     "NotificationPayload",
     "NotificationResult",
     "build_payload",
+    "build_scan_message",
     "format_message_text",
     "notify",
+    "notify_scan",
 ]
 
 
@@ -203,6 +204,31 @@ def notify(
         last_status=last_status,
         last_error=last_error,
     )
+
+
+def build_scan_message(
+    *, new_count: int, site_summary: dict[str, Any], dashboard_url: str
+) -> str:
+    """Discovery notification. Dashboard link only — NEVER job-board hostnames
+    (FR44/FR11; test_no_job_board_hostnames_in_jobhunter_source)."""
+    parts = [
+        f"🔎 Job Scan: {new_count} new candidate{'s' if new_count != 1 else ''}."
+    ]
+    for site, info in sorted(site_summary.items()):
+        status = info.get("status", "?")
+        count = info.get("count", 0)
+        parts.append(f"• {site}: {status} ({count})")
+    parts.append(f"Review on your dashboard: {dashboard_url}")
+    return "\n".join(parts)
+
+
+def notify_scan(webhook_url: str, message: str) -> None:
+    """Fire-and-forget POST to GChat. Failures are logged, never raised."""
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            client.post(webhook_url, json={"text": message})
+    except Exception as exc:  # noqa: BLE001 - non-fatal by contract
+        _log.warning("scan notification failed: %s", exc)
 
 
 def _format_fit_summary(

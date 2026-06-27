@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { EntryCard } from "./components/EntryCard";
+import {
+  getScanSettings,
+  putScanSettings,
+  SITES,
+  SITE_LABEL,
+  type ScanSettings,
+  type Site,
+} from "./api/scan";
 
 type CanonicalCV = Record<string, any>;
 
@@ -147,6 +155,146 @@ function SpendCard() {
       <p className="text-label-md font-label-md text-on-surface-variant mt-stack-xs text-right">
         {pct.toFixed(1)}% of cap used
       </p>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Job Scan settings section
+// ---------------------------------------------------------------------------
+
+function JobScanSettingsSection() {
+  const [s, setS] = useState<ScanSettings | null>(null);
+  const [titles, setTitles] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    getScanSettings()
+      .then((data) => {
+        setS(data);
+        setTitles(data.search_titles.join("\n"));
+      })
+      .catch(() => setErr("Failed to load scan settings."));
+  }, []);
+
+  if (!s) return null;
+
+  const toggleSite = (site: Site) =>
+    setS({
+      ...s,
+      sites_enabled: s.sites_enabled.includes(site)
+        ? s.sites_enabled.filter((x) => x !== site)
+        : [...s.sites_enabled, site],
+    });
+
+  const save = async () => {
+    setMsg(null);
+    setErr(null);
+    try {
+      const next = {
+        ...s,
+        search_titles: titles
+          .split("\n")
+          .map((t) => t.trim())
+          .filter(Boolean),
+      };
+      const saved = await putScanSettings(next);
+      setS(saved);
+      setMsg("Saved.");
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
+  return (
+    <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-lg flex flex-col gap-stack-md shadow-sm">
+      <header className="border-b border-outline-variant pb-stack-md">
+        <h2 className="text-headline-md font-headline-md text-on-surface">
+          Job Scan
+        </h2>
+        <p className="text-label-md font-label-md text-on-surface-variant mt-stack-xs">
+          Configure automated job scanning — titles, sites, and schedule.
+        </p>
+      </header>
+
+      <div>
+        <label className="block text-label-md font-label-md text-on-surface-variant mb-stack-xs">
+          Search titles (one per line)
+        </label>
+        <textarea
+          rows={4}
+          value={titles}
+          onChange={(e) => setTitles(e.target.value)}
+          className="w-full h-28 bg-surface border border-outline-variant rounded-lg p-stack-sm text-body-md font-body-md text-on-surface focus:border-primary focus:outline-none resize-y"
+        />
+      </div>
+
+      <div>
+        <label className="block text-label-md font-label-md text-on-surface-variant mb-stack-xs">
+          Sites
+        </label>
+        <div className="flex flex-wrap gap-stack-md">
+          {SITES.map((site) => (
+            <label
+              key={site}
+              className="flex items-center gap-stack-xs text-body-md font-body-md text-on-surface cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={s.sites_enabled.includes(site)}
+                onChange={() => toggleSite(site)}
+                className="accent-primary"
+              />
+              {SITE_LABEL[site]}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-label-md font-label-md text-on-surface-variant mb-stack-xs">
+          Picks per site
+        </label>
+        <input
+          type="number"
+          min={1}
+          max={10}
+          value={s.picks_per_site}
+          onChange={(e) =>
+            setS({ ...s, picks_per_site: Number(e.target.value) })
+          }
+          className="w-24 h-10 px-stack-sm bg-surface border border-outline-variant rounded-lg text-body-md font-body-md text-on-surface focus:border-primary focus:outline-none"
+        />
+      </div>
+
+      <label className="flex items-center gap-stack-xs text-body-md font-body-md text-on-surface cursor-pointer">
+        <input
+          type="checkbox"
+          checked={s.enabled}
+          onChange={(e) => setS({ ...s, enabled: e.target.checked })}
+          className="accent-primary"
+        />
+        Scanning enabled
+      </label>
+
+      <div className="flex items-center gap-stack-sm flex-wrap">
+        <button
+          type="button"
+          onClick={save}
+          className="bg-primary text-on-primary text-body-md font-body-md font-medium py-stack-sm px-stack-lg rounded-lg hover:bg-primary-container"
+        >
+          Save Job Scan settings
+        </button>
+        {msg && (
+          <span className="text-label-md font-label-md text-on-surface-variant">
+            {msg}
+          </span>
+        )}
+        {err && (
+          <span className="text-label-md font-label-md text-error">{err}</span>
+        )}
+      </div>
     </section>
   );
 }
@@ -662,6 +810,8 @@ export function SettingsPage() {
                 />
               ))}
             </Section>
+
+            <JobScanSettingsSection />
           </div>
 
           <div className="lg:col-span-4 flex flex-col gap-gutter">

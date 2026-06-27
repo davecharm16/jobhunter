@@ -16,6 +16,7 @@ import {
   MetadataSidebar,
   type PackageMetadata,
 } from "./components/MetadataSidebar";
+import { ApplyControl } from "./components/ApplyControl";
 
 type PackagePayload = {
   slug: string;
@@ -508,6 +509,12 @@ export function PackagePage() {
               </button>
             </>
           )}
+          <ApplyControl
+            slug={slug!}
+            jobTitle={payload.metadata.job_title ?? parsed.job_title ?? slug!}
+            company={payload.metadata.company_name ?? null}
+            url={payload.metadata.url ?? null}
+          />
         </div>
         {overrideApplied && overrideNote && (
           <div

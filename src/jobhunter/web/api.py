@@ -8,11 +8,10 @@ function signatures from `jobhunter.tailoring`, `jobhunter.canonical_cv`, and
 
 from __future__ import annotations
 
-import secrets
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -31,62 +30,31 @@ from jobhunter.llm_client import (
 )
 from jobhunter.runtime_config import (
     ConfigurationError,
-    load_ingest_token,
     load_runtime_config,
 )
 from jobhunter.spend_tracker import SpendCapExceeded, SpendLedgerCorrupt
 from jobhunter.tailoring import run_tailoring
+from jobhunter.web.auth import require_ingest_token
+from jobhunter.web.routes.applications import router as applications_router
 from jobhunter.web.routes.canonical_cv import router as canonical_cv_router
 from jobhunter.web.routes.download import router as download_router
 from jobhunter.web.routes.drift import router as drift_router
 from jobhunter.web.routes.override import router as override_router
 from jobhunter.web.routes.package import router as package_router
 from jobhunter.web.routes.queue import router as queue_router
-from jobhunter.web.routes.scans import router as scans_router
 from jobhunter.web.routes.regenerate import router as regenerate_router
+from jobhunter.web.routes.scan import router as scan_router
+from jobhunter.web.routes.scans import router as scans_router
 from jobhunter.web.routes.spend import router as spend_router
 from jobhunter.web.routes.stats import router as stats_router
 
-
 FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
-
-# DECISIONS.md §6 — the FastAPI app binds to 127.0.0.1, so browser-origin
-# requests are already gated by the loopback bind and bypass the token check.
-# `testclient` is FastAPI's in-process TestClient default and is functionally
-# loopback (no real network); it is treated as loopback so existing browser-
-# path tests continue to exercise the route without a token.
-_LOOPBACK_CLIENT_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
 
 # Story 7.1: n8n channel adapters set `source` to one of these values so the
 # metadata sidecar records the actual ingest channel via `jd_source`. The
 # browser path uses `source: "browser"` and keeps the existing `"paste"`
 # default in the sidecar (documented in docs/n8n-contract.md).
 _N8N_INGEST_SOURCES = frozenset({"upwork", "onlinejobs_ph", "linkedin_email"})
-
-
-def _is_loopback_request(request: Request) -> bool:
-    client = request.client
-    return client is not None and client.host in _LOOPBACK_CLIENT_HOSTS
-
-
-def require_ingest_token(request: Request) -> None:
-    if _is_loopback_request(request):
-        return
-
-    expected = load_ingest_token()
-    if not expected:
-        raise HTTPException(
-            status_code=401,
-            detail="ingest_token_not_configured_on_server",
-        )
-
-    header = request.headers.get("authorization", "")
-    scheme, _, presented = header.partition(" ")
-    if scheme.lower() != "bearer" or not presented:
-        raise HTTPException(status_code=401, detail="missing_ingest_token")
-
-    if not secrets.compare_digest(presented, expected):
-        raise HTTPException(status_code=401, detail="invalid_ingest_token")
 
 
 class HealthResponse(BaseModel):
@@ -214,6 +182,8 @@ def create_app() -> FastAPI:
     app.include_router(regenerate_router)
     app.include_router(scans_router)
     app.include_router(spend_router)
+    app.include_router(applications_router)
+    app.include_router(scan_router)
 
     if FRONTEND_DIST.is_dir():
         assets_dir = FRONTEND_DIST / "assets"

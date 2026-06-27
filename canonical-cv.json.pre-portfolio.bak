@@ -1,0 +1,124 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jsonresume/resume-schema/v1.0.0/schema.json",
+  "basics": {
+    "name": "Dave Charm Bulaquena",
+    "label": "Full Stack Developer | Automation Engineer | Solutions Architect",
+    "email": "davecharm16@gmail.com",
+    "phone": "+63-9614781575",
+    "url": "https://portfolio-poc-web.vercel.app",
+    "summary": "Backend-leaning engineer with a focus on automation pipelines, LLM-assisted tooling, and small, reliable systems. Comfortable shipping end-to-end on solo projects \u2014 from CLI plumbing to scheduled ingestion flows.",
+    "location": {
+      "city": "Manila",
+      "countryCode": "PH",
+      "region": "Metro Manila"
+    },
+    "profiles": [
+      {
+        "network": "GitHub",
+        "username": "davecharm16",
+        "url": "https://github.com/davecharm16"
+      }
+    ]
+  },
+  "work": [
+    {
+      "name": "Independent / Contract",
+      "position": "Backend & Automation Engineer",
+      "url": "https://example.com",
+      "startDate": "2024-01-01",
+      "summary": "Built solo and small-team backends focused on data pipelines, scheduled jobs, and LLM-driven tooling for content workflows.",
+      "highlights": [
+        "Designed a filesystem-first artifact pipeline with deterministic per-run output directories, eliminating a fragile DB dependency.",
+        "Wrote a JSON-schema-validated content ingestion layer that caught upstream regressions before they reached downstream stages.",
+        "Integrated n8n scheduled flows with an internal HTTP endpoint guarded by a shared-token auth, cutting manual triage time by ~60%."
+      ]
+    },
+    {
+      "name": "Earlier Role (Synthetic Sample)",
+      "position": "Software Engineer",
+      "url": "https://example.com",
+      "startDate": "2021-06-01",
+      "endDate": "2023-12-31",
+      "summary": "Worked across backend services and developer-tooling problems in a small product team.",
+      "highlights": [
+        "Shipped a Python CLI for internal ETL that replaced a brittle bash + cron stack, with a single config file and traceable run logs.",
+        "Introduced contract tests against a vendored JSON schema, which surfaced two breaking upstream changes ahead of production deploys.",
+        "Mentored a junior engineer through their first end-to-end feature, focusing on test-first habits and incremental commits."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "University Sample",
+      "url": "https://example.edu",
+      "area": "Computer Science",
+      "studyType": "Bachelor",
+      "startDate": "2017-08-01",
+      "endDate": "2021-05-31",
+      "score": "Distinction"
+    }
+  ],
+  "skills": [
+    {
+      "name": "Backend",
+      "level": "Advanced",
+      "keywords": [
+        "Python",
+        "FastAPI",
+        "PostgreSQL",
+        "REST APIs",
+        "CLI design"
+      ]
+    },
+    {
+      "name": "Automation & Pipelines",
+      "level": "Advanced",
+      "keywords": [
+        "n8n",
+        "cron",
+        "ETL",
+        "scheduled jobs",
+        "webhooks"
+      ]
+    },
+    {
+      "name": "LLM Tooling",
+      "level": "Intermediate",
+      "keywords": [
+        "prompt engineering",
+        "JSON-mode outputs",
+        "schema-constrained generation",
+        "cost guardrails"
+      ]
+    },
+    {
+      "name": "Testing & Quality",
+      "level": "Intermediate",
+      "keywords": [
+        "pytest",
+        "contract tests",
+        "JSON Schema validation",
+        "deterministic fixtures"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "jobhunter (this project)",
+      "description": "Solo-developer pipeline that ingests pasted job descriptions, tailors a CV + cover letter via a single LLM call, and runs three drift checks (fabrication, content-loss, keyword-stuffing) before notifying the author.",
+      "highlights": [
+        "Walking-skeleton-first delivery: every epic gates on a runnable end-to-end pipeline rather than a tower of unintegrated modules.",
+        "Filesystem-only persistence in v1 \u2014 no DB \u2014 with per-application output slugs under ./out/<slug>/.",
+        "Drift checks treat the canonical CV as the source of truth; failures hold the package silently rather than spamming notifications."
+      ],
+      "keywords": [
+        "LLM",
+        "CLI",
+        "automation",
+        "drift-detection"
+      ],
+      "startDate": "2026-05-17",
+      "url": "https://github.com/davecharm16/job_hunter"
+    }
+  ]
+}

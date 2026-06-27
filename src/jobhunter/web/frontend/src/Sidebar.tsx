@@ -35,10 +35,29 @@ const IconDrift = () => (
   </svg>
 );
 
+const IconApplications = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
+    <line x1="8" y1="10" x2="16" y2="10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <line x1="8" y1="18" x2="12" y2="18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+const IconJobScan = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+    <line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <line x1="8" y1="11" x2="14" y2="11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
 const NAV_ITEMS: Array<{ label: string; to: string; Icon: () => JSX.Element }> = [
   { label: "Dashboard", to: "/", Icon: IconDashboard },
   { label: "Scans", to: "/scans", Icon: IconScans },
   { label: "Drift Checks", to: "/drift", Icon: IconDrift },
+  { label: "Applications", to: "/applications", Icon: IconApplications },
+  { label: "Job Scan", to: "/job-scan", Icon: IconJobScan },
   { label: "Settings", to: "/settings", Icon: IconSettings },
 ];
 
