@@ -1,13 +1,16 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-// Downscale the screenshot to a max edge (Claude reads ~1568px fine) and encode
-// as JPEG base64. Keeps the payload small so it passes through n8n's command to
-// Claude without hitting the shell arg-size limit. Returns {b64, contentType}.
+// Downscale the screenshot and JPEG-encode it, stepping size/quality DOWN until
+// the base64 is comfortably under Linux's 128KB single-arg limit (MAX_ARG_STRLEN)
+// — the n8n vision command embeds this base64, so an over-limit payload causes
+// `spawn E2BIG`. The loop guarantees any screenshot fits. Returns {b64, contentType}.
 function fileToDownscaledBase64(
   file: File,
-  maxEdge = 1600,
+  maxEdge = 1400,
 ): Promise<{ b64: string; contentType: string }> {
+  // keep well under 128KB so the whole shell command stays within the arg limit
+  const LIMIT = 90_000;
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error);
@@ -15,20 +18,30 @@ function fileToDownscaledBase64(
       const img = new Image();
       img.onerror = () => reject(new Error("could not load image"));
       img.onload = () => {
-        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
-        const w = Math.max(1, Math.round(img.width * scale));
-        const h = Math.max(1, Math.round(img.height * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          reject(new Error("canvas not supported"));
-          return;
+        const encode = (scale: number, quality: number): string | null => {
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return null;
+          ctx.drawImage(img, 0, 0, w, h);
+          return canvas.toDataURL("image/jpeg", quality).split(",", 2)[1];
+        };
+        let scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+        let b64: string | null = null;
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const quality = Math.max(0.35, 0.8 - attempt * 0.08);
+          b64 = encode(scale, quality);
+          if (b64 === null) {
+            reject(new Error("canvas not supported"));
+            return;
+          }
+          if (b64.length <= LIMIT) break;
+          scale *= 0.8; // still too big → shrink further next pass
         }
-        ctx.drawImage(img, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-        resolve({ b64: dataUrl.split(",", 2)[1], contentType: "image/jpeg" });
+        resolve({ b64: b64 as string, contentType: "image/jpeg" });
       };
       img.src = String(reader.result || "");
     };

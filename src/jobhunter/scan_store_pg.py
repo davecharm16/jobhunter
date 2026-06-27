@@ -216,7 +216,7 @@ class PostgresScanStore:
                 created = conn.execute(
                     """
                     insert into scans (status, site_summary)
-                    values ('running', '{}'::jsonb)
+                    values ('partial', '{}'::jsonb)
                     returning id::text as id
                     """
                 ).fetchone()
