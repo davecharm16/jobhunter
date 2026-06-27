@@ -36,6 +36,27 @@ PROMPT="$(INPUTS_JSON="$INPUTS_JSON" node -e '
   process.stdout.write(out);
 ')"
 
+# Generate the Playwright MCP config (referenced by /opt/scan/mcp.json). If
+# SCAN_PROXY_HOSTS is set, route the browser through a residential proxy so
+# Cloudflare-gated sites (Indeed, JobStreet) don't block the datacenter IP. One
+# host is picked at random per run for IP rotation. Creds come from env only —
+# never committed. No proxy env → direct connection (LinkedIn/OnlineJobs still work).
+PW_CONFIG=/opt/scan/pw-config.json
+if [ -n "${SCAN_PROXY_HOSTS:-}" ]; then
+  PROXY_HOST="$(printf '%s' "$SCAN_PROXY_HOSTS" | tr ',; ' '\n\n\n' | grep -v '^[[:space:]]*$' | shuf -n1 | tr -d '[:space:]')"
+  cat > "$PW_CONFIG" <<EOF
+{ "browser": { "browserName": "chromium", "launchOptions": {
+  "headless": true,
+  "proxy": { "server": "http://${PROXY_HOST}", "username": "${SCAN_PROXY_USERNAME:-}", "password": "${SCAN_PROXY_PASSWORD:-}" }
+} } }
+EOF
+  echo "scan: routing browser through residential proxy ${PROXY_HOST}" >&2
+else
+  cat > "$PW_CONFIG" <<EOF
+{ "browser": { "browserName": "chromium", "launchOptions": { "headless": true } } }
+EOF
+fi
+
 claude -p "$PROMPT" \
   --mcp-config /opt/scan/mcp.json \
   --allowedTools "mcp__playwright__*" \
