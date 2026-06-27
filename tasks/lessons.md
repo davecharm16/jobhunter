@@ -69,6 +69,25 @@ so uvicorn ignores XFF → app sees Caddy as 127.0.0.1 again. Baked into
 **Rule:** when an app relies on loopback-trust behind a same-host reverse proxy,
 disable the framework's forwarded-header trust, or it silently breaks auth.
 
+## 2026-06-27 — Plan FIRST for new features, not mid-build
+**Correction:** "write plan and plan first dude its in your workflow orchestration
+in claude md" — I started building the screenshot→CV feature (and earlier the
+tabbed dashboard) before writing a plan.
+**Why:** CLAUDE.md → Workflow Orchestration → "Plan Node Default" + Task
+Management "Plan First: write plan to tasks/todo.md; Verify Plan: check in before
+implementation." Building first skips the cheap step that catches design issues.
+**Rule:** For any non-trivial/new feature: write the plan to tasks/todo.md with
+checkable items, surface the real design forks as a check-in, get the nod, THEN
+build. Small bugfixes/tweaks can skip it; features cannot.
+
+## 2026-06-27 — Verify the riskiest unknown in isolation, early
+**What worked:** For screenshot→CV, the one unknown was "can `claude -p` read an
+image?" I tested the n8n vision webhook directly with a generated job image BEFORE
+wiring the app/frontend — confirmed Claude returned the JD verbatim. De-risked the
+whole feature in one cheap call instead of debugging through 3 layers.
+**Rule:** Identify the single biggest unknown in a feature and prove it standalone
+before building everything that depends on it.
+
 ## 2026-06-27 — Follow CLAUDE.md task management from the start
 **Correction:** Never created `tasks/todo.md` / `tasks/lessons.md` this session.
 **Rule:** At the start of multi-step work, write the plan to `tasks/todo.md`

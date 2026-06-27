@@ -37,6 +37,21 @@ def test_results_inserts_new(client):
     body = r.json()
     assert body["received"] == 1 and body["new"] == 1 and body["skipped"] == 0
 
+def test_results_drops_incomplete_instead_of_422(client):
+    # one good candidate + one missing jd_text → batch accepted, bad one dropped
+    payload = _payload()
+    payload["candidates"].append({
+        "site": "indeed", "url": "https://jobs.example.com/2", "title": "Dev2",
+        "jd_text": "", "company": None, "location": None,
+    })
+    r = client.post("/api/scan/results", json=payload)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["received"] == 2
+    assert body["ingested"] == 1
+    assert body["dropped_incomplete"] == 1
+    assert body["new"] == 1
+
 def test_results_is_idempotent(client):
     client.post("/api/scan/results", json=_payload())
     r = client.post("/api/scan/results", json=_payload())

@@ -224,3 +224,23 @@ hostnames** — only a link to the local app's Job Scan dashboard page. This
 preserves the existing FR44/FR11 "no-job-board-link" guardrail and keeps
 discovery structurally separate from submission. The human still presses submit
 (§5/§6 intact). When a scan yields zero new candidates, no notification is sent.
+
+## §9: Mobile-first UI (2026-06-27)
+
+**Decision:** The web UI is **mobile-first**. Design and build every screen for a
+small viewport first (single column, touch targets, reachable nav), then layer on
+`md:`/`lg:` enhancements for larger screens. The app is used on phones, so a screen
+that only works on desktop is a defect, not a polish item.
+
+**Guidelines (binding for new/changed UI):**
+- Default styles target mobile; widen with Tailwind responsive prefixes
+  (`md:`, `lg:`) — never the reverse. Don't gate core functionality behind
+  `hidden md:*` without a mobile equivalent (this caused the nav to be
+  unreachable on phones — fixed with a hamburger + slide-in drawer in `Sidebar`).
+- Navigation must be reachable on mobile (drawer/hamburger).
+- Tap targets ≥ ~40px; avoid hover-only affordances; content reflows to one column.
+- Tables/wide grids must scroll or restack on small screens.
+- Verify at a narrow width (~375px) before considering UI work done.
+
+This refines §5/§6 (local web UI) — the architecture is unchanged; this governs
+how the UI is laid out.

@@ -80,12 +80,15 @@ def put_settings(
 
 
 class CandidatePayload(BaseModel):
+    # Lenient by design: the scanner may return a few incomplete candidates
+    # (e.g. a listing whose JD it couldn't scrape). We accept the batch and drop
+    # the incomplete ones in the handler — one bad row must not 422 the whole run.
     site: str
-    url: str = Field(min_length=1)
-    title: str = Field(min_length=1)
+    url: str = ""
+    title: str = ""
     company: str | None = None
     location: str | None = None
-    jd_text: str = Field(min_length=1)
+    jd_text: str = ""
     fit_reason: str | None = None
     fit_score: float | None = None
 
@@ -117,13 +120,21 @@ def post_results(
             validate_site(c.site)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+    # Drop incomplete candidates (missing url/title/jd_text) rather than failing
+    # the whole batch — a listing the scanner couldn't fully scrape shouldn't
+    # discard the good ones from the same run.
+    usable = [
+        c for c in payload.candidates
+        if c.url.strip() and c.title.strip() and c.jd_text.strip()
+    ]
+    dropped = len(payload.candidates) - len(usable)
     cands = [
         CandidateInput(
             site=c.site, url=c.url, title=c.title, company=c.company,
             location=c.location, jd_text=c.jd_text, fit_reason=c.fit_reason,
             fit_score=c.fit_score,
         )
-        for c in payload.candidates
+        for c in usable
     ]
     scan, new, skipped = store.record_scan(
         started_at=payload.started_at, finished_at=payload.finished_at,
@@ -146,7 +157,9 @@ def post_results(
         except Exception:  # noqa: BLE001 - notification issues must not fail ingest
             pass
     return {
-        "scan_id": scan.id, "received": len(cands), "new": new, "skipped": skipped,
+        "scan_id": scan.id, "received": len(payload.candidates),
+        "ingested": len(cands), "dropped_incomplete": dropped,
+        "new": new, "skipped": skipped,
     }
 
 
@@ -254,9 +267,15 @@ def run_scan(
 
 # --- Screenshot → JD extraction (Claude Code vision, via n8n) -----------------
 
-class ExtractJdRequest(BaseModel):
+class ImageInput(BaseModel):
     image_b64: str = Field(min_length=1)
     content_type: str | None = "image/png"
+
+
+class ExtractJdRequest(BaseModel):
+    # One or more screenshots of the SAME posting (a long JD split across images).
+    # Each is read independently and the extracted text is concatenated in order.
+    images: list[ImageInput] = Field(min_length=1, max_length=8)
 
 
 # (image_b64, content_type) -> extracted JD text
@@ -293,17 +312,22 @@ def extract_jd(
     payload: ExtractJdRequest,
     extract: JdExtractorFn = Depends(get_jd_extractor),
 ) -> dict[str, Any]:
-    try:
-        jd = extract(payload.image_b64, payload.content_type or "image/png")
-    except Exception as exc:  # noqa: BLE001 - report vision/engine failure as 502
-        raise HTTPException(
-            status_code=502, detail=f"JD extraction failed: {exc}"
-        ) from exc
-    jd = (jd or "").strip()
+    fragments: list[str] = []
+    for img in payload.images:
+        try:
+            part = extract(img.image_b64, img.content_type or "image/png")
+        except Exception as exc:  # noqa: BLE001 - report vision/engine failure as 502
+            raise HTTPException(
+                status_code=502, detail=f"JD extraction failed: {exc}"
+            ) from exc
+        part = (part or "").strip()
+        if part:
+            fragments.append(part)
+    jd = "\n\n".join(fragments).strip()
     if not jd:
         raise HTTPException(
             status_code=422,
-            detail="no job description could be read from the image",
+            detail="no job description could be read from the image(s)",
         )
     return {"jd_text": jd}
 
