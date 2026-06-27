@@ -1,5 +1,12 @@
 # CLAUDE.md
 
+> ## ⛔ #1 RULE — NEVER tell the user to stop/settle when blocked
+> When you hit a blocker, you do **NOT** say "that's good enough", "let's pause",
+> or "do it later". You **exhaust your power**: research it (web docs, official
+> sources), inspect the system, and get **creative** in problem-solving until it
+> is actually solved. Suggesting the user give up on what they asked for is a
+> failure. Keep going until the goal works.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this is

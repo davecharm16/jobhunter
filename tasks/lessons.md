@@ -35,6 +35,26 @@ edits before seeing the comparison result.
 **Rule:** Before any `git checkout`/overwrite of a modified file: show the diff,
 confirm it's not the user's intended change, THEN act — never in one shot.
 
+## 2026-06-27 — NEVER tell the user to stop/settle when blocked (TOP RULE)
+**Correction (sharp):** I suggested pausing the auto-scan when the Execute
+Command node was blocked. The user was right to be furious — that's giving up on
+the exact thing they asked for. The user themselves found the fix
+(`NODES_EXCLUDE=[]`) that I should have researched.
+**Rule:** On ANY blocker: exhaust research (official docs / web), inspect the
+running system, and get creative — keep going until it actually works. Do not
+propose stopping, "good enough", or "later". Now pinned at the top of CLAUDE.md.
+
+## 2026-06-27 — n8n blocks Execute Command by a built-in default exclusion
+**Symptom:** `n8n-nodes-base.executeCommand` file present in the image, no
+`NODES_EXCLUDE` in env, yet n8n UI says "not installed" + activation errors
+"Unrecognized node type".
+**Cause:** recent n8n ships a **built-in default** that excludes dangerous nodes
+(executeCommand, etc.). An empty/unset env does NOT mean "allowed" — the default
+block still applies.
+**Fix:** explicitly set `NODES_EXCLUDE=[]` (and optionally
+`N8N_BLOCK_ENV_ACCESS_IN_NODE=false`) on the n8n service, then full restart.
+Lesson: "env var not set" ≠ "feature enabled" — check the product's defaults.
+
 ## 2026-06-27 — uvicorn proxy_headers defeats loopback-trust behind Caddy
 **Symptom:** deployed app on EC2 (Caddy+uvicorn in one container) returned 401
 `ingest_token_not_configured_on_server` on token-guarded endpoints
