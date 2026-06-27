@@ -35,6 +35,20 @@ edits before seeing the comparison result.
 **Rule:** Before any `git checkout`/overwrite of a modified file: show the diff,
 confirm it's not the user's intended change, THEN act — never in one shot.
 
+## 2026-06-27 — uvicorn proxy_headers defeats loopback-trust behind Caddy
+**Symptom:** deployed app on EC2 (Caddy+uvicorn in one container) returned 401
+`ingest_token_not_configured_on_server` on token-guarded endpoints
+(`/api/scan/settings`) even through Caddy basic-auth; access log showed the
+*real client IP*, not 127.0.0.1.
+**Cause:** uvicorn's `proxy_headers` defaults to ON and trusts `X-Forwarded-For`
+from loopback (Caddy at 127.0.0.1), so `request.client` became the external IP →
+`_is_loopback_request` False → the app's loopback-trust auth bypass failed.
+**Fix:** set `FORWARDED_ALLOW_IPS` to a non-loopback dummy (e.g. `10.255.255.255`)
+so uvicorn ignores XFF → app sees Caddy as 127.0.0.1 again. Baked into
+`docker-compose.prod.yml`.
+**Rule:** when an app relies on loopback-trust behind a same-host reverse proxy,
+disable the framework's forwarded-header trust, or it silently breaks auth.
+
 ## 2026-06-27 — Follow CLAUDE.md task management from the start
 **Correction:** Never created `tasks/todo.md` / `tasks/lessons.md` this session.
 **Rule:** At the start of multi-step work, write the plan to `tasks/todo.md`

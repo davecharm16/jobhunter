@@ -24,6 +24,13 @@ services:
       CADDY_BASIC_AUTH_USER: ${CADDY_BASIC_AUTH_USER:?set in .env}
       CADDY_BASIC_AUTH_HASH: ${CADDY_BASIC_AUTH_HASH:?set in .env}
       JOBHUNTER_LEDGER_PATH: /ledger/.cost-ledger.json
+      # Caddy and uvicorn share this container; Caddy proxies from 127.0.0.1.
+      # uvicorn trusts X-Forwarded-For from loopback by DEFAULT, so it would
+      # report the real client IP and the app's loopback-trust auth breaks
+      # (token-guarded endpoints 401 even behind Caddy basic-auth). A
+      # non-loopback value disables that trust → app sees Caddy as 127.0.0.1,
+      # and Caddy basic-auth stays the single network boundary.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-10.255.255.255}
     ports:
       - "80:80"
       - "443:443"
