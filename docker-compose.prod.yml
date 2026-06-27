@@ -46,6 +46,11 @@ services:
   watchtower:
     image: containrrr/watchtower
     container_name: watchtower
+    # containrrr/watchtower defaults its Docker API client to 1.25, which modern
+    # daemons reject ("client version 1.25 is too old, minimum 1.40"). Pin a
+    # supported version so Watchtower can actually pull/redeploy.
+    environment:
+      DOCKER_API_VERSION: "1.41"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: --label-enable --cleanup --interval 300
