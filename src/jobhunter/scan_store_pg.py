@@ -16,6 +16,7 @@ from jobhunter.scan import (
     CandidateInput,
     Scan,
     ScanSettings,
+    ScanStatus,
     validate_candidate_status,
 )
 
@@ -184,6 +185,61 @@ class PostgresScanStore:
                 """
             ).fetchall()
             return [_row_to_scan(r) for r in rows]
+
+    def mark_scan_running(self) -> ScanStatus:
+        with self._connect() as conn:
+            row = conn.execute(
+                f"""
+                update scan_status
+                set status = 'running', started_at = now(), finished_at = null,
+                    new_count = 0, site_summary = '{{}}'::jsonb, updated_at = now()
+                where id = true
+                returning status, {_ts('started_at','started_at')},
+                          {_ts('finished_at','finished_at')}, new_count, site_summary
+                """
+            ).fetchone()
+            assert row is not None
+            conn.commit()
+            return _row_to_status(row)
+
+    def mark_scan_completed(self, *, new_count: int, site_summary: dict) -> ScanStatus:
+        with self._connect() as conn:
+            row = conn.execute(
+                f"""
+                update scan_status
+                set status = 'completed', finished_at = now(),
+                    new_count = %s, site_summary = %s, updated_at = now()
+                where id = true
+                returning status, {_ts('started_at','started_at')},
+                          {_ts('finished_at','finished_at')}, new_count, site_summary
+                """,
+                (new_count, Jsonb(site_summary)),
+            ).fetchone()
+            assert row is not None
+            conn.commit()
+            return _row_to_status(row)
+
+    def get_scan_status(self) -> ScanStatus:
+        with self._connect() as conn:
+            row = conn.execute(
+                f"""
+                select status, {_ts('started_at','started_at')},
+                       {_ts('finished_at','finished_at')}, new_count, site_summary
+                from scan_status where id = true
+                """
+            ).fetchone()
+            assert row is not None
+            return _row_to_status(row)
+
+
+def _row_to_status(row: dict[str, Any]) -> ScanStatus:
+    return ScanStatus(
+        status=row["status"],
+        started_at=row["started_at"],
+        finished_at=row["finished_at"],
+        new_count=row["new_count"],
+        site_summary=row["site_summary"] or {},
+    )
 
 
 def _cand_cols() -> str:

@@ -52,6 +52,15 @@ def test_results_drops_incomplete_instead_of_422(client):
     assert body["dropped_incomplete"] == 1
     assert body["new"] == 1
 
+def test_scan_status_reflects_completion(client):
+    # idle before any run
+    assert client.get("/api/scan/status").json()["status"] == "idle"
+    # posting results marks the live status completed with the new count
+    client.post("/api/scan/results", json=_payload())
+    st = client.get("/api/scan/status").json()
+    assert st["status"] == "completed"
+    assert st["new_count"] == 1
+
 def test_results_is_idempotent(client):
     client.post("/api/scan/results", json=_payload())
     r = client.post("/api/scan/results", json=_payload())
