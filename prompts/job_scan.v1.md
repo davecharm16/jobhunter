@@ -23,11 +23,15 @@ For EACH enabled site, and for EACH search title (keyword):
    above as the site's location filter when it is set (if it is empty, fall back
    to the candidate's profile location or remote roles). Prefer recently-posted
    listings.
-2. Skip any listing whose URL is in the already-seen list BEFORE opening it.
-3. Rank the remaining listings by genuine fit to the candidate profile (see Fit
+2. Walk ONLY search-results pages 1, 2, and 3 (use the site's pagination / "next
+   page" control). Do NOT go past page 3, and do NOT use infinite scroll or
+   "load more" to pull in deeper results. Collect the listings shown across those
+   first three pages.
+3. Skip any listing whose URL is in the already-seen list BEFORE opening it.
+4. Rank the collected listings by genuine fit to the candidate profile (see Fit
    rules) and take the top {{PICKS_PER_SITE}} for THAT keyword on THAT site.
-4. Open each selected listing and scrape the FULL job-description text.
-5. If the site blocks you, shows a login/CAPTCHA wall, or returns nothing,
+5. Open each selected listing and scrape the FULL job-description text.
+6. If the site blocks you, shows a login/CAPTCHA wall, or returns nothing,
    record that site's status as `blocked` or `empty` and move on — do NOT fail
    the whole run.
 

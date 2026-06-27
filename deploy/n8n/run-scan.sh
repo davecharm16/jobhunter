@@ -1,33 +1,82 @@
 #!/usr/bin/env bash
-# Invoked by the n8n Execute Command node. Reads BASE64-encoded JSON scan inputs
-# on stdin, then scans the enabled sites ONE AT A TIME — a separate Claude +
-# Playwright run per site (sites_enabled=[that site]). Keeping each run small
-# (7 titles × 1 site) means Claude finishes in a single turn instead of deferring
-# the work to a background task (which used to hang / return prose). All sites'
-# candidates are aggregated into ONE combined JSON printed to stdout for n8n.
-# Per-site progress + Claude's own logs go to stderr (visible in the n8n node).
+# Invoked by the n8n Execute Command node, ONCE PER SITE. The site to scan is
+# passed as `--site <site>` and the BASE64-encoded JSON scan inputs arrive on
+# stdin. This runs a single Claude + Playwright pass scoped to that one site
+# (sites_enabled is overridden to [that site]). Keeping each run small means
+# Claude finishes in one turn instead of deferring to a background task.
 #
-# stdin: base64 of JSON { search_titles, sites_enabled, picks_per_site, location,
-#                         canonical_profile, known_urls }
+# This script ALWAYS exits 0 — even if Claude fails — so the n8n node never
+# errors and the workflow chain advances to the next site. The site's outcome is
+# communicated entirely via the single JSON object printed to stdout.
+#
+# stdout (THE ONLY thing on stdout): exactly one JSON object:
+#   {"site":"<site>","site_status":"ok|blocked|empty|error","candidates":[...]}
+# All progress / diagnostics / Claude's own logs go to stderr.
+#
+# Usage: run-scan.sh --site <site>   (stdin = base64 JSON scan inputs)
+# stdin JSON: { search_titles, sites_enabled, picks_per_site, location,
+#               canonical_profile, known_urls }
 #
 # Auth (set on the n8n service): CLAUDE_CODE_OAUTH_TOKEN. Do NOT set
 # ANTHROPIC_API_KEY (it overrides the OAuth token).
-set -euo pipefail
+#
+# Resilient on purpose: no `-e` (a failing Claude must not abort the script).
+set -uo pipefail
 
 # Root container → Claude needs the sandbox escape hatch for bypassPermissions.
 export IS_SANDBOX=1
-# Finite ceiling (15 min) so a stuck site can't hang the whole run forever.
-# (Was 0 = infinite, which let a deferred scan hang indefinitely.)
+# Finite ceiling (15 min) so a stuck site can't hang the run forever.
+# (NOT 0 = infinite, which let a deferred scan hang indefinitely.)
 export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=900000
+
+# --- Parse --site <site> from args -------------------------------------------
+SITE=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --site)
+      SITE="${2:-}"
+      shift 2 || shift
+      ;;
+    --site=*)
+      SITE="${1#--site=}"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+# emit_result <site_status> [candidates_json]
+# Prints the one-and-only stdout JSON object and exits 0.
+emit_result() {
+  local status="$1" cands="${2:-[]}"
+  SITE="$SITE" STATUS="$status" CANDS="$cands" node -e '
+    const out = {
+      site: process.env.SITE,
+      site_status: process.env.STATUS,
+      candidates: (() => { try { const c = JSON.parse(process.env.CANDS); return Array.isArray(c) ? c : []; } catch (e) { return []; } })(),
+    };
+    process.stdout.write(JSON.stringify(out));
+  '
+  exit 0
+}
+
+if [ -z "$SITE" ]; then
+  echo "scan: ERROR no --site provided" >&2
+  emit_result "error"
+fi
+
+echo "scan: ===== ${SITE}: starting =====" >&2
 
 INPUTS_JSON="$(cat | base64 -d)"
 
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 PW_CONFIG=/opt/scan/pw-config.json
 
-# (Re)write the Playwright MCP config, picking a fresh residential proxy IP each
-# call so each site rotates to a different exit IP. Anti-bot hardening: real
-# desktop UA + viewport + locale, and disable the navigator.webdriver flag.
+# Write the Playwright MCP config, picking a fresh residential proxy IP so each
+# site (each invocation) rotates to a different exit IP. Anti-bot hardening:
+# real desktop UA + viewport + locale, and disable the navigator.webdriver flag.
 write_pw_config() {
   local proxy_json="" host
   if [ -n "${SCAN_PROXY_HOSTS:-}" ]; then
@@ -51,63 +100,67 @@ write_pw_config() {
 EOF
 }
 
-SITES="$(printf '%s' "$INPUTS_JSON" | node -e 'const i=JSON.parse(require("fs").readFileSync(0,"utf8"));process.stdout.write((i.sites_enabled||[]).join(" "))')"
+write_pw_config
+
+# Fill the prompt template, scoping {{SITES_ENABLED}} to just this one site.
+PROMPT="$(INPUTS_JSON="$INPUTS_JSON" SITE="$SITE" node -e '
+  const fs = require("fs");
+  const t = fs.readFileSync("/opt/scan/job_scan.v1.md", "utf8");
+  const i = JSON.parse(process.env.INPUTS_JSON);
+  const site = process.env.SITE;
+  const out = t
+    .split("{{SEARCH_TITLES}}").join(JSON.stringify(i.search_titles))
+    .split("{{SITES_ENABLED}}").join(JSON.stringify([site]))
+    .split("{{LOCATION}}").join(i.location || "(none — search broadly / use profile location)")
+    .split("{{PICKS_PER_SITE}}").join(String(i.picks_per_site))
+    .split("{{CANONICAL_PROFILE}}").join(JSON.stringify(i.canonical_profile))
+    .split("{{KNOWN_URLS}}").join(JSON.stringify(i.known_urls));
+  process.stdout.write(out);
+')"
 
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
+RAW="$TMPDIR/claude.json"
 
-for site in $SITES; do
-  echo "scan: ===== ${site}: starting =====" >&2
-  write_pw_config
-  PROMPT="$(INPUTS_JSON="$INPUTS_JSON" SITE="$site" node -e '
-    const fs = require("fs");
-    const t = fs.readFileSync("/opt/scan/job_scan.v1.md", "utf8");
-    const i = JSON.parse(process.env.INPUTS_JSON);
-    const site = process.env.SITE;
-    const out = t
-      .split("{{SEARCH_TITLES}}").join(JSON.stringify(i.search_titles))
-      .split("{{SITES_ENABLED}}").join(JSON.stringify([site]))
-      .split("{{LOCATION}}").join(i.location || "(none — search broadly / use profile location)")
-      .split("{{PICKS_PER_SITE}}").join(String(i.picks_per_site))
-      .split("{{CANONICAL_PROFILE}}").join(JSON.stringify(i.canonical_profile))
-      .split("{{KNOWN_URLS}}").join(JSON.stringify(i.known_urls));
-    process.stdout.write(out);
-  ')"
-  if claude -p "$PROMPT" \
-       --mcp-config /opt/scan/mcp.json \
-       --allowedTools "mcp__playwright__*" \
-       --permission-mode bypassPermissions \
-       --output-format json > "$TMPDIR/${site}.json"; then
-    echo "scan: ===== ${site}: done =====" >&2
-  else
-    echo "scan: ===== ${site}: claude exited nonzero =====" >&2
-  fi
-done
+# Claude output can be large → capture to a file, never via env var / arg.
+claude -p "$PROMPT" \
+     --mcp-config /opt/scan/mcp.json \
+     --allowedTools "mcp__playwright__*" \
+     --permission-mode bypassPermissions \
+     --output-format json > "$RAW"
+RC=$?
+echo "scan: ${SITE}: claude rc=${RC}" >&2
 
-# Aggregate every site's result into ONE combined object for n8n's Parse node.
-node -e '
+# Extract { site_status, candidates } from Claude's --output-format json envelope
+# ({...,"result":"<text>"}); the text holds the site JSON possibly wrapped in
+# prose/fences → slice first `{` … last `}`. Diagnostics go to stderr; the lone
+# stdout line is the result JSON.
+RESULT="$(SITE="$SITE" node -e '
   const fs = require("fs");
-  const dir = process.argv[1];
-  const sites = process.argv.slice(2);
-  const agg = { started_at: null, finished_at: null, site_summary: {}, candidates: [] };
-  for (const site of sites) {
-    let env;
-    try { env = JSON.parse(fs.readFileSync(dir + "/" + site + ".json", "utf8")); }
-    catch (e) { agg.site_summary[site] = { status: "error", count: 0 }; continue; }
-    let inner = (env && env.result !== undefined) ? env.result : env;
-    let payload = null;
-    if (typeof inner === "string") {
-      const a = inner.indexOf("{"), b = inner.lastIndexOf("}");
-      if (a >= 0 && b > a) { try { payload = JSON.parse(inner.slice(a, b + 1)); } catch (e) {} }
-    } else if (inner && typeof inner === "object") {
-      payload = inner;
-    }
-    if (payload && Array.isArray(payload.candidates)) {
-      agg.candidates.push(...payload.candidates);
-      Object.assign(agg.site_summary, payload.site_summary || {});
-    } else {
-      agg.site_summary[site] = { status: "error", count: 0 };
-    }
+  const site = process.env.SITE;
+  const fail = () => { process.stdout.write(JSON.stringify({ site, site_status: "error", candidates: [] })); process.exit(0); };
+  let env;
+  try { env = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); } catch (e) { return fail(); }
+  let inner = (env && env.result !== undefined) ? env.result : env;
+  let payload = null;
+  if (typeof inner === "string") {
+    const a = inner.indexOf("{"), b = inner.lastIndexOf("}");
+    if (a >= 0 && b > a) { try { payload = JSON.parse(inner.slice(a, b + 1)); } catch (e) {} }
+  } else if (inner && typeof inner === "object") {
+    payload = inner;
   }
-  process.stdout.write(JSON.stringify(agg));
-' "$TMPDIR" $SITES
+  if (!payload) return fail();
+  const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+  let status;
+  const ss = payload.site_summary && payload.site_summary[site];
+  if (ss && ss.status) status = ss.status;          // trust the agent-reported status
+  else if (candidates.length > 0) status = "ok";    // got rows → ok
+  else status = "empty";                            // parsed but no rows
+  process.stdout.write(JSON.stringify({ site, site_status: status, candidates }));
+' "$RAW")"
+
+echo "scan: ===== ${SITE}: done =====" >&2
+
+# RESULT is already the exact contract JSON; print it as the sole stdout output.
+printf '%s' "$RESULT"
+exit 0
