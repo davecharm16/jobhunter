@@ -52,6 +52,32 @@ def test_results_drops_incomplete_instead_of_422(client):
     assert body["dropped_incomplete"] == 1
     assert body["new"] == 1
 
+def test_site_results_incremental_blocked_does_not_sacrifice_working(client):
+    # Indeed finishes with a job
+    r = client.post("/api/scan/site-results", json={
+        "site": "indeed", "site_status": "ok",
+        "candidates": [{"site": "indeed", "url": "https://jobs.example.com/i1",
+                        "title": "Dev", "jd_text": "jd body"}],
+    })
+    assert r.status_code == 200 and r.json()["new"] == 1
+    # JobStreet is blocked (zero candidates) — must NOT erase Indeed's result
+    r = client.post("/api/scan/site-results", json={
+        "site": "jobstreet", "site_status": "blocked", "candidates": [],
+    })
+    assert r.status_code == 200
+    # live per-site status shows both; Indeed's candidate is saved
+    st = client.get("/api/scan/status").json()
+    assert st["per_site"]["indeed"] == {"status": "ok", "count": 1}
+    assert st["per_site"]["jobstreet"]["status"] == "blocked"
+    cands = client.get("/api/scan/candidates").json()
+    assert any(c["site"] == "indeed" for c in cands)
+    # complete → totals add up, blocked site didn't cost us the working one
+    r = client.post("/api/scan/complete")
+    assert r.status_code == 200
+    st = client.get("/api/scan/status").json()
+    assert st["status"] == "completed" and st["new_count"] == 1
+
+
 def test_scan_status_reflects_completion(client):
     # idle before any run
     assert client.get("/api/scan/status").json()["status"] == "idle"

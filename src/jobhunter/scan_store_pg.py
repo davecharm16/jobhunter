@@ -192,18 +192,87 @@ class PostgresScanStore:
                 f"""
                 update scan_status
                 set status = 'running', started_at = now(), finished_at = null,
-                    new_count = 0, site_summary = '{{}}'::jsonb, updated_at = now()
+                    new_count = 0, site_summary = '{{}}'::jsonb,
+                    per_site = '{{}}'::jsonb, current_scan_id = null,
+                    updated_at = now()
                 where id = true
                 returning status, {_ts('started_at','started_at')},
-                          {_ts('finished_at','finished_at')}, new_count, site_summary
+                          {_ts('finished_at','finished_at')}, new_count,
+                          site_summary, per_site
                 """
             ).fetchone()
             assert row is not None
             conn.commit()
             return _row_to_status(row)
 
+    def append_site_results(self, *, site, site_status,
+                            candidates) -> tuple[Scan, int, int]:
+        with self._connect() as conn:
+            st = conn.execute(
+                "select current_scan_id::text as id from scan_status where id = true"
+            ).fetchone()
+            scan_id = st["id"] if st else None
+            if not scan_id:
+                created = conn.execute(
+                    """
+                    insert into scans (status, site_summary)
+                    values ('running', '{}'::jsonb)
+                    returning id::text as id
+                    """
+                ).fetchone()
+                assert created is not None
+                scan_id = created["id"]
+                conn.execute(
+                    "update scan_status set current_scan_id = %s, status = 'running', "
+                    "started_at = coalesce(started_at, now()), updated_at = now() "
+                    "where id = true",
+                    (scan_id,),
+                )
+            new = skipped = 0
+            for ci in candidates:
+                inserted = conn.execute(
+                    """
+                    insert into scan_candidates
+                        (scan_id, site, url, title, company, location, jd_text,
+                         fit_reason, fit_score)
+                    values (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    on conflict (url) do nothing
+                    returning id
+                    """,
+                    (scan_id, ci.site, ci.url, ci.title, ci.company, ci.location,
+                     ci.jd_text, ci.fit_reason, ci.fit_score),
+                ).fetchone()
+                if inserted is None:
+                    skipped += 1
+                else:
+                    new += 1
+            slot = Jsonb({site: {"status": site_status, "count": new}})
+            scan_row = conn.execute(
+                f"""
+                update scans set site_summary = site_summary || %s where id = %s
+                returning id::text as id,
+                          {_ts('started_at','started_at')},
+                          {_ts('finished_at','finished_at')},
+                          status, site_summary, {_ts('created_at','created_at')}
+                """,
+                (slot, scan_id),
+            ).fetchone()
+            conn.execute(
+                "update scan_status set per_site = per_site || %s, status = 'running', "
+                "updated_at = now() where id = true",
+                (slot,),
+            )
+            conn.commit()
+            assert scan_row is not None
+            return _row_to_scan(scan_row), new, skipped
+
     def mark_scan_completed(self, *, new_count: int, site_summary: dict) -> ScanStatus:
         with self._connect() as conn:
+            # finalize the current scan row too (it was left 'running')
+            conn.execute(
+                "update scans set status = 'completed' "
+                "where id = (select current_scan_id from scan_status where id = true)"
+            )
             row = conn.execute(
                 f"""
                 update scan_status
@@ -211,7 +280,8 @@ class PostgresScanStore:
                     new_count = %s, site_summary = %s, updated_at = now()
                 where id = true
                 returning status, {_ts('started_at','started_at')},
-                          {_ts('finished_at','finished_at')}, new_count, site_summary
+                          {_ts('finished_at','finished_at')}, new_count,
+                          site_summary, per_site
                 """,
                 (new_count, Jsonb(site_summary)),
             ).fetchone()
@@ -224,7 +294,8 @@ class PostgresScanStore:
             row = conn.execute(
                 f"""
                 select status, {_ts('started_at','started_at')},
-                       {_ts('finished_at','finished_at')}, new_count, site_summary
+                       {_ts('finished_at','finished_at')}, new_count,
+                       site_summary, per_site
                 from scan_status where id = true
                 """
             ).fetchone()
@@ -239,6 +310,7 @@ def _row_to_status(row: dict[str, Any]) -> ScanStatus:
         finished_at=row["finished_at"],
         new_count=row["new_count"],
         site_summary=row["site_summary"] or {},
+        per_site=row.get("per_site") or {},
     )
 
 

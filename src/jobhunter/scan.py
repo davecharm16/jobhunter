@@ -5,7 +5,7 @@ against an in-memory fake (tests/fake_scan_store.py).
 """
 
 import builtins
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Protocol
 
 SITES: tuple[str, ...] = ("indeed", "onlinejobs_ph", "jobstreet", "linkedin")
@@ -62,6 +62,10 @@ class ScanStatus:
     finished_at: str | None
     new_count: int
     site_summary: dict
+    # per-site live progress, e.g. {"indeed": {"status": "ok", "count": 3}};
+    # updated incrementally as each site node posts so a blocked/slow site never
+    # hides or delays the sites that already finished.
+    per_site: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -152,6 +156,19 @@ class ScanStore(Protocol):
     def list_scans(self) -> builtins.list[Scan]: ...
 
     def mark_scan_running(self) -> ScanStatus: ...
+
+    def append_site_results(
+        self,
+        *,
+        site: str,
+        site_status: str,
+        candidates: builtins.list[CandidateInput],
+    ) -> tuple[Scan, int, int]:
+        """Append ONE site's candidates to the current running scan (creating the
+        scan on first call), update that site's slot in scan_status.per_site, and
+        return (scan, new_count, skipped_count). Each site posts independently so
+        a blocked/slow site never holds back the ones that already finished."""
+        ...
 
     def mark_scan_completed(
         self, *, new_count: int, site_summary: dict
