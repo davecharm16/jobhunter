@@ -83,16 +83,21 @@ export function PastePanel({ jdText, setJdText }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function onScreenshot(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
     setExtracting(true);
     setError(null);
     try {
-      const { b64, contentType } = await fileToDownscaledBase64(file);
+      const images = await Promise.all(
+        files.map(async (f) => {
+          const { b64, contentType } = await fileToDownscaledBase64(f);
+          return { image_b64: b64, content_type: contentType };
+        }),
+      );
       const resp = await fetch("/api/extract-jd", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_b64: b64, content_type: contentType }),
+        body: JSON.stringify({ images }),
       });
       const body = await resp.json();
       if (!resp.ok) {
@@ -164,6 +169,7 @@ export function PastePanel({ jdText, setJdText }: Props) {
           ref={fileRef}
           type="file"
           accept="image/*"
+          multiple
           onChange={onScreenshot}
           className="hidden"
         />
@@ -173,10 +179,10 @@ export function PastePanel({ jdText, setJdText }: Props) {
           disabled={busy || extracting}
           className="border border-outline-variant text-on-surface text-body-md font-body-md py-stack-sm px-stack-md rounded-lg hover:bg-surface-container-high disabled:opacity-50 transition-colors"
         >
-          {extracting ? "Reading screenshot…" : "📷 Upload screenshot"}
+          {extracting ? "Reading screenshot(s)…" : "📷 Upload screenshot(s)"}
         </button>
         <span className="text-body-sm text-on-surface-variant">
-          extracts the job description into the box below for you to review
+          one or more screenshots of a posting → extracted into the box below to review
         </span>
       </div>
 

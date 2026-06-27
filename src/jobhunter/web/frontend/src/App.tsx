@@ -171,12 +171,23 @@ function DashboardPage() {
 }
 
 export function App() {
+  const [navOpen, setNavOpen] = useState(false);
   return (
     <BrowserRouter>
       <div className="min-h-full flex bg-surface text-on-surface">
-        <Sidebar />
+        <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
         <main className="flex-1 flex flex-col min-w-0">
-          <header className="h-16 px-gutter flex items-center border-b border-outline-variant bg-surface">
+          <header className="h-16 px-gutter flex items-center gap-stack-sm border-b border-outline-variant bg-surface">
+            <button
+              type="button"
+              onClick={() => setNavOpen(true)}
+              aria-label="Open menu"
+              className="md:hidden p-1 -ml-1 text-on-surface-variant hover:text-on-surface"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
             <h2 className="text-headline-lg font-headline-lg text-on-surface">
               Job Hunter
             </h2>

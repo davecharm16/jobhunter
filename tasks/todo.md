@@ -85,25 +85,40 @@ Frontend paste panel: "Upload screenshot" → app POST /api/extract-jd (image)
 ```
 
 **Tasks (checkable):**
-- [ ] T1 — n8n workflow "Image → JD": Webhook (POST, base64 image, responseMode lastNode)
-      → Code node writes `/tmp/shot.png` → Execute Command `claude -p "Read /tmp/shot.png
-      and output ONLY the full job-description text, no commentary"` (allowedTools Read,
-      bypassPermissions, IS_SANDBOX) → Respond with `{ jd_text }`. VERIFY claude reads an
-      image in `-p` mode (test the webhook with a sample screenshot before wiring).
-- [ ] T2 — App `POST /api/extract-jd`: accept image upload, base64 + POST to
-      `N8N_IMAGE_VISION_URL` (new env, Bearer INGEST), return `{ jd_text }` (NO tailoring).
-      Vision call injected as a dependency (stub in tests). Errors: vision unreachable →
-      502; empty JD → 422.
-- [ ] T3 — Tests (TDD): success (stub → jd_text), vision-failure → 502, empty → 422.
-- [ ] T4 — Frontend (PastePanel): "Upload screenshot" button → POST /api/extract-jd →
-      put returned JD into the existing textarea (user reviews/edits) → existing Generate.
-- [ ] T5 — Config + deploy: `N8N_IMAGE_VISION_URL` in .env(.example) + on EC2 app; build
-      the n8n workflow via n8n-mcp; merge to main (app via Watchtower).
-- [ ] T6 — E2E: upload a real job screenshot → JD fills textarea → Generate → CV.
+- [x] T1 — n8n workflow "Image → JD" (id `K5TMS4vzQRLI7KR1`): Webhook POST /webhook/extract-jd
+      (responseMode lastNode) → Execute Command decodes base64 → `claude -p` reads /tmp/shot.jpg
+      → Parse JD → returns `{ jd_text }`. ✅ VERIFIED: POSTed a generated test job image →
+      Claude returned the JD verbatim. (No n8n rebuild — container already has claude+IS_SANDBOX.)
+- [x] T2 — App `POST /api/extract-jd` (scan.py): image_b64 → POST N8N_IMAGE_VISION_URL →
+      `{ jd_text }` (no tailoring). get_jd_extractor injectable. vision fail → 502; empty → 422.
+- [x] T3 — Tests: 4 in test_extract_jd_api.py (success / 502 / empty-422 / missing-422). Green.
+- [x] T4 — Frontend (PastePanel): "📷 Upload screenshot" → client-side downscale → /api/extract-jd
+      → fills JD textarea for review → existing Generate. `npm run build` OK.
+- [x] T5 — `N8N_IMAGE_VISION_URL` in .env.example + set on EC2; n8n workflow built+published;
+      merged to main (PR #7, 6c3347a) → app rebuilds via CI+Watchtower.
+- [ ] T6 — E2E on EC2: pending app image deploy (CI build → Watchtower). Verify /api/extract-jd
+      live, then upload a real screenshot → JD fills box → Generate → CV.
 
 **Risks:** verifying `claude -p` image reading (one unknown to shake out, like the scan);
 screenshot size limits; vision occasionally misreads a noisy screenshot (confirm-first
 mitigates).
+
+## QUEUE (2026-06-27, rapid requests — batch + deploy once to avoid CI cancel churn)
+- [x] Q1 — /api/scan/results leniency: drop incomplete candidates instead of 422-ing
+      the whole batch (proxy scan exec 26 returned 23 LinkedIn cands, all rejected).
+- [x] Q2 — Multi-image screenshot upload: /api/extract-jd accepts a list of images
+      (loop the existing vision webhook, concatenate); PastePanel multi-select. NO n8n change.
+- [x] Q3 — Mobile sidebar: make the nav work on mobile (hamburger/drawer).
+- [x] Q4 — DECISIONS.md: add mobile-first design as a guideline/decision (§).
+- [ ] Q5 — Configurable scan LOCATION: add `location` to scan_settings (Supabase) +
+      settings API + Settings UI + scan workflow Build-Inputs + prompt {{LOCATION}} token
+      + run-scan.sh. (Deepest — needs migration + n8n rebuild.)
+
+### Proxy scan finding (exec 26)
+- ✅ proxy active ("routing browser through residential proxy 209.50.187.49:3129").
+- indeed: empty (NO longer blocked — proxy beat Cloudflare; 0 matches that run),
+  onlinejobs: empty, jobstreet: still blocked, linkedin: ok (23 cands).
+- Configurable location (Q5) should help Indeed return matches instead of empty.
 
 ## Branch/PR
 - feat/job-scan merged to main via PRs #2/#3. Local feat/job-scan may be a few commits ahead
