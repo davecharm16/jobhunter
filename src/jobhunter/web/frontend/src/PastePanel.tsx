@@ -1,5 +1,40 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
+// Downscale the screenshot to a max edge (Claude reads ~1568px fine) and encode
+// as JPEG base64. Keeps the payload small so it passes through n8n's command to
+// Claude without hitting the shell arg-size limit. Returns {b64, contentType}.
+function fileToDownscaledBase64(
+  file: File,
+  maxEdge = 1600,
+): Promise<{ b64: string; contentType: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("could not load image"));
+      img.onload = () => {
+        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("canvas not supported"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        resolve({ b64: dataUrl.split(",", 2)[1], contentType: "image/jpeg" });
+      };
+      img.src = String(reader.result || "");
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 type PasteResponse = {
   slug: string;
@@ -44,6 +79,36 @@ export function PastePanel({ jdText, setJdText }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [url, setUrl] = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function onScreenshot(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setExtracting(true);
+    setError(null);
+    try {
+      const { b64, contentType } = await fileToDownscaledBase64(file);
+      const resp = await fetch("/api/extract-jd", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_b64: b64, content_type: contentType }),
+      });
+      const body = await resp.json();
+      if (!resp.ok) {
+        setError(
+          typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail),
+        );
+        return;
+      }
+      setJdText(body.jd_text); // fill the box so you can review/edit before generating
+    } catch (exc) {
+      setError(String(exc));
+    } finally {
+      setExtracting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
 
   async function submit() {
     setBusy(true);
@@ -91,6 +156,28 @@ export function PastePanel({ jdText, setJdText }: Props) {
             Paste a job description to generate a tailored CV and cover letter.
           </p>
         </div>
+      </div>
+
+      {/* Upload a screenshot instead of pasting — fills the box below for review */}
+      <div className="flex items-center gap-stack-sm">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          onChange={onScreenshot}
+          className="hidden"
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={busy || extracting}
+          className="border border-outline-variant text-on-surface text-body-md font-body-md py-stack-sm px-stack-md rounded-lg hover:bg-surface-container-high disabled:opacity-50 transition-colors"
+        >
+          {extracting ? "Reading screenshot…" : "📷 Upload screenshot"}
+        </button>
+        <span className="text-body-sm text-on-surface-variant">
+          extracts the job description into the box below for you to review
+        </span>
       </div>
 
       {/* Textarea */}

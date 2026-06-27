@@ -35,6 +35,9 @@ class RuntimeConfig:
     # Job Scan: optional n8n trigger webhook the "Run scan now" button pings to
     # kick off an external scan. Missing / empty disables manual triggering.
     n8n_scan_trigger_url: str | None = None
+    # Screenshot→JD: optional n8n webhook that runs Claude Code vision on an
+    # uploaded image and returns the extracted job-description text.
+    n8n_image_vision_url: str | None = None
 
 
 def load_runtime_config(env_path: Path | None = None) -> RuntimeConfig:
@@ -54,6 +57,7 @@ def load_runtime_config(env_path: Path | None = None) -> RuntimeConfig:
     ingest_token = _optional_token("INGEST_TOKEN")
     gchat_webhook_url = _optional_token("GCHAT_WEBHOOK_URL")
     n8n_scan_trigger_url = _optional_token("N8N_SCAN_TRIGGER_URL")
+    n8n_image_vision_url = _optional_token("N8N_IMAGE_VISION_URL")
 
     return RuntimeConfig(
         llm_api_key=llm_api_key,
@@ -62,6 +66,7 @@ def load_runtime_config(env_path: Path | None = None) -> RuntimeConfig:
         ingest_token=ingest_token,
         gchat_webhook_url=gchat_webhook_url,
         n8n_scan_trigger_url=n8n_scan_trigger_url,
+        n8n_image_vision_url=n8n_image_vision_url,
     )
 
 

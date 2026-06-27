@@ -252,4 +252,66 @@ def run_scan(
     return {"triggered": True}
 
 
-__all__ = ["router", "get_store", "get_tailor", "get_scan_trigger"]
+# --- Screenshot → JD extraction (Claude Code vision, via n8n) -----------------
+
+class ExtractJdRequest(BaseModel):
+    image_b64: str = Field(min_length=1)
+    content_type: str | None = "image/png"
+
+
+# (image_b64, content_type) -> extracted JD text
+JdExtractorFn = Callable[[str, str], str]
+
+
+def get_jd_extractor() -> JdExtractorFn:
+    """Production extractor: POST the image to the n8n vision webhook, which runs
+    Claude Code (subscription) to read the screenshot and return the JD text.
+    Overridden in tests. Keeps DECISIONS.md §4 — the app does no LLM vision call
+    itself; the vision is the external Claude-Code step (like the scanner)."""
+
+    def _extract(image_b64: str, content_type: str) -> str:
+        import httpx
+
+        url = load_runtime_config().n8n_image_vision_url
+        if not url:
+            raise RuntimeError(
+                "image vision not configured (set N8N_IMAGE_VISION_URL)"
+            )
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(
+                url, json={"image_b64": image_b64, "content_type": content_type}
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        return (data.get("jd_text") or "").strip()
+
+    return _extract
+
+
+@router.post("/api/extract-jd")
+def extract_jd(
+    payload: ExtractJdRequest,
+    extract: JdExtractorFn = Depends(get_jd_extractor),
+) -> dict[str, Any]:
+    try:
+        jd = extract(payload.image_b64, payload.content_type or "image/png")
+    except Exception as exc:  # noqa: BLE001 - report vision/engine failure as 502
+        raise HTTPException(
+            status_code=502, detail=f"JD extraction failed: {exc}"
+        ) from exc
+    jd = (jd or "").strip()
+    if not jd:
+        raise HTTPException(
+            status_code=422,
+            detail="no job description could be read from the image",
+        )
+    return {"jd_text": jd}
+
+
+__all__ = [
+    "router",
+    "get_store",
+    "get_tailor",
+    "get_scan_trigger",
+    "get_jd_extractor",
+]
