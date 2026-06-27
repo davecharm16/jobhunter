@@ -13,6 +13,12 @@
 # the OAuth token. The `claude` CLI reads CLAUDE_CODE_OAUTH_TOKEN from the env.
 set -euo pipefail
 
+# The n8n container runs as root, and Claude Code refuses
+# --permission-mode bypassPermissions / --dangerously-skip-permissions as root
+# unless it's told it's in a sandbox. IS_SANDBOX=1 is that escape hatch (this IS
+# an isolated container, so it's appropriate).
+export IS_SANDBOX=1
+
 INPUTS_JSON="$(cat | base64 -d)"
 
 # Fill the template with the inputs (robust replace in Node — avoids sed/quoting
