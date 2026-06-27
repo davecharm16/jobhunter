@@ -19,6 +19,12 @@ set -euo pipefail
 # an isolated container, so it's appropriate).
 export IS_SANDBOX=1
 
+# Claude was deferring the scan to a background task and ending its turn early
+# ("I'll report when it finishes"), then Claude Code killed the background work
+# at the default 600s ceiling — so the result was prose, not JSON. Wait
+# indefinitely for background work to finish so the real JSON is returned.
+export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0
+
 INPUTS_JSON="$(cat | base64 -d)"
 
 # Fill the template with the inputs (robust replace in Node — avoids sed/quoting
