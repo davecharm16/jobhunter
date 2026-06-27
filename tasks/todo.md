@@ -60,6 +60,51 @@ N8N: ✅ custom image (Claude 2.1.195 + Playwright) deployed on Railway from mai
 - THEN remaining scan unknowns to verify: headless Claude auth in container, Playwright run,
   job-site anti-bot, then activate workflow + test "Run scan now".
 
+## PLAN: Screenshot/Image → CV (via Claude Code vision)  [awaiting approval]
+
+**Goal:** In the app, upload a job-posting **screenshot** instead of pasting JD text →
+Claude Code (subscription, in n8n) extracts the JD from the image → app runs the
+normal `run_tailoring()` → tailored CV package. No metered Claude-vision API.
+
+**Architecture (honors DECISIONS §4):** CV generation stays in the app via
+`llm_client`/`run_tailoring`. The image→JD *vision* is an EXTERNAL Claude-Code
+step in n8n (same "external ingestion agent" pattern as the scanner). App calls
+n8n for the JD text, then tailors in-app.
+
+**DECIDED:** in-app upload (on the paste panel); confirm-first → extracted JD fills the
+existing paste textarea for review/edit, then the normal Generate runs. So the image
+step only EXTRACTS the JD (no tailoring); existing `/api/paste` does the CV. Cleaner +
+smaller.
+
+```
+Frontend paste panel: "Upload screenshot" → app POST /api/extract-jd (image)
+  → app base64s image → POST n8n image-vision webhook (Bearer)
+      → n8n: write temp file → claude -p (reads image, IS_SANDBOX) → returns JD text
+  → app returns { jd_text }  → frontend fills the JD textarea (user reviews/edits)
+  → user clicks Generate → existing POST /api/paste → run_tailoring → CV
+```
+
+**Tasks (checkable):**
+- [ ] T1 — n8n workflow "Image → JD": Webhook (POST, base64 image, responseMode lastNode)
+      → Code node writes `/tmp/shot.png` → Execute Command `claude -p "Read /tmp/shot.png
+      and output ONLY the full job-description text, no commentary"` (allowedTools Read,
+      bypassPermissions, IS_SANDBOX) → Respond with `{ jd_text }`. VERIFY claude reads an
+      image in `-p` mode (test the webhook with a sample screenshot before wiring).
+- [ ] T2 — App `POST /api/extract-jd`: accept image upload, base64 + POST to
+      `N8N_IMAGE_VISION_URL` (new env, Bearer INGEST), return `{ jd_text }` (NO tailoring).
+      Vision call injected as a dependency (stub in tests). Errors: vision unreachable →
+      502; empty JD → 422.
+- [ ] T3 — Tests (TDD): success (stub → jd_text), vision-failure → 502, empty → 422.
+- [ ] T4 — Frontend (PastePanel): "Upload screenshot" button → POST /api/extract-jd →
+      put returned JD into the existing textarea (user reviews/edits) → existing Generate.
+- [ ] T5 — Config + deploy: `N8N_IMAGE_VISION_URL` in .env(.example) + on EC2 app; build
+      the n8n workflow via n8n-mcp; merge to main (app via Watchtower).
+- [ ] T6 — E2E: upload a real job screenshot → JD fills textarea → Generate → CV.
+
+**Risks:** verifying `claude -p` image reading (one unknown to shake out, like the scan);
+screenshot size limits; vision occasionally misreads a noisy screenshot (confirm-first
+mitigates).
+
 ## Branch/PR
 - feat/job-scan merged to main via PRs #2/#3. Local feat/job-scan may be a few commits ahead
   (deploy docs/fixes) — merge when convenient.
