@@ -24,10 +24,15 @@ def build_canonical_profile(cv: dict[str, Any]) -> dict[str, Any]:
         company = w.get("name", "")
         if position or company:
             titles.append(f"{position} @ {company}".strip(" @"))
+    loc = basics.get("location") or {}
+    location = ", ".join(
+        p for p in (loc.get("city"), loc.get("region"), loc.get("countryCode")) if p
+    )
     return {
         "name": basics.get("name", ""),
         "label": basics.get("label", ""),
         "summary": basics.get("summary", ""),
+        "location": location,
         "skills": skills,
         "recent_titles": titles,
     }

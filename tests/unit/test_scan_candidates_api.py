@@ -45,15 +45,15 @@ def test_patch_invalid_status_422(client):
     r = client.patch(f"/api/scan/candidates/{cid}", json={"status": "archived"})
     assert r.status_code == 422
 
-def test_patch_invalid_transition_409(client):
+def test_dismiss_is_idempotent(client):
     _seed(client)
     cid = client.get("/api/scan/candidates").json()[0]["id"]
     # First dismiss succeeds (new -> dismissed)
     r = client.patch(f"/api/scan/candidates/{cid}", json={"status": "dismissed"})
-    assert r.status_code == 200
-    # Second attempt: current status is now "dismissed", not "new" -> 409
+    assert r.status_code == 200 and r.json()["status"] == "dismissed"
+    # Re-dismissing is a harmless no-op (200), not a 409 — re-clicks must not error
     r = client.patch(f"/api/scan/candidates/{cid}", json={"status": "dismissed"})
-    assert r.status_code == 409
+    assert r.status_code == 200 and r.json()["status"] == "dismissed"
 
 def test_list_scans(client):
     _seed(client)
