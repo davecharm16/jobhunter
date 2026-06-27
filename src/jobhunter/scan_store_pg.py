@@ -53,24 +53,27 @@ class PostgresScanStore:
         with self._connect() as conn:
             row = conn.execute(
                 f"select search_titles, sites_enabled, picks_per_site, enabled, "
-                f"{_ts('updated_at','updated_at')} from scan_settings where id = true"
+                f"location, {_ts('updated_at','updated_at')} "
+                f"from scan_settings where id = true"
             ).fetchone()
             assert row is not None
             return _row_to_settings(row)
 
     def update_settings(self, *, search_titles, sites_enabled, picks_per_site,
-                        enabled) -> ScanSettings:
+                        enabled, location="") -> ScanSettings:
         with self._connect() as conn:
             row = conn.execute(
                 f"""
                 update scan_settings
                 set search_titles = %s, sites_enabled = %s,
-                    picks_per_site = %s, enabled = %s, updated_at = now()
+                    picks_per_site = %s, enabled = %s, location = %s,
+                    updated_at = now()
                 where id = true
                 returning search_titles, sites_enabled, picks_per_site, enabled,
-                          {_ts('updated_at','updated_at')}
+                          location, {_ts('updated_at','updated_at')}
                 """,
-                (list(search_titles), list(sites_enabled), picks_per_site, enabled),
+                (list(search_titles), list(sites_enabled), picks_per_site, enabled,
+                 location),
             ).fetchone()
             assert row is not None
             conn.commit()
@@ -198,6 +201,7 @@ def _row_to_settings(row: dict[str, Any]) -> ScanSettings:
         picks_per_site=row["picks_per_site"],
         enabled=row["enabled"],
         updated_at=row["updated_at"],
+        location=row.get("location") or "",
     )
 
 

@@ -254,7 +254,7 @@ function JobScanSettingsSection() {
 
       <div>
         <label className="block text-label-md font-label-md text-on-surface-variant mb-stack-xs">
-          Picks per site
+          Picks per keyword, per site
         </label>
         <input
           type="number"
@@ -265,6 +265,19 @@ function JobScanSettingsSection() {
             setS({ ...s, picks_per_site: Number(e.target.value) })
           }
           className="w-24 h-10 px-stack-sm bg-surface border border-outline-variant rounded-lg text-body-md font-body-md text-on-surface focus:border-primary focus:outline-none"
+        />
+      </div>
+
+      <div>
+        <label className="block text-label-md font-label-md text-on-surface-variant mb-stack-xs">
+          Location (e.g. Philippines, Remote, Cebu) — leave blank for broad/profile-based
+        </label>
+        <input
+          type="text"
+          value={s.location ?? ""}
+          onChange={(e) => setS({ ...s, location: e.target.value })}
+          placeholder="Philippines"
+          className="w-full h-10 px-stack-sm bg-surface border border-outline-variant rounded-lg text-body-md font-body-md text-on-surface focus:border-primary focus:outline-none"
         />
       </div>
 

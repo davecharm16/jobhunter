@@ -30,6 +30,7 @@ PROMPT="$(INPUTS_JSON="$INPUTS_JSON" node -e '
   const out = t
     .split("{{SEARCH_TITLES}}").join(JSON.stringify(i.search_titles))
     .split("{{SITES_ENABLED}}").join(JSON.stringify(i.sites_enabled))
+    .split("{{LOCATION}}").join(i.location || "(none — search broadly / use profile location)")
     .split("{{PICKS_PER_SITE}}").join(String(i.picks_per_site))
     .split("{{CANONICAL_PROFILE}}").join(JSON.stringify(i.canonical_profile))
     .split("{{KNOWN_URLS}}").join(JSON.stringify(i.known_urls));
@@ -42,20 +43,31 @@ PROMPT="$(INPUTS_JSON="$INPUTS_JSON" node -e '
 # host is picked at random per run for IP rotation. Creds come from env only —
 # never committed. No proxy env → direct connection (LinkedIn/OnlineJobs still work).
 PW_CONFIG=/opt/scan/pw-config.json
+# Anti-bot hardening (helps with DataDome/Cloudflare on JobStreet/Indeed): a real
+# desktop Chrome UA + viewport + locale, and disable the automation flag that
+# leaks navigator.webdriver. (Full playwright-extra stealth would need a custom
+# MCP; this is the config-level layer that @playwright/mcp supports.)
+UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+PROXY_JSON=""
 if [ -n "${SCAN_PROXY_HOSTS:-}" ]; then
   PROXY_HOST="$(printf '%s' "$SCAN_PROXY_HOSTS" | tr ',; ' '\n\n\n' | grep -v '^[[:space:]]*$' | shuf -n1 | tr -d '[:space:]')"
-  cat > "$PW_CONFIG" <<EOF
-{ "browser": { "browserName": "chromium", "launchOptions": {
-  "headless": true,
-  "proxy": { "server": "http://${PROXY_HOST}", "username": "${SCAN_PROXY_USERNAME:-}", "password": "${SCAN_PROXY_PASSWORD:-}" }
-} } }
-EOF
+  PROXY_JSON=", \"proxy\": { \"server\": \"http://${PROXY_HOST}\", \"username\": \"${SCAN_PROXY_USERNAME:-}\", \"password\": \"${SCAN_PROXY_PASSWORD:-}\" }"
   echo "scan: routing browser through residential proxy ${PROXY_HOST}" >&2
-else
-  cat > "$PW_CONFIG" <<EOF
-{ "browser": { "browserName": "chromium", "launchOptions": { "headless": true } } }
-EOF
 fi
+cat > "$PW_CONFIG" <<EOF
+{ "browser": {
+  "browserName": "chromium",
+  "launchOptions": {
+    "headless": true,
+    "args": ["--disable-blink-features=AutomationControlled", "--no-sandbox"]${PROXY_JSON}
+  },
+  "contextOptions": {
+    "userAgent": "${UA}",
+    "viewport": { "width": 1366, "height": 768 },
+    "locale": "en-US"
+  }
+} }
+EOF
 
 claude -p "$PROMPT" \
   --mcp-config /opt/scan/mcp.json \
