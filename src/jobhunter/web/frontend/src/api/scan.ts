@@ -73,6 +73,7 @@ export type ScanStatus = {
   finished_at: string | null;
   new_count: number;
   site_summary: Record<string, { status: string; count: number }>;
+  per_site?: Record<string, { status: string; count: number }>;
 };
 
 export async function getScanStatus(): Promise<ScanStatus> {
