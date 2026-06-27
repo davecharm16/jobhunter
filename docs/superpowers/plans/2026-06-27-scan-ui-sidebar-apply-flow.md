@@ -32,6 +32,14 @@ dynamic elapsed time.
 - Endpoints: `POST /api/scan/site-results {site, site_status, candidates}`,
   `POST /api/scan/complete`, `GET /api/scan/status` (+per_site). Tests.
 
+**Scrape bounds (prompt logic — keeps runs short & predictable):**
+- For each keyword, only paginate **search-results pages 1, 2, 3** (no deep /
+  infinite scrolling). Collect the listings from those pages.
+- From that bounded set, **rank by fit to the candidate background** and keep the
+  top N (picks_per_site). This caps the work per keyword → faster per-site runs,
+  far less chance of Claude deferring (which is what hung the all-sites run).
+- Goes into `prompts/job_scan.v1.md` (baked → ships with the n8n rebuild).
+
 **Engine — needs n8n image rebuild (stops any running scan):**
 - `run-scan.sh`: single-site mode (`--site`), exit-0-on-failure with blocked JSON,
   finite wait ceiling, stream logs to stderr, proxy rotates per site.
@@ -104,6 +112,68 @@ state. Likely the PackagePage doesn't **refetch** the package after the override
 POST succeeds, so it keeps the stale `held=true` metadata. Fix: re-fetch (or update
 state to held=false) after a successful override → the held UI disappears and the
 "I Applied / Mark as Applied" action shows. Folds into Stream C.
+
+## Stream E — Bug: PDF download loses hyperlinks  (NEW, user-reported)
+**Symptom:** in the downloaded CV PDF, the contact line **GitHub / LinkedIn /
+Portfolio** renders as plain text — the URLs are NOT clickable hyperlinks.
+**Note:** the CV markdown DOES contain proper `[Portfolio](https://…)`,
+`[GitHub](https://…)`, `[LinkedIn](https://…)` links — so the bug is in the
+**markdown → HTML → PDF** path (WeasyPrint): either the markdown→HTML step isn't
+converting those `[text](url)` links to `<a href>` (e.g. the header line is
+rendered as plain text), or WeasyPrint isn't emitting the link annotations.
+**Plan to fix:**
+- Find the PDF generation (search `weasyprint` / the pdf module + the cv template /
+  markdown→HTML renderer). Confirm whether the rendered HTML has `<a href>` for
+  those links.
+- Ensure the markdown link syntax is converted to anchors AND that WeasyPrint
+  keeps them clickable (it supports `<a href>` link annotations natively).
+- Add a test: render a CV with the contact links → assert the produced HTML (or
+  PDF text layer) contains `<a href="https://github.com/...">` etc.
+- Applies to the cover letter PDF too if it has links.
+
+## ===== 2026-06-28 FINDINGS + FIX PLAN (the per-site scan + extract-jd) =====
+
+### What we proved
+- **OLD single-node workflow (`lFU4bsgLyUO4Evxj`) executes fine** — exec 37 ran in
+  5s on the live worker. So n8n + the worker are healthy, and the new `run-scan.sh`
+  (`--site` version) IS deployed (old workflow called it without `--site` → it hit
+  the "no site → error" path and returned instantly).
+- **NEW 19-node per-site workflow (`v3z6nCpZS0k9iuK2`) does NOT execute** — every
+  trigger (32/33/35/36/39) sticks at the webhook with `runData={}`, even on a freed
+  worker, even after restart + re-publish. n8n accepts the trigger, creates the
+  execution, but never runs the body. Connections are correct. **n8n simply won't
+  run this particular big workflow.** Not zombies, not jam, not the prompt.
+
+### Decision: wire the WORKING idea — per-site loop INSIDE run-scan.sh (single node)
+Stop fighting the 19-node workflow. The old single-node workflow runs reliably, so
+move the per-site logic into `run-scan.sh`:
+- **`run-scan.sh` (no `--site`):** loop the enabled sites; for EACH site →
+  scan (bounded to pages 1–3, finite bg-wait, stealth, proxy rotate) → extract
+  `{site_status, candidates}` → **`curl POST /api/scan/site-results`** (incremental:
+  each site saved as it finishes; a blocked site can't sink the others) → next.
+  Finally **`curl POST /api/scan/complete`**. (This keeps the new per-site UI working
+  because `per_site` populates.)
+- **Workflow:** use the OLD single-node workflow; simplify it to
+  `triggers → Get Settings → Enabled? → Known URLs → Profile → Build Inputs →
+  Run Claude Scan`. **Remove the Parse + Post nodes** (run-scan.sh self-posts).
+  Re-activate it (it's the one n8n actually runs).
+- **Env on n8n service:** `SCAN_APP_BASE` (app URL) + `SCAN_APP_AUTH`
+  (`Basic <base64 dave:pw>` for Caddy) so run-scan.sh can curl the app. (1 env var;
+  not committed.)
+- **Prompt (user's point):** each loop iteration sets `sites_enabled=[that one site]`,
+  so the existing "for EACH enabled site" naturally does exactly one site. Tighten
+  the wording so it's unambiguous for a single-site run.
+- Needs an n8n image rebuild (run-scan.sh) + the old-workflow edit.
+
+### Bug — extract-jd `spawn E2BIG` (screenshot → JD)
+Root cause: the image base64 is embedded into the n8n shell command; a real
+screenshot's base64 exceeds Linux's **128KB single-argument limit** (`MAX_ARG_STRLEN`)
+→ `spawn E2BIG`. (My 19KB test image passed; a real screenshot doesn't.)
+**Fix (frontend, robust + quick, app-only deploy):** in `fileToDownscaledBase64`,
+step quality/size down in a loop until the base64 is **< ~90KB** (safely under the
+limit) — guarantees any screenshot fits.
+**Optional hardening:** an n8n write-file node so the image never goes through the
+command arg at all.
 
 ## Open questions
 1. **Sidebar:** what exactly is broken right now?

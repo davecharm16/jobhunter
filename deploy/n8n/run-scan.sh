@@ -138,25 +138,27 @@ echo "scan: ${SITE}: claude rc=${RC}" >&2
 RESULT="$(SITE="$SITE" node -e '
   const fs = require("fs");
   const site = process.env.SITE;
-  const fail = () => { process.stdout.write(JSON.stringify({ site, site_status: "error", candidates: [] })); process.exit(0); };
-  let env;
-  try { env = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); } catch (e) { return fail(); }
-  let inner = (env && env.result !== undefined) ? env.result : env;
   let payload = null;
-  if (typeof inner === "string") {
-    const a = inner.indexOf("{"), b = inner.lastIndexOf("}");
-    if (a >= 0 && b > a) { try { payload = JSON.parse(inner.slice(a, b + 1)); } catch (e) {} }
-  } else if (inner && typeof inner === "object") {
-    payload = inner;
+  try {
+    const env = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    let inner = (env && env.result !== undefined) ? env.result : env;
+    if (typeof inner === "string") {
+      const a = inner.indexOf("{"), b = inner.lastIndexOf("}");
+      if (a >= 0 && b > a) { try { payload = JSON.parse(inner.slice(a, b + 1)); } catch (e) {} }
+    } else if (inner && typeof inner === "object") {
+      payload = inner;
+    }
+  } catch (e) { payload = null; }
+  let out;
+  if (payload && Array.isArray(payload.candidates)) {
+    const candidates = payload.candidates;
+    const ss = payload.site_summary && payload.site_summary[site];
+    const status = (ss && ss.status) ? ss.status : (candidates.length > 0 ? "ok" : "empty");
+    out = { site, site_status: status, candidates };
+  } else {
+    out = { site, site_status: "error", candidates: [] };
   }
-  if (!payload) return fail();
-  const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
-  let status;
-  const ss = payload.site_summary && payload.site_summary[site];
-  if (ss && ss.status) status = ss.status;          // trust the agent-reported status
-  else if (candidates.length > 0) status = "ok";    // got rows → ok
-  else status = "empty";                            // parsed but no rows
-  process.stdout.write(JSON.stringify({ site, site_status: status, candidates }));
+  process.stdout.write(JSON.stringify(out));
 ' "$RAW")"
 
 echo "scan: ===== ${SITE}: done =====" >&2
