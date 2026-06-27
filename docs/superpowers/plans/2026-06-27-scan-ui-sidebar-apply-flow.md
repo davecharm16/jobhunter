@@ -74,6 +74,37 @@ immediately; "Applied" is one click that can't be missed.
 
 ---
 
+## Stream D — Associate + re-download generated CV/cover from an application  (PLAN, per user)
+**Problem:** after tailoring + applying, you can't see that a job already has
+generated artifacts, and you can't re-download the CV/cover later ("walang balikan").
+
+**Key fact:** the link basically already exists — `applications.slug` → the package
+in `./out/<slug>/` (or `./out/_overridden/<slug>/`), and `/api/package/<slug>` +
+`/api/package/<slug>/download/<file>` already serve them. The EC2 `jobhunter-out`
+volume persists across deploys, so the files survive. **The gap is purely that the
+ApplicationsPage never surfaces them.**
+
+**Plan (mostly frontend):**
+- ApplicationsPage cards: when `app.slug` is set, show **"View package"**
+  (→ `/packages/<slug>`) + **"Download CV"** / **"Download Cover"** links
+  (→ the existing download endpoints). So every tracked job links back to its artifacts.
+- Ensure `job_title`/`company` are stored on the application (already passed by
+  ApplyControl) so the card is readable.
+- **Durability decision (need your call):**
+  - **(a) Rely on the persisted `./out` volume** (simplest — files already persist;
+    just surface download links). ✅ recommended.
+  - **(b) Snapshot the CV + cover *text/PDF* into the application record / a durable
+    store** at apply-time — survives even if `./out` is wiped, but stores large blobs.
+- (Optional) On a fresh generation for a slug that already has an application, keep
+  the link so re-generations are still reachable.
+
+## Bug — "fix issues" shows even after approving (Stream C-adjacent)
+After approving an override, the package page still shows the held / "fix issues"
+state. Likely the PackagePage doesn't **refetch** the package after the override
+POST succeeds, so it keeps the stale `held=true` metadata. Fix: re-fetch (or update
+state to held=false) after a successful override → the held UI disappears and the
+"I Applied / Mark as Applied" action shows. Folds into Stream C.
+
 ## Open questions
 1. **Sidebar:** what exactly is broken right now?
 2. **Apply flow:** go with auto-create + new `to_apply` status (recommended), or
