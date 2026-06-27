@@ -169,6 +169,74 @@ def post_results(
     }
 
 
+class SiteResultsRequest(BaseModel):
+    site: str
+    site_status: str = "ok"  # ok | blocked | empty | error
+    candidates: list[CandidatePayload] = Field(default_factory=list)
+
+
+@router.post("/api/scan/site-results", dependencies=[Depends(require_ingest_token)])
+def post_site_results(
+    payload: SiteResultsRequest, store: ScanStore = Depends(get_store)
+) -> dict[str, Any]:
+    """Append ONE site's results to the current scan (incremental). Each site
+    posts independently as it finishes, so a blocked/slow site never delays or
+    discards the ones already done."""
+    try:
+        validate_site(payload.site)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    usable = [
+        c for c in payload.candidates
+        if c.url.strip() and c.title.strip() and c.jd_text.strip()
+    ]
+    dropped = len(payload.candidates) - len(usable)
+    cands = [
+        CandidateInput(
+            site=c.site or payload.site, url=c.url, title=c.title,
+            company=c.company, location=c.location, jd_text=c.jd_text,
+            fit_reason=c.fit_reason, fit_score=c.fit_score,
+        )
+        for c in usable
+    ]
+    scan, new, skipped = store.append_site_results(
+        site=payload.site, site_status=payload.site_status, candidates=cands
+    )
+    return {
+        "scan_id": scan.id, "site": payload.site,
+        "received": len(payload.candidates), "ingested": len(cands),
+        "dropped_incomplete": dropped, "new": new, "skipped": skipped,
+    }
+
+
+@router.post("/api/scan/complete", dependencies=[Depends(require_ingest_token)])
+def complete_scan(store: ScanStore = Depends(get_store)) -> dict[str, Any]:
+    """Finalize the current scan: flip status to completed and notify (once) if
+    new candidates were found across all sites."""
+    st = store.get_scan_status()
+    per_site = st.per_site or {}
+    total = sum(
+        int(v.get("count", 0))
+        for v in per_site.values()
+        if isinstance(v, dict)
+    )
+    final = store.mark_scan_completed(new_count=total, site_summary=per_site)
+    if total > 0:
+        try:
+            cfg = load_runtime_config()
+            if cfg.gchat_webhook_url:
+                notify_scan(
+                    cfg.gchat_webhook_url,
+                    build_scan_message(
+                        new_count=total, site_summary=per_site,
+                        dashboard_url="http://127.0.0.1:8765/job-scan",
+                    ),
+                )
+        except Exception:  # noqa: BLE001 - notification must not fail completion
+            pass
+    return final.to_dict()
+
+
 class CandidatePatch(BaseModel):
     status: str
 

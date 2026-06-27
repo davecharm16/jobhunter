@@ -24,7 +24,10 @@ type PackagePayload = {
   cv_markdown: string | null;
   cover_letter_markdown: string | null;
   upwork_proposal_markdown: string | null;
-  metadata: PackageMetadata & { held?: boolean };
+  metadata: PackageMetadata & {
+    held?: boolean;
+    override?: { applied?: boolean } | null;
+  };
 };
 
 type FetchState =
@@ -405,12 +408,18 @@ export function PackagePage() {
     >;
   // 04-1: must-haves for JD keyword highlights in the CV
   const mustHaves: string[] = parsed.must_haves ?? [];
-  const fabricationFailed = driftVerdicts.fabrication === "fail";
+  // A package counts as "overridden" once the user approves it — either via the
+  // optimistic flip from a 200 OK this session, OR the persisted stamp on a fresh
+  // reload (the server writes metadata.override.applied=true). After that we stop
+  // showing the held / "fabrication fail" alarms — they already acknowledged the
+  // drift and approved, so nagging "fix issues" is wrong (the bug being fixed).
+  const isOverridden =
+    overrideApplied || Boolean(payload.metadata.override?.applied);
+  const fabricationFailed =
+    driftVerdicts.fabrication === "fail" && !isOverridden;
   // Story 6.4: a package is held until either the server-side `held` flag
-  // says so OR the optimistic flag from a successful override flips it
-  // off. Both conditions OR together so the Approve button hides as soon
-  // as the modal reports success, even before the next route load.
-  const isHeld = (payload.metadata.held ?? false) && !overrideApplied;
+  // says so OR the override flips it off (optimistic or persisted).
+  const isHeld = (payload.metadata.held ?? false) && !isOverridden;
   const driftLinkClass = fabricationFailed
     ? "inline-flex items-center gap-stack-sm px-stack-md py-stack-sm rounded-lg bg-primary text-on-primary text-body-md font-body-md font-medium hover:bg-primary/90 transition-colors"
     : "inline-flex items-center gap-stack-sm px-stack-md py-stack-sm rounded-lg border border-outline-variant text-body-md font-body-md text-on-surface-variant hover:text-primary hover:border-primary transition-colors";
