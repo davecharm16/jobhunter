@@ -10,6 +10,7 @@ you only discover and report.
 
 - Search titles (keywords): {{SEARCH_TITLES}}
 - Sites enabled: {{SITES_ENABLED}}
+- Target location: {{LOCATION}}
 - Top picks PER KEYWORD PER SITE: {{PICKS_PER_SITE}}
 - Already-seen job URLs (DO NOT return any of these): {{KNOWN_URLS}}
 - Candidate profile (rank fit against this):
@@ -18,9 +19,10 @@ you only discover and report.
 ## Procedure
 
 For EACH enabled site, and for EACH search title (keyword):
-1. Open the site's job search and run that keyword. Where the site supports it,
-   bias the search toward the candidate: filter by the candidate's location or
-   remote roles, and prefer recently-posted listings.
+1. Open the site's job search and run that keyword. Apply the **Target location**
+   above as the site's location filter when it is set (if it is empty, fall back
+   to the candidate's profile location or remote roles). Prefer recently-posted
+   listings.
 2. Skip any listing whose URL is in the already-seen list BEFORE opening it.
 3. Rank the remaining listings by genuine fit to the candidate profile (see Fit
    rules) and take the top {{PICKS_PER_SITE}} for THAT keyword on THAT site.

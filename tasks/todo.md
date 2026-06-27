@@ -110,7 +110,8 @@ mitigates).
       (loop the existing vision webhook, concatenate); PastePanel multi-select. NO n8n change.
 - [x] Q3 — Mobile sidebar: make the nav work on mobile (hamburger/drawer).
 - [x] Q4 — DECISIONS.md: add mobile-first design as a guideline/decision (§).
-- [ ] Q5 — Configurable scan LOCATION: add `location` to scan_settings (Supabase) +
+- [x] Q5 — Configurable scan LOCATION (migration applied + settings UI + workflow + prompt)
+- [x] Q6 — JobStreet/Indeed stealth: real UA + viewport + locale + disable AutomationControlled flag in pw-config (config-level; full playwright-extra plugin would need a custom MCP): add `location` to scan_settings (Supabase) +
       settings API + Settings UI + scan workflow Build-Inputs + prompt {{LOCATION}} token
       + run-scan.sh. (Deepest — needs migration + n8n rebuild.)
 

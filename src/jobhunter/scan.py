@@ -49,6 +49,7 @@ class ScanSettings:
     picks_per_site: int
     enabled: bool
     updated_at: str
+    location: str = ""  # configurable search location (e.g. "Philippines", "Remote")
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -109,6 +110,7 @@ class ScanStore(Protocol):
         sites_enabled: builtins.list[str],
         picks_per_site: int,
         enabled: bool,
+        location: str = "",
     ) -> ScanSettings: ...
 
     def known_urls(self) -> builtins.list[str]: ...

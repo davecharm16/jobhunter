@@ -12,6 +12,7 @@ export type ScanSettings = {
   sites_enabled: Site[];
   picks_per_site: number;
   enabled: boolean;
+  location?: string;
   updated_at: string;
 };
 

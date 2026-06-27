@@ -28,10 +28,11 @@ class FakeScanStore:
         return self._settings
 
     def update_settings(self, *, search_titles, sites_enabled, picks_per_site,
-                        enabled) -> ScanSettings:
+                        enabled, location="") -> ScanSettings:
         self._settings = ScanSettings(
             search_titles=list(search_titles), sites_enabled=list(sites_enabled),
             picks_per_site=picks_per_site, enabled=enabled, updated_at=_FIXED_TS,
+            location=location,
         )
         return self._settings
 

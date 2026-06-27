@@ -54,6 +54,7 @@ class SettingsRequest(BaseModel):
     sites_enabled: list[str]
     picks_per_site: int = Field(ge=1, le=10)
     enabled: bool
+    location: str = ""
 
 
 @router.get("/api/scan/settings", dependencies=[Depends(require_ingest_token)])
@@ -76,6 +77,7 @@ def put_settings(
         sites_enabled=payload.sites_enabled,
         picks_per_site=payload.picks_per_site,
         enabled=payload.enabled,
+        location=payload.location,
     ).to_dict()
 
 
