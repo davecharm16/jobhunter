@@ -12,19 +12,17 @@ import json
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
+from tests.integration._web_helpers import (
+    make_fake_classifier,
+    stage_canonical_cv,
+    stage_tailoring,
+)
 
 from jobhunter.jd_parser import ParsedJD
 from jobhunter.llm_client import TailoringResult
 from jobhunter.runtime_config import RuntimeConfig
 from jobhunter.tailoring import run_tailoring
 from jobhunter.web.api import create_app
-from tests.integration._web_helpers import (
-    make_fake_classifier,
-    make_fake_parse,
-    stage_canonical_cv,
-    stage_tailoring,
-)
-
 
 # --- AC1: signals reach the in-memory parsed object via run_tailoring ----
 

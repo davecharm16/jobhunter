@@ -20,7 +20,6 @@ from jobhunter.yaml_config import (
     resolve_keyword_stuffing_thresholds,
 )
 
-
 _MINIMAL_REQUIRED_YAML = textwrap.dedent(
     """\
     cost:

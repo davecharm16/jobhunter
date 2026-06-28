@@ -1,8 +1,14 @@
 import pytest
+
 from jobhunter.scan import (
-    SITES, CANDIDATE_STATUSES, validate_site, validate_candidate_status,
-    validate_settings, ScanSettings,
+    CANDIDATE_STATUSES,
+    SITES,
+    ScanSettings,
+    validate_candidate_status,
+    validate_settings,
+    validate_site,
 )
+
 
 def test_sites_and_statuses_are_canonical():
     assert SITES == ("indeed", "onlinejobs_ph", "jobstreet", "linkedin")

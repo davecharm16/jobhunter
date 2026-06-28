@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from jobhunter.config import PROJECT_ROOT
 
-
 KEYWORD_STUFFING_MATCHER_PATH = (
     PROJECT_ROOT / "src" / "jobhunter" / "keyword_stuffing_matcher.py"
 )

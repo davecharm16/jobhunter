@@ -14,14 +14,14 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-
-from jobhunter.web.api import create_app
 from tests.integration._web_helpers import (
     make_fake_parse,
     make_fake_tailor,
     stage_canonical_cv,
     stage_tailoring,
 )
+
+from jobhunter.web.api import create_app
 
 
 def test_keyword_stuffing_only_fail_writes_held_sidecar(

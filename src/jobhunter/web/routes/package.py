@@ -32,7 +32,6 @@ from fastapi.responses import PlainTextResponse, Response
 
 from jobhunter.config import PROJECT_ROOT
 
-
 router = APIRouter()
 
 
@@ -63,6 +62,23 @@ def _read_optional_text(path: Path) -> str | None:
     if not path.is_file():
         return None
     return path.read_text(encoding="utf-8")
+
+
+def read_snapshot_markdown(slug: str) -> tuple[str | None, str | None]:
+    """Best-effort read of ``cv.md`` + ``cover-letter.md`` for *slug*.
+
+    Returns ``(cv_markdown, cover_letter_markdown)``, using None for any file
+    (or whole package directory) that is absent. Never raises — used by the
+    application tracker to snapshot artifacts at apply-time, where a missing
+    package must not fail the apply.
+    """
+    for base in (OUT_ROOT / slug, OUT_ROOT / _OVERRIDDEN_DIRNAME / slug):
+        if base.is_dir():
+            return (
+                _read_optional_text(base / "cv.md"),
+                _read_optional_text(base / "cover-letter.md"),
+            )
+    return (None, None)
 
 
 @router.get("/api/package/{slug}")

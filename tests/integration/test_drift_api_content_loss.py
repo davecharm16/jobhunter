@@ -15,7 +15,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from jobhunter.config import PROJECT_ROOT
 from jobhunter.web.api import create_app
 
 

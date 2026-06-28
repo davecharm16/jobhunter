@@ -14,7 +14,6 @@ from jobhunter.signals_upwork import (
     extract,
 )
 
-
 # --- AC1: signals populated when present ---------------------------------
 
 

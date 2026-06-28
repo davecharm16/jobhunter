@@ -6,11 +6,10 @@ import pytest
 
 from jobhunter.artifact_selector import (
     ALLOWED_ARTIFACTS,
-    ArtifactSelectionInvalid,
     DEFAULT_BY_BOARD,
+    ArtifactSelectionInvalid,
     select,
 )
-
 
 # --- AC1: per-board defaults ---------------------------------------------
 

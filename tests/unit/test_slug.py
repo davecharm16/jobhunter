@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import re
-from datetime import datetime, timezone
-
-import pytest
+from datetime import UTC, datetime
 
 from jobhunter.slug import SLUG_REGEX, make_slug
 
-
-FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=UTC)
 FIXED_TS = "20260524T031530Z"
 
 
@@ -95,6 +91,6 @@ def test_make_slug_strips_leading_and_trailing_dashes() -> None:
 
 def test_make_slug_timestamp_uses_utc() -> None:
     # Naive UTC datetime should still produce a Z-suffixed timestamp.
-    naive = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+    naive = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
     slug = make_slug("acme\n", now=naive)
     assert slug.startswith("20260102T030405Z-")

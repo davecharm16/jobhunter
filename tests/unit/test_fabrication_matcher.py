@@ -14,7 +14,6 @@ import pytest
 
 from jobhunter.claim_extractor import Claim
 from jobhunter.fabrication_matcher import (
-    CanonicalEntry,
     FabricationCheck,
     Trace,
     UnsourcedClaim,
@@ -22,7 +21,6 @@ from jobhunter.fabrication_matcher import (
     run_matcher,
     write_drift_report,
 )
-
 
 # ---- helpers --------------------------------------------------------------
 

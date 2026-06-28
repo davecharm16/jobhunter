@@ -14,9 +14,24 @@ type Props = {
   jobTitle: string;
   company: string | null;
   url: string | null;
+  /**
+   * "inline" (default) — the compact control used in the header action row.
+   * "banner" — a prominent, high-visibility CTA surfaced near the top of the
+   * package page so the user can't miss "I Applied" after generating/approving.
+   * Both variants share the exact same state + create/update calls (one
+   * instance is rendered at a time by the parent — see PackagePage), so there
+   * is no duplicated create call or diverging state.
+   */
+  variant?: "inline" | "banner";
 };
 
-export function ApplyControl({ slug, jobTitle, company, url }: Props) {
+export function ApplyControl({
+  slug,
+  jobTitle,
+  company,
+  url,
+  variant = "inline",
+}: Props) {
   const [app, setApp] = useState<Application | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -69,20 +84,50 @@ export function ApplyControl({ slug, jobTitle, company, url }: Props) {
 
   if (loading) return null;
 
+  /* ── Not yet tracked: the "I Applied" call-to-action ──────────────── */
   if (!app) {
+    if (variant === "banner") {
+      return (
+        <div className="rounded-xl border border-primary/40 bg-primary-container/40 p-stack-md shadow-sm flex flex-col gap-stack-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-stack-xs">
+            <h2
+              className="text-body-lg font-body-lg font-semibold text-on-surface"
+              style={{ fontFamily: "var(--font-ui)" }}
+            >
+              Ready to apply?
+            </h2>
+            <p className="text-body-md font-body-md text-on-surface-variant">
+              Mark this package as applied so the job lands on your applications
+              board.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onApply}
+            disabled={busy}
+            aria-label="Mark this package as applied and track it"
+            className="shrink-0 inline-flex items-center justify-center gap-stack-sm bg-primary text-on-primary text-body-lg font-body-lg font-semibold py-stack-sm px-stack-lg rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm"
+          >
+            {busy ? "Tracking..." : "✓ I Applied — track this"}
+          </button>
+        </div>
+      );
+    }
     return (
       <button
         type="button"
         onClick={onApply}
         disabled={busy}
-        className="bg-primary text-on-primary text-body-md font-medium py-stack-sm px-stack-lg rounded-lg hover:bg-primary-container disabled:opacity-50 transition-colors"
+        aria-label="Mark this package as applied and track it"
+        className="inline-flex items-center gap-stack-sm bg-primary text-on-primary text-body-md font-medium py-stack-sm px-stack-lg rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm"
       >
-        {busy ? "Tracking..." : "I Applied"}
+        {busy ? "Tracking..." : "✓ I Applied — track this"}
       </button>
     );
   }
 
-  return (
+  /* ── Already tracked: status + notes management UI (shared) ───────── */
+  const manageUI = (
     <div className="flex flex-col gap-stack-sm bg-surface-container-low border border-outline-variant rounded-lg p-stack-md">
       <div className="flex items-center gap-stack-sm">
         <span className="text-label-md text-on-surface-variant">Status</span>
@@ -108,4 +153,25 @@ export function ApplyControl({ slug, jobTitle, company, url }: Props) {
       />
     </div>
   );
+
+  if (variant === "banner") {
+    return (
+      <div className="rounded-xl border border-primary/40 bg-secondary-container/40 p-stack-md shadow-sm flex flex-col gap-stack-sm">
+        <div className="flex flex-wrap items-center gap-stack-sm">
+          <span
+            className="inline-flex items-center gap-stack-xs text-body-lg font-body-lg font-semibold text-on-surface"
+            style={{ fontFamily: "var(--font-ui)" }}
+          >
+            ✓ Tracked as applied
+          </span>
+          <span className="inline-flex items-center px-stack-sm py-stack-xs rounded-full border border-outline-variant bg-surface text-label-md font-label-md uppercase tracking-wider text-on-surface-variant">
+            {STATUS_LABEL[app.status]}
+          </span>
+        </div>
+        {manageUI}
+      </div>
+    );
+  }
+
+  return manageUI;
 }

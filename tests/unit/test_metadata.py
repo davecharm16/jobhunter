@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import json
-import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -13,15 +12,13 @@ from jobhunter.metadata import (
     DEFAULT_DRIFT_VERDICTS,
     PER_APP_COST_TARGET_USD,
     CallLog,
-    PackageMetadata,
     build_metadata,
     format_cost,
     now_iso8601_utc,
     write_sidecar,
 )
 
-
-FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=UTC)
 EXPECTED_TIMESTAMP = "2026-05-24T03:15:30Z"
 
 

@@ -28,7 +28,6 @@ from jobhunter.content_loss_matcher import (
     run_check,
 )
 
-
 # ---- helpers --------------------------------------------------------------
 
 

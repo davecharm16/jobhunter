@@ -14,7 +14,6 @@ test; these tests catch shape regressions without invoking the validator.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -23,7 +22,7 @@ from jobhunter.config import CANONICAL_CV_PATH
 
 @pytest.fixture(scope="module")
 def sample_cv() -> dict:
-    with open(CANONICAL_CV_PATH, "r", encoding="utf-8") as fh:
+    with open(CANONICAL_CV_PATH, encoding="utf-8") as fh:
         return json.load(fh)
 
 

@@ -27,7 +27,6 @@ from fastapi.testclient import TestClient
 
 from jobhunter.web.api import create_app
 
-
 # ---- fixture helpers -------------------------------------------------------
 
 

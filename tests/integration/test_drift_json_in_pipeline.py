@@ -15,19 +15,19 @@ wired in. Covers:
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 from fastapi.testclient import TestClient
-
-from jobhunter.claim_extractor import Claim, ClaimExtractionResult
-from jobhunter.web.api import create_app
 from tests.integration._web_helpers import (
     make_fake_tailor,
     stage_canonical_cv,
     stage_tailoring,
 )
 
+from jobhunter.claim_extractor import Claim, ClaimExtractionResult
+from jobhunter.web.api import create_app
 
 # ---- helpers --------------------------------------------------------------
 

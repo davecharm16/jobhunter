@@ -8,7 +8,7 @@ route reads from the test fixture instead of the repo's real `./out/`.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -84,7 +84,7 @@ def test_get_stats_returns_full_response_for_synthetic_sidecars(
     # fixtures into this month dynamically so the assertion is deterministic
     # regardless of when the suite runs (the old hard-coded 2026-05 date made
     # this a time-bomb that broke once the calendar rolled past May 2026).
-    this_month = datetime.now(timezone.utc).strftime("%Y-%m-01T00:00:00Z")
+    this_month = datetime.now(UTC).strftime("%Y-%m-01T00:00:00Z")
     _write(out_root, _sidecar(slug="a", cost_total="0.010000", created_at=this_month))
     _write(out_root, _sidecar(slug="b", cost_total="0.020000", created_at=this_month))
 

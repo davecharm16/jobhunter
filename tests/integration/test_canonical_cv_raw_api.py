@@ -11,11 +11,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
+from tests.integration._web_helpers import stage_canonical_cv
 
 from jobhunter.web.api import create_app
-from tests.integration._web_helpers import stage_canonical_cv
 
 
 def _load_cv(cv_path: Path) -> dict:

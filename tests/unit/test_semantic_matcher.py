@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from jobhunter.claim_extractor import Claim
-from jobhunter.fabrication_matcher import CanonicalEntry, Trace
+from jobhunter.fabrication_matcher import CanonicalEntry
 from jobhunter.semantic_matcher import (
     SemanticMatch,
     detect_quantifier_mismatch,
@@ -19,7 +19,6 @@ from jobhunter.semantic_matcher import (
     make_semantic_step,
     rule_based_similarity,
 )
-
 
 # ---- helpers --------------------------------------------------------------
 

@@ -10,21 +10,19 @@ from __future__ import annotations
 
 import builtins
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from jobhunter import stats as stats_module
 from jobhunter.stats import (
     INSUFFICIENT_DATA,
     InvalidSinceFilter,
     aggregate_stats,
     load_metadata_sidecars,
 )
-
 
 # --- helpers --------------------------------------------------------------
 
@@ -163,7 +161,7 @@ def test_aggregate_stats_single_application_uses_decimal_arithmetic() -> None:
     sidecars = [_make_sidecar(cost_total="0.100000")]
     aggregate = aggregate_stats(
         sidecars,
-        now=datetime(2026, 5, 23, tzinfo=timezone.utc),
+        now=datetime(2026, 5, 23, tzinfo=UTC),
     )
     body = aggregate.to_response()
     assert body["applications_total"] == 1
@@ -203,7 +201,7 @@ def test_aggregate_stats_override_rate_insufficient_when_no_held_packages() -> N
 
 
 def test_aggregate_stats_monthly_spend_filters_to_current_calendar_month() -> None:
-    now = datetime(2026, 5, 23, 12, 0, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 5, 23, 12, 0, 0, tzinfo=UTC)
     sidecars = [
         _make_sidecar(slug="prev", created_at="2026-04-30T23:59:59Z", cost_total="1.000000"),
         _make_sidecar(slug="early-may", created_at="2026-05-01T00:00:01Z", cost_total="0.500000"),

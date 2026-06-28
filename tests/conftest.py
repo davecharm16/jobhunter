@@ -15,7 +15,6 @@ from pathlib import Path
 
 import pytest
 
-
 MINIMAL_VALID_RESUME: dict = {
     "basics": {
         "name": "Test Author",

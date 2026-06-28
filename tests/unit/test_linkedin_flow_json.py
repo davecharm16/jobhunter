@@ -23,7 +23,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LINKEDIN_FLOW = PROJECT_ROOT / "n8n" / "linkedin-email-parser-flow.json"
 

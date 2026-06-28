@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import json
 import shutil
+from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from jobhunter.board_classifier import Classification
 from jobhunter.jd_parser import ParsedJD
 from jobhunter.llm_client import TailoringResult, UpworkProposalResult
-
 
 FAKE_CV_MARKDOWN = "# Tailored CV (test stub)\n\n- Skill: pytest\n"
 FAKE_COVER_LETTER_MARKDOWN = (

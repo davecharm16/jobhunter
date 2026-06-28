@@ -22,7 +22,6 @@ from jobhunter.keyword_stuffing_matcher import (
     tokenize_markdown,
 )
 
-
 # ---- helpers --------------------------------------------------------------
 
 

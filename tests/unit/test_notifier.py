@@ -8,15 +8,13 @@ transport so no real HTTP traffic leaves the process.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
-import pytest
 
-from jobhunter.metadata import build_metadata, CallLog
+from jobhunter.metadata import CallLog, build_metadata
 from jobhunter.notifier import (
     HUMAN_SUBMITS_REMINDER,
     NotificationPayload,
@@ -26,8 +24,7 @@ from jobhunter.notifier import (
     notify,
 )
 
-
-FIXED_NOW = datetime(2026, 5, 23, 4, 0, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 5, 23, 4, 0, 0, tzinfo=UTC)
 
 
 def _sample_package_metadata(tmp_path: Path):

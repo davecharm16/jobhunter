@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import json
-import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 
@@ -20,8 +18,7 @@ from jobhunter.spend_tracker import (
     record_call,
 )
 
-
-FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=UTC)
 FIXED_MONTH_KEY = "2026-05"
 
 

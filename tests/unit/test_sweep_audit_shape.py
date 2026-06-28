@@ -18,15 +18,14 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from jobhunter.held_package import AUDIT_LOG_NAME, HELD_SIDECAR_NAME, sweep_expired
 
-
-FIXED_NOW = datetime(2026, 5, 23, 12, 0, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 5, 23, 12, 0, 0, tzinfo=UTC)
 
 
 def _write_held_with_metadata(

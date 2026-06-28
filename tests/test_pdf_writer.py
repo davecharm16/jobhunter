@@ -18,9 +18,27 @@ import pytest
 from fastapi.testclient import TestClient
 from pypdf import PdfReader
 
-from jobhunter.pdf_writer import render_cover_letter_pdf, render_cv_pdf
+from jobhunter.pdf_writer import (
+    _build_cover_letter_html,
+    _build_cv_html,
+    render_cover_letter_pdf,
+    render_cv_pdf,
+)
 from jobhunter.web.api import create_app
 from jobhunter.web.routes import download as download_module
+
+
+def _pdf_link_uris(pdf_bytes: bytes) -> list[str]:
+    """Collect all hyperlink (URI) annotations embedded in a PDF."""
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    uris: list[str] = []
+    for page in reader.pages:
+        for annot in page.get("/Annots") or []:
+            obj = annot.get_object()
+            action = obj.get("/A")
+            if action is not None and action.get("/URI"):
+                uris.append(str(action["/URI"]))
+    return uris
 
 
 def _extract_text(pdf_bytes: bytes) -> str:
@@ -136,6 +154,34 @@ class TestRenderCvPdf:
         pdf = render_cv_pdf("", {})
         assert pdf[:5] == b"%PDF-"
 
+    def test_contact_links_become_anchors_in_html(self) -> None:
+        """Regression: contact links must survive as real <a href> anchors."""
+        md = (
+            "## Dave Bulaquena\n"
+            "Solutions Designer\n\n"
+            "[GitHub](https://github.com/davecharm16) | "
+            "[LinkedIn](https://linkedin.com/in/davecharm16) | "
+            "[Portfolio](https://portfolio-poc-web.vercel.app)\n\n"
+            "---\n\n"
+            "## Summary\n\nA short summary.\n"
+        )
+        html = _build_cv_html(md, {})
+        assert '<a href="https://github.com/davecharm16">GitHub</a>' in html
+        assert (
+            '<a href="https://linkedin.com/in/davecharm16">LinkedIn</a>' in html
+        )
+        assert (
+            '<a href="https://portfolio-poc-web.vercel.app">Portfolio</a>'
+            in html
+        )
+
+    def test_contact_links_are_clickable_in_pdf(self) -> None:
+        """The rendered PDF carries real hyperlink annotations."""
+        pdf = render_cv_pdf(SAMPLE_CV_MARKDOWN, {})
+        uris = _pdf_link_uris(pdf)
+        assert "https://github.com/janedoe" in uris
+        assert "https://linkedin.com/in/janedoe" in uris
+
 
 class TestRenderCoverLetterPdf:
     """Tests for render_cover_letter_pdf."""
@@ -171,6 +217,18 @@ class TestRenderCoverLetterPdf:
     def test_empty_markdown_still_produces_pdf(self) -> None:
         pdf = render_cover_letter_pdf("", {})
         assert pdf[:5] == b"%PDF-"
+
+    def test_contact_links_become_anchors_in_html(self) -> None:
+        """Cover-letter header contact links also render as <a href>."""
+        html = _build_cover_letter_html(
+            SAMPLE_COVER_LETTER_MARKDOWN,
+            {
+                "name": "Jane Doe",
+                "label": "Senior Engineer",
+                "contact": "[GitHub](https://github.com/janedoe)",
+            },
+        )
+        assert '<a href="https://github.com/janedoe">GitHub</a>' in html
 
 
 # ---------------------------------------------------------------------------

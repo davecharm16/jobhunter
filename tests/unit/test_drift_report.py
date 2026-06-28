@@ -23,7 +23,6 @@ from jobhunter.drift_report import (
     write_drift_report,
 )
 
-
 # ---- compose: section ordering + headings -------------------------------
 
 

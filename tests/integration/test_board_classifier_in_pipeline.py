@@ -11,15 +11,14 @@ from __future__ import annotations
 import json
 
 from fastapi.testclient import TestClient
-
-from jobhunter.board_classifier import Classification
-from jobhunter.web.api import create_app
 from tests.integration._web_helpers import (
     make_fake_classifier,
     stage_canonical_cv,
     stage_tailoring,
 )
 
+from jobhunter.board_classifier import Classification
+from jobhunter.web.api import create_app
 
 # --- AC1: heuristic classification reaches metadata.json -----------------
 

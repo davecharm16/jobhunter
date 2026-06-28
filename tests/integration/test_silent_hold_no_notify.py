@@ -23,28 +23,27 @@ shipped that working architecture; Story 6.2 keeps the contract intact.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from tests.integration._web_helpers import (
+    make_fake_parse,
+    stage_tailoring,
+)
 
 from jobhunter.claim_extractor import Claim, ClaimExtractionResult
 from jobhunter.llm_client import TailoringResult
 from jobhunter.runtime_config import RuntimeConfig
 from jobhunter.tailoring import run_tailoring
 from jobhunter.web.api import create_app
-from tests.integration._web_helpers import (
-    make_fake_parse,
-    make_fake_tailor,
-    stage_tailoring,
-)
 
-
-FIXED_NOW = datetime(2026, 5, 23, 4, 0, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 5, 23, 4, 0, 0, tzinfo=UTC)
 GCHAT_WEBHOOK_URL = "https://example.test/webhook/silent-hold"
 
 

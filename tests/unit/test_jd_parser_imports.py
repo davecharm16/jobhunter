@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from jobhunter.config import PROJECT_ROOT
 
-
 JD_PARSER_PATH = PROJECT_ROOT / "src" / "jobhunter" / "jd_parser.py"
 
 

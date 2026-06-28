@@ -14,15 +14,16 @@ CV staged on disk so the spec's fixture pair lands in
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from fastapi.testclient import TestClient
+from tests.integration._web_helpers import make_fake_tailor, stage_tailoring
 
 from jobhunter.claim_extractor import Claim, ClaimExtractionResult
 from jobhunter.web.api import create_app
-from tests.integration._web_helpers import make_fake_tailor, stage_tailoring
 
 
 def _stage_canonical_cv(tmp_path: Path, monkeypatch, cv_doc: dict) -> Path:

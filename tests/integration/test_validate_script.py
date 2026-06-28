@@ -21,7 +21,6 @@ from pathlib import Path
 
 import pytest
 
-
 SCRIPT_REL_PATH = Path("scripts") / "validate_canonical_cv.py"
 SCHEMA_REL_PATH = Path("schemas") / "jsonresume-v1.0.0.json"
 CV_REL_PATH = Path("canonical-cv.json")

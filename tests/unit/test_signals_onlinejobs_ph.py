@@ -19,7 +19,6 @@ from jobhunter.signals_onlinejobs_ph import (
     extract,
 )
 
-
 # --- AC1: USD rate-range detection ----------------------------------------
 
 

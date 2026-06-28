@@ -8,18 +8,17 @@ check, and before any LLM call).
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from jobhunter import tailoring as tailoring_module
 from jobhunter.llm_client import TailoringResult
-from jobhunter.prompts import PromptTemplate, PromptTemplateMissing
+from jobhunter.prompts import PromptTemplateMissing
 from jobhunter.runtime_config import RuntimeConfig
 from jobhunter.tailoring import TailoringOutcome, run_tailoring
-
 
 _CV_PAYLOAD = "system prompt for cv v7\n"
 _COVER_PAYLOAD = "system prompt for cover letter v4\n"
@@ -295,10 +294,10 @@ def test_run_tailoring_template_check_runs_before_cap_check(
 
     # Pre-populate the ledger with spend equal to the cap so a cap-check
     # would otherwise raise.
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     ledger_path = tmp_path / ".cost-ledger.json"
-    month_key = datetime.now(timezone.utc).strftime("%Y-%m")
+    month_key = datetime.now(UTC).strftime("%Y-%m")
     ledger_path.write_text(
         json.dumps(
             {month_key: {"total_usd": "25.00", "calls": 99}}

@@ -12,15 +12,14 @@ from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
-
-from jobhunter.llm_client import TailoringResult
-from jobhunter.web.api import create_app
 from tests.integration._web_helpers import (
     FAKE_COST_USD,
     stage_canonical_cv,
     stage_tailoring,
 )
 
+from jobhunter.llm_client import TailoringResult
+from jobhunter.web.api import create_app
 
 REMOTE_CLIENT = ("203.0.113.10", 51422)
 

@@ -24,7 +24,16 @@ class FakeApplicationStore:
         self._history: dict[str, list[StatusChange]] = {}
         self._ids = (f"app-{n}" for n in itertools.count(1))
 
-    def create(self, *, slug, job_title, company, url) -> Application:
+    def create(
+        self,
+        *,
+        slug,
+        job_title,
+        company,
+        url,
+        cv_markdown=None,
+        cover_letter_markdown=None,
+    ) -> Application:
         app_id = next(self._ids)
         app = Application(
             id=app_id,
@@ -37,6 +46,8 @@ class FakeApplicationStore:
             applied_at=_FIXED_TS,
             created_at=_FIXED_TS,
             updated_at=_FIXED_TS,
+            cv_markdown=cv_markdown,
+            cover_letter_markdown=cover_letter_markdown,
         )
         self._apps[app_id] = app
         self._history[app_id] = [

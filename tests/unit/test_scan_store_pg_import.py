@@ -1,5 +1,5 @@
-from jobhunter.scan import ScanStore
 from jobhunter.scan_store_pg import PostgresScanStore
+
 
 def test_postgres_scan_store_is_a_scan_store():
     # structural check: all Protocol methods exist

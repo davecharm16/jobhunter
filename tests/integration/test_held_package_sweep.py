@@ -8,24 +8,24 @@ has the expected JSON-lines entry.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from fastapi.testclient import TestClient
-
-from jobhunter.claim_extractor import Claim, ClaimExtractionResult
-from jobhunter.held_package import AUDIT_LOG_NAME, HELD_SIDECAR_NAME
-from jobhunter.web.api import create_app
 from tests.integration._web_helpers import (
     make_fake_tailor,
     stage_canonical_cv,
     stage_tailoring,
 )
 
+from jobhunter.claim_extractor import ClaimExtractionResult
+from jobhunter.held_package import AUDIT_LOG_NAME, HELD_SIDECAR_NAME
+from jobhunter.web.api import create_app
 
-FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=UTC)
 
 
 def _write_expired_held_fixture(
@@ -118,8 +118,8 @@ def test_pipeline_sweeps_expired_held_package_at_start(tmp_path, monkeypatch) ->
     expired_pkg = _write_expired_held_fixture(
         out_root,
         "20260514t000000z-stale",
-        held_at=datetime(2026, 5, 14, tzinfo=timezone.utc),
-        expires_at=datetime(2026, 5, 21, tzinfo=timezone.utc),
+        held_at=datetime(2026, 5, 14, tzinfo=UTC),
+        expires_at=datetime(2026, 5, 21, tzinfo=UTC),
     )
     assert expired_pkg.exists()
 
@@ -139,8 +139,8 @@ def test_pipeline_writes_audit_log_entry_for_each_discard(
     _write_expired_held_fixture(
         out_root,
         "20260514t000000z-stale",
-        held_at=datetime(2026, 5, 14, tzinfo=timezone.utc),
-        expires_at=datetime(2026, 5, 21, tzinfo=timezone.utc),
+        held_at=datetime(2026, 5, 14, tzinfo=UTC),
+        expires_at=datetime(2026, 5, 21, tzinfo=UTC),
         failed_claims_count=4,
     )
 
@@ -172,8 +172,8 @@ def test_pipeline_preserves_fresh_held_packages(tmp_path, monkeypatch) -> None:
     fresh_pkg = _write_expired_held_fixture(
         out_root,
         "20260601t000000z-fresh",
-        held_at=datetime(2030, 1, 1, tzinfo=timezone.utc),
-        expires_at=datetime(2030, 1, 8, tzinfo=timezone.utc),
+        held_at=datetime(2030, 1, 1, tzinfo=UTC),
+        expires_at=datetime(2030, 1, 8, tzinfo=UTC),
     )
     _post_paste()
     assert fresh_pkg.exists()
@@ -194,14 +194,14 @@ def test_pipeline_sweep_discards_only_expired_among_mixed_packages(
     stale = _write_expired_held_fixture(
         out_root,
         "20260514t000000z-stale",
-        held_at=datetime(2026, 5, 14, tzinfo=timezone.utc),
-        expires_at=datetime(2026, 5, 21, tzinfo=timezone.utc),
+        held_at=datetime(2026, 5, 14, tzinfo=UTC),
+        expires_at=datetime(2026, 5, 21, tzinfo=UTC),
     )
     fresh = _write_expired_held_fixture(
         out_root,
         "20260601t000000z-fresh",
-        held_at=datetime(2030, 1, 1, tzinfo=timezone.utc),
-        expires_at=datetime(2030, 1, 8, tzinfo=timezone.utc),
+        held_at=datetime(2030, 1, 1, tzinfo=UTC),
+        expires_at=datetime(2030, 1, 8, tzinfo=UTC),
     )
 
     _post_paste()

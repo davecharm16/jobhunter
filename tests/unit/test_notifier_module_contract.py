@@ -19,8 +19,6 @@ architecture; the contract paragraph captures the co-located reality.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from jobhunter.config import PROJECT_ROOT
 
 

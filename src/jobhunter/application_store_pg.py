@@ -35,7 +35,7 @@ def _iso_cols(prefix: str = "") -> str:
     p = f"{prefix}." if prefix else ""
     return (
         f"{p}id::text as id, {p}slug, {p}job_title, {p}company, {p}url, "
-        f"{p}status, {p}notes, "
+        f"{p}status, {p}notes, {p}cv_markdown, {p}cover_letter_markdown, "
         f"to_char({p}applied_at at time zone 'UTC', '{_ISO}') as applied_at, "
         f"to_char({p}created_at at time zone 'UTC', '{_ISO}') as created_at, "
         f"to_char({p}updated_at at time zone 'UTC', '{_ISO}') as updated_at"
@@ -51,6 +51,8 @@ def _row_to_app(row: dict[str, Any]) -> Application:
         url=row["url"],
         status=row["status"],
         notes=row["notes"],
+        cv_markdown=row["cv_markdown"],
+        cover_letter_markdown=row["cover_letter_markdown"],
         applied_at=row["applied_at"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
@@ -71,15 +73,34 @@ class PostgresApplicationStore:
     def _connect(self) -> psycopg.Connection[dict[str, Any]]:
         return psycopg.connect(self._db_url, row_factory=dict_row)
 
-    def create(self, *, slug, job_title, company, url) -> Application:
+    def create(
+        self,
+        *,
+        slug,
+        job_title,
+        company,
+        url,
+        cv_markdown=None,
+        cover_letter_markdown=None,
+    ) -> Application:
         with self._connect() as conn:
             row = conn.execute(
                 f"""
-                insert into applications (slug, job_title, company, url, status)
-                values (%s, %s, %s, %s, %s)
+                insert into applications
+                    (slug, job_title, company, url, status,
+                     cv_markdown, cover_letter_markdown)
+                values (%s, %s, %s, %s, %s, %s, %s)
                 returning {_iso_cols()}
                 """,
-                (slug, job_title, company, url, INITIAL_STATUS),
+                (
+                    slug,
+                    job_title,
+                    company,
+                    url,
+                    INITIAL_STATUS,
+                    cv_markdown,
+                    cover_letter_markdown,
+                ),
             ).fetchone()
             assert row is not None
             conn.execute(

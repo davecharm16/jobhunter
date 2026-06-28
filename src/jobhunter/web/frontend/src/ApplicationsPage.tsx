@@ -5,6 +5,7 @@ import {
   ApplicationStatus,
   STATUS_LABEL,
   STATUS_ORDER,
+  applicationDownloadUrl,
   listApplications,
   updateApplication,
 } from "./api/applications";
@@ -72,17 +73,33 @@ export function ApplicationsPage() {
                       {app.notes && (
                         <p className="text-body-sm text-on-surface-variant line-clamp-3">{app.notes}</p>
                       )}
-                      <div className="flex items-center justify-between pt-stack-xs">
-                        {app.slug ? (
+                      {app.slug && (
+                        <div className="flex flex-wrap items-center gap-stack-sm pt-stack-xs">
                           <Link
                             to={`/packages/${encodeURIComponent(app.slug)}`}
                             className="text-label-md text-primary hover:underline"
                           >
-                            Open package
+                            View package
                           </Link>
-                        ) : (
-                          <span />
-                        )}
+                          {app.cv_markdown && (
+                            <a
+                              href={applicationDownloadUrl(app.id, "cv")}
+                              className="text-label-md text-primary hover:underline"
+                            >
+                              Download CV
+                            </a>
+                          )}
+                          {app.cover_letter_markdown && (
+                            <a
+                              href={applicationDownloadUrl(app.id, "cover")}
+                              className="text-label-md text-primary hover:underline"
+                            >
+                              Download Cover
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-end pt-stack-xs">
                         <select
                           value={app.status}
                           onChange={(e) => move(app, e.target.value as ApplicationStatus)}

@@ -22,7 +22,6 @@ from jobhunter.canonical_cv import (
 )
 from jobhunter.config import VENDORED_JSONRESUME_SCHEMA_PATH
 
-
 SAMPLE_WITH_EXTENSIONS_REL = Path("samples") / "canonical-cv-with-extensions.json"
 
 

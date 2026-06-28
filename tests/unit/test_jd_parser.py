@@ -13,18 +13,18 @@ pytest.importorskip("anthropic")
 import anthropic  # noqa: E402
 
 from jobhunter.jd_parser import (  # noqa: E402
-    ParseTimedOut,
     ParsedJD,
     ParsedJDInvalid,
+    ParseTimedOut,
     parse_jd,
 )
 from jobhunter.llm_client import (  # noqa: E402
     JD_PARSE_SYSTEM_PROMPT,
     JD_PARSE_TOOL,
+    MODEL_NAME,
     LLMCallFailed,
     LLMCallTimedOut,
     LLMResponseInvalid,
-    MODEL_NAME,
     ParseResult,
 )
 from jobhunter.llm_client import parse_jd as llm_parse_jd  # noqa: E402
@@ -75,7 +75,7 @@ class _FakeMessages:
 
 
 class _FakeClient:
-    instances: list["_FakeClient"] = []
+    instances: list[_FakeClient] = []
 
     def __init__(self, *, api_key: str, timeout: float, response: Any) -> None:
         self.api_key = api_key

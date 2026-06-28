@@ -11,13 +11,12 @@ from __future__ import annotations
 import json
 
 from fastapi.testclient import TestClient
-
-from jobhunter.web.api import create_app
 from tests.integration._web_helpers import (
     stage_canonical_cv,
     stage_tailoring,
 )
 
+from jobhunter.web.api import create_app
 
 REMOTE_CLIENT = ("203.0.113.10", 51422)
 

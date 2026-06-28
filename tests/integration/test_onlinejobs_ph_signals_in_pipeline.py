@@ -9,7 +9,7 @@ and the gating invariant (extractor does NOT run for other source boards).
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from jobhunter.board_classifier import Classification
@@ -18,8 +18,7 @@ from jobhunter.llm_client import TailoringResult
 from jobhunter.runtime_config import RuntimeConfig
 from jobhunter.tailoring import run_tailoring
 
-
-FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=UTC)
 
 
 def _config() -> RuntimeConfig:
