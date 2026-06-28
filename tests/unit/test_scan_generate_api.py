@@ -28,7 +28,9 @@ def _seed(app):
 
 def test_generate_success_sets_generated_and_slug(client):
     app, store = client
-    app.dependency_overrides[get_tailor] = lambda: (lambda jd_text, url, source: "my-slug")
+    app.dependency_overrides[get_tailor] = lambda: (
+        lambda jd_text, url, source, title: "my-slug"
+    )
     c = _seed(app)
     cid = c.get("/api/scan/candidates").json()[0]["id"]
     r = c.post(f"/api/scan/candidates/{cid}/generate")
@@ -36,9 +38,26 @@ def test_generate_success_sets_generated_and_slug(client):
     assert r.json() == {"slug": "my-slug", "status": "generated"}
     assert c.get("/api/scan/candidates").json()[0]["status"] == "generated"
 
+def test_generate_passes_candidate_title_as_job_title(client):
+    app, store = client
+    seen: dict[str, str] = {}
+
+    def _capture(jd_text, url, source, title):
+        seen["title"] = title
+        return "slug-x"
+
+    app.dependency_overrides[get_tailor] = lambda: _capture
+    c = _seed(app)
+    cid = c.get("/api/scan/candidates").json()[0]["id"]
+    r = c.post(f"/api/scan/candidates/{cid}/generate")
+    assert r.status_code == 200
+    # The candidate's scraped title ("Dev") is what the tailor (and thus the
+    # package job_title) receives — not a parsed salary line.
+    assert seen["title"] == "Dev"
+
 def test_generate_failure_leaves_new(client):
     app, store = client
-    def _boom(jd_text, url, source): raise RuntimeError("spend cap")
+    def _boom(jd_text, url, source, title): raise RuntimeError("spend cap")
     app.dependency_overrides[get_tailor] = lambda: _boom
     c = _seed(app)
     cid = c.get("/api/scan/candidates").json()[0]["id"]
@@ -48,6 +67,8 @@ def test_generate_failure_leaves_new(client):
 
 def test_generate_unknown_candidate_404(client):
     app, store = client
-    app.dependency_overrides[get_tailor] = lambda: (lambda jd_text, url, source: "s")
+    app.dependency_overrides[get_tailor] = lambda: (
+        lambda jd_text, url, source, title: "s"
+    )
     r = TestClient(app).post("/api/scan/candidates/nope/generate")
     assert r.status_code == 404

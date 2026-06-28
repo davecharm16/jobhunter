@@ -34,11 +34,12 @@ import json
 import logging
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from jobhunter import (
     artifact_selector,
@@ -53,7 +54,6 @@ from jobhunter import (
     keyword_stuffing_matcher,
     keyword_stuffing_writer,
     llm_client,
-    metadata as metadata_module,
     notifier,
     prompts,
     semantic_matcher,
@@ -62,13 +62,16 @@ from jobhunter import (
     spend_tracker,
     yaml_config,
 )
+from jobhunter import (
+    metadata as metadata_module,
+)
 from jobhunter.board_classifier import Classification
 from jobhunter.claim_extractor import (
     ClaimExtractionResult,
     ClaimExtractionTimedOut,
 )
 from jobhunter.config import PROJECT_ROOT
-from jobhunter.jd_parser import ParseTimedOut, ParsedJD
+from jobhunter.jd_parser import ParsedJD, ParseTimedOut
 from jobhunter.llm_client import (
     MODEL_NAME,
     TailoringResult,
@@ -79,7 +82,6 @@ from jobhunter.llm_client import (
 from jobhunter.metadata import CallLog, build_metadata, write_sidecar
 from jobhunter.runtime_config import RuntimeConfig
 from jobhunter.slug import make_slug
-
 
 _log = logging.getLogger(__name__)
 
@@ -119,7 +121,7 @@ _QUESTION_STOPWORDS: frozenset[str] = frozenset(
         "of", "on", "or", "should", "than", "that", "the", "their", "them",
         "they", "this", "to", "us", "was", "we", "were", "what", "when",
         "where", "which", "who", "why", "will", "with", "would", "you",
-        "your", "yours", "have", "any", "more", "much", "many", "some",
+        "your", "yours", "any", "more", "much", "many", "some",
         "yes", "no",
     }
 )
@@ -154,6 +156,7 @@ def run_tailoring(
     jd_source: str | None = None,
     url: str | None = None,
     discovered_at: str | None = None,
+    job_title_override: str | None = None,
 ) -> TailoringOutcome:
     """Orchestrate parse → classify → cap check → tailor → extract claims → atomic artifact write.
 
@@ -164,6 +167,11 @@ def run_tailoring(
     keeps the existing `"paste"` default. *url* and *discovered_at* are passed
     straight to `build_metadata` so the sidecar carries the canonical job-post
     URL and the n8n fetch timestamp; both stay `None` for the browser path.
+
+    *job_title_override* lets the job-scan generate path stamp the candidate's
+    already-scraped `title` as the package `job_title`, overriding the value
+    the LLM JD-parse extracted (which sometimes grabs a salary line). It is
+    `None` for the paste path so the parsed title is used unchanged.
     """
     using_real_tailor = llm_tailor is None
     # Back-compat shim: when the caller injected `llm_tailor` (test mode) but
@@ -536,7 +544,12 @@ def run_tailoring(
         url=url,
         discovered_at=discovered_at,
         # D1: thread job_title/company_name from the JD parse for UI display.
-        job_title=parsed.job_title,
+        # F2: a scan-candidate generate passes the scraped title through
+        # `job_title_override`, which wins over the parsed title (the parser
+        # sometimes grabs a salary line instead of the real role).
+        job_title=(job_title_override.strip() or parsed.job_title)
+        if job_title_override and job_title_override.strip()
+        else parsed.job_title,
         company_name=parsed.company_name,
     )
     write_sidecar(out_dir, package_metadata)
@@ -853,7 +866,7 @@ def _run_held_package_writer(
     3.4/4.2's call sites stay source-compatible.
     """
     retention_days = _resolve_held_retention_days()
-    moment = now or datetime.now(timezone.utc)
+    moment = now or datetime.now(UTC)
     record = held_package.compose_held_record(
         unsourced_claims,
         out_dir,
@@ -883,7 +896,7 @@ def _run_held_sweep(root: Path, *, now: datetime | None) -> None:
         if retention_days == 0:
             _log.debug("held-package sweep disabled (held_package_ttl_days=0)")
             return
-        moment = now or datetime.now(timezone.utc)
+        moment = now or datetime.now(UTC)
         discarded = held_package.sweep_expired(
             root, now=moment, retention_days=retention_days
         )

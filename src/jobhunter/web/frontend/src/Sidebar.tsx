@@ -55,7 +55,7 @@ const IconJobScan = () => (
 const NAV_ITEMS: Array<{ label: string; to: string; Icon: () => JSX.Element }> = [
   { label: "Dashboard", to: "/", Icon: IconDashboard },
   { label: "Scans", to: "/scans", Icon: IconScans },
-  { label: "Drift Checks", to: "/drift", Icon: IconDrift },
+  { label: "Generations", to: "/drift", Icon: IconDrift },
   { label: "Applications", to: "/applications", Icon: IconApplications },
   { label: "Job Scan", to: "/job-scan", Icon: IconJobScan },
   { label: "Settings", to: "/settings", Icon: IconSettings },

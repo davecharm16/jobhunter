@@ -9,7 +9,7 @@ and AC5 (atomic write — no `.metadata.tmp` left on disk after success).
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -19,8 +19,7 @@ from jobhunter.runtime_config import RuntimeConfig
 from jobhunter.spend_tracker import SpendCapExceeded
 from jobhunter.tailoring import run_tailoring
 
-
-FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=UTC)
 
 
 def _config() -> RuntimeConfig:
@@ -129,6 +128,47 @@ def test_run_tailoring_writes_metadata_json_with_full_ac1_payload(tmp_path) -> N
     assert data["override"] == {"applied": False, "reason": None}
     assert data["created_at"] == "2026-05-24T03:15:30Z"
     assert "cost" in data
+
+
+# --- F2: scan-candidate title overrides the parsed job_title -------------
+
+
+def test_run_tailoring_job_title_override_wins_over_parsed(tmp_path) -> None:
+    """A scan-candidate generate passes the scraped title via
+    `job_title_override`; it must land as `metadata.job_title` instead of the
+    parser's value (the parser sometimes grabs a salary line)."""
+    outcome = run_tailoring(
+        {"basics": {"name": "X"}},
+        "Salary Php 25 000 per month.\n",
+        config=_config(),
+        now=FIXED_NOW,
+        llm_tailor=_fake_tailor_factory(),
+        out_root=tmp_path / "out",
+        ledger_path=tmp_path / ".cost-ledger.json",
+        job_title_override="Senior React Native Developer",
+    )
+    data = json.loads(
+        (outcome.out_dir / "metadata.json").read_text(encoding="utf-8")
+    )
+    assert data["job_title"] == "Senior React Native Developer"
+
+
+def test_run_tailoring_without_override_uses_parsed_job_title(tmp_path) -> None:
+    """The paste path (no override) keeps the parsed job_title — here the stub
+    parser leaves it None, proving the override is what supplies a value."""
+    outcome = run_tailoring(
+        {"basics": {"name": "X"}},
+        "Senior Python role.\n",
+        config=_config(),
+        now=FIXED_NOW,
+        llm_tailor=_fake_tailor_factory(),
+        out_root=tmp_path / "out",
+        ledger_path=tmp_path / ".cost-ledger.json",
+    )
+    data = json.loads(
+        (outcome.out_dir / "metadata.json").read_text(encoding="utf-8")
+    )
+    assert data["job_title"] is None
 
 
 # --- AC2: per-call log entry captures model, tokens, usd_cost, purpose ---

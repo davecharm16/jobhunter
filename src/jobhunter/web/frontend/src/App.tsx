@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { PastePanel } from "./PastePanel";
 import { SettingsPage } from "./SettingsPage";
@@ -149,9 +149,17 @@ function DashboardPage() {
                 <h3 className="text-headline-md font-headline-md text-on-surface">
                   Application Pipeline
                 </h3>
-                <span className="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">
-                  {recent.length} shown
-                </span>
+                <div className="flex items-center gap-stack-sm">
+                  <span className="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">
+                    {recent.length} shown
+                  </span>
+                  <Link
+                    to="/drift"
+                    className="text-primary font-medium text-label-md font-label-md hover:underline"
+                  >
+                    View all generations →
+                  </Link>
+                </div>
               </header>
               {recent.length === 0 ? (
                 <QueueEmptyState />

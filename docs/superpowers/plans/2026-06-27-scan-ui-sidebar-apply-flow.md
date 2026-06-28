@@ -175,6 +175,38 @@ limit) — guarantees any screenshot fits.
 **Optional hardening:** an n8n write-file node so the image never goes through the
 command arg at all.
 
+## Stream F — Fix the package/recovery flow (drift-fail dead-ends + findability)  [PLAN]
+User pain: after many generations, drift-failed packages show "Fix Issues" but it
+doesn't fix; can't find past generations; can't re-download; duplicate cards.
+
+**Findings (from RCA):**
+- "Fix Issues" → `/packages/<slug>/drift` (read-only diagnostics). The real fixes
+  (Regenerate / Approve override) are on `/packages/<slug>` — one extra click away.
+- Dashboard pipeline shows only the 10 most recent (queue.py `_RECENT_LIMIT=10`);
+  older held packages disappear from view.
+- `/drift` (Drift Checks page) ALREADY lists ALL generations (held/passed/overridden)
+  with download — but it's not discoverable from the dashboard.
+- Regenerate creates a NEW slug and leaves the old held package → duplicate cards.
+- `job_title` "Salary Php 25 000…" = JD parser misread the salary line as the title.
+
+**Plan (ordered by value):**
+1. **"Fix Issues" → `/packages/<slug>`** (the page with Regenerate/Override), not the
+   drift page. One click to actually fix. (Tiny frontend change in PipelineCard.)
+2. **Surface history**: rename/expose "Drift Checks" as **"Generations / History"** and
+   add a dashboard link "View all N generations" → so past packages are always findable
+   + re-downloadable (ties into Stream D snapshot/re-download).
+3. **De-dup on regenerate**: when a regenerate succeeds, mark/move the OLD held package
+   as superseded (e.g. `metadata.superseded_by = new_slug`, hide it from the queue) so
+   you don't get duplicate cards.
+4. **Job-title quality**: clean the parsed `job_title` — reject currency/salary-looking
+   strings; for scan-generated packages, prefer the scan candidate's title (which is
+   usually correct). Optionally allow editing the title.
+5. (Optional) After Approve override, a clearer "done — here's your package + download"
+   state instead of a filesystem-path note.
+
+This overlaps Stream C (apply unmissable) + Stream D (snapshot + re-download) — together
+they make "generate → find → fix/regenerate → apply → re-download" a coherent loop.
+
 ## Open questions
 1. **Sidebar:** what exactly is broken right now?
 2. **Apply flow:** go with auto-create + new `to_apply` status (recommended), or
