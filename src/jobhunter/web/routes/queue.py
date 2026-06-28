@@ -119,7 +119,13 @@ def _project_entry(sidecar: dict[str, Any]) -> dict[str, Any]:
 def get_queue() -> dict[str, Any]:
     """Return `held_count` + the ten most-recent packages (held or passed)."""
     out_root = _resolve_out_root()
-    sidecars = load_metadata_sidecars(out_root)
+    # Exclude packages superseded by a regenerate (`superseded_by` set) so the
+    # old held card disappears instead of duplicating the regenerated one.
+    sidecars = [
+        sidecar
+        for sidecar in load_metadata_sidecars(out_root)
+        if not sidecar.get("superseded_by")
+    ]
 
     held_count = sum(1 for sidecar in sidecars if bool(sidecar.get("held", False)))
 

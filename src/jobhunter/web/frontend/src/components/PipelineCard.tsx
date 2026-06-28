@@ -16,7 +16,7 @@
  * Verdict → UI mapping:
  *   pass         → green check   "Drift Health: Pass"  → "View Docs" → /packages/:slug
  *   overridden   → green check   "Drift Health: Pass"  → "View Docs" → /packages/:slug
- *   held:*       → red warning   "Fabrication Detected" etc. → "Fix Issues" → /packages/:slug/drift
+ *   held:*       → red warning   "Fabrication Detected" etc. → "Fix Issues" → /packages/:slug
  *                  + red ring on card border
  */
 
@@ -216,7 +216,7 @@ function ActionButton({
   if (state === "fail") {
     return (
       <Link
-        to={`/packages/${encodedSlug}/drift`}
+        to={`/packages/${encodedSlug}`}
         className="text-primary font-medium text-body-md font-body-md hover:underline shrink-0"
       >
         Fix Issues

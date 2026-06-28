@@ -9,7 +9,7 @@ overwrites the same slug directory so the queue stays clean.
 from __future__ import annotations
 
 import json
-import shutil
+import os
 from pathlib import Path
 from typing import Any, Literal
 
@@ -30,7 +30,6 @@ from jobhunter.llm_client import (
 from jobhunter.runtime_config import ConfigurationError, load_runtime_config
 from jobhunter.spend_tracker import SpendCapExceeded, SpendLedgerCorrupt
 from jobhunter.tailoring import run_tailoring
-
 
 router = APIRouter()
 
@@ -72,6 +71,32 @@ def _read_jd_text(package_dir: Path) -> str | None:
         except (json.JSONDecodeError, AttributeError):
             pass
     return None
+
+
+def _mark_superseded(package_dir: Path, new_slug: str) -> None:
+    """Stamp `superseded_by: <new_slug>` onto the OLD package's metadata.json.
+
+    De-dups the pipeline: the regenerate creates a fresh slug, so the old held
+    package would otherwise linger as a duplicate card. `GET /api/queue`
+    excludes any sidecar carrying `superseded_by`. Atomic (tmp + os.replace),
+    matching the rest of the pipeline; missing/malformed metadata is a no-op so
+    a corrupt sidecar can never fail the regenerate that already succeeded.
+    """
+    metadata_path = package_dir / "metadata.json"
+    if not metadata_path.is_file():
+        return
+    try:
+        meta = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(meta, dict):
+        return
+    meta["superseded_by"] = new_slug
+    tmp_path = package_dir / ".metadata.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as fh:
+        json.dump(meta, fh, indent=2, sort_keys=False)
+        fh.write("\n")
+    os.replace(tmp_path, metadata_path)
 
 
 def _read_metadata(package_dir: Path) -> dict[str, Any]:
@@ -122,23 +147,6 @@ def regenerate(slug: str, payload: RegenerateRequest) -> RegenerateResponse:
     except (UnsupportedCanonicalCVFormat, CanonicalCVMissing) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    out_root = config_module.PROJECT_ROOT / "out"
-
-    if package_dir.parent.name == "_overridden":
-        target_dir = out_root / slug
-        if target_dir.exists():
-            shutil.rmtree(target_dir)
-        shutil.move(str(package_dir), str(target_dir))
-    else:
-        target_dir = package_dir
-        for f in target_dir.iterdir():
-            if f.name != "jd.txt":
-                if f.is_file():
-                    f.unlink()
-
-    if target_dir.exists():
-        shutil.rmtree(target_dir)
-
     source_board = metadata.get("source_board")
 
     try:
@@ -166,6 +174,15 @@ def regenerate(slug: str, payload: RegenerateRequest) -> RegenerateResponse:
         raise HTTPException(status_code=500, detail=f"Failed to write artifacts: {exc}") from exc
 
     new_slug = outcome.out_dir.name
+
+    # De-dup: mark the OLD package superseded so it drops out of the queue
+    # instead of lingering as a duplicate card alongside the regenerated one.
+    # Re-resolve the dir (it may live under `_overridden/`) and never crash if
+    # the regenerate itself already moved or removed it.
+    old_dir = _resolve_package_dir(slug)
+    if old_dir is not None and old_dir != outcome.out_dir:
+        _mark_superseded(old_dir, new_slug)
+
     status: Literal["passed", "held", "failed"] = "passed"
     new_meta_path = outcome.out_dir / "metadata.json"
     if new_meta_path.is_file():

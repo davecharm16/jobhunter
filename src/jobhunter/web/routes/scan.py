@@ -30,20 +30,23 @@ def get_store() -> ScanStore:
     return PostgresScanStore.from_env()
 
 
-TailorFn = Callable[[str, str, str], str]  # (jd_text, url, source) -> slug
+TailorFn = Callable[[str, str, str, str], str]  # (jd_text, url, source, title) -> slug
 
 
 def get_tailor() -> TailorFn:
     """Production tailor: runs the existing pipeline, returns the new slug.
 
     Overridden in tests. Keeps DECISIONS.md §4 — the only LLM path is
-    run_tailoring()."""
-    def _run(jd_text: str, url: str, source: str) -> str:
+    run_tailoring(). The scan candidate's scraped `title` is passed through as
+    `job_title_override` so the package job_title is the real role, not a
+    salary line the LLM JD-parse sometimes mistakes for the title (F2)."""
+    def _run(jd_text: str, url: str, source: str, title: str) -> str:
         from jobhunter.canonical_cv import read_canonical_cv
         from jobhunter.tailoring import run_tailoring
         outcome = run_tailoring(
             read_canonical_cv(), jd_text, config=load_runtime_config(),
             jd_source=source, url=url or None,
+            job_title_override=title or None,
         )
         return outcome.out_dir.name
     return _run
@@ -291,7 +294,7 @@ def generate_from_candidate(
     if cand is None:
         raise HTTPException(status_code=404, detail="candidate not found")
     try:
-        slug = tailor(cand.jd_text, cand.url, cand.site)
+        slug = tailor(cand.jd_text, cand.url, cand.site, cand.title)
     except Exception as exc:  # noqa: BLE001 - leave candidate retryable
         raise HTTPException(status_code=502, detail=f"tailoring failed: {exc}") from exc
     store.set_candidate_status(candidate_id, status="generated", slug=slug)
