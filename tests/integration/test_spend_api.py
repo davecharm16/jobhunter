@@ -9,8 +9,6 @@ ledger via spend_tracker.
 from __future__ import annotations
 
 import json
-import os
-from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -18,7 +16,6 @@ from fastapi.testclient import TestClient
 
 from jobhunter.spend_tracker import current_month_key
 from jobhunter.web.api import create_app
-
 
 # ---------------------------------------------------------------------------
 # Helpers

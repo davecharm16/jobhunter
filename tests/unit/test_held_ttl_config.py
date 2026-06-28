@@ -18,11 +18,9 @@ import warnings
 from pathlib import Path
 
 import pytest
-
-from jobhunter.yaml_config import YamlConfigError, load_yaml_config
-
 from tests.unit._yaml_fixtures import DEFAULT_CONFIG_YAML, write_config_yaml
 
+from jobhunter.yaml_config import YamlConfigError, load_yaml_config
 
 # ---- AC1: top-level key precedence over legacy --------------------------
 

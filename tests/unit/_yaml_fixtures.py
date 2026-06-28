@@ -9,7 +9,6 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
-
 DEFAULT_CONFIG_YAML: str = textwrap.dedent(
     """\
     cost:

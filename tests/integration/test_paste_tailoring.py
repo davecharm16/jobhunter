@@ -4,15 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
-
-from jobhunter import __version__
-from jobhunter.slug import SLUG_REGEX
-from jobhunter.web.api import create_app
 from tests.integration._web_helpers import (
     FAKE_COST_USD,
     FAKE_COVER_LETTER_MARKDOWN,
@@ -23,6 +19,9 @@ from tests.integration._web_helpers import (
     write_ledger,
 )
 
+from jobhunter import __version__
+from jobhunter.slug import SLUG_REGEX
+from jobhunter.web.api import create_app
 
 # --- Healthz ---------------------------------------------------------------
 
@@ -78,7 +77,7 @@ def test_paste_cap_exceeded_returns_402_and_does_not_invoke_llm(
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
     stage_canonical_cv(tmp_path, monkeypatch)
-    month_key = datetime.now(timezone.utc).strftime("%Y-%m")
+    month_key = datetime.now(UTC).strftime("%Y-%m")
     out_root = tmp_path / "out"
     ledger_path = tmp_path / ".cost-ledger.json"
     write_ledger(ledger_path, month_key, "25.00", 999)
@@ -112,7 +111,7 @@ def test_paste_success_updates_ledger(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
     stage_canonical_cv(tmp_path, monkeypatch)
-    month_key = datetime.now(timezone.utc).strftime("%Y-%m")
+    month_key = datetime.now(UTC).strftime("%Y-%m")
     ledger_path = tmp_path / ".cost-ledger.json"
     write_ledger(ledger_path, month_key, "10.00", 3)
     stage_tailoring(tmp_path, monkeypatch)

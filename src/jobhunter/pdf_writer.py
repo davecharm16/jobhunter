@@ -205,8 +205,9 @@ def _extract_header_from_cv(md: str) -> tuple[str, str, str, str]:
     while i < len(lines) and lines[i].strip() and not lines[i].startswith("#") and not lines[i].startswith("---"):
         line = lines[i].strip()
         if "@" in line or "|" in line or "[" in line or "http" in line:
-            cleaned = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
-            cleaned = cleaned.replace(" | ", " · ").rstrip("  ")
+            # Preserve markdown links here; they become real <a href> anchors
+            # later in _contact_to_html so the PDF stays clickable.
+            cleaned = line.replace(" | ", " · ").rstrip()
             contact_parts.append(cleaned)
             i += 1
         else:
@@ -275,7 +276,7 @@ def _build_cv_html(cv_markdown: str, metadata: dict) -> str:
 <body>
 <div class="cv-name">{_esc(name)}</div>
 <div class="cv-label">{_esc(label)}</div>
-<div class="cv-contact">{_esc(contact)}</div>
+<div class="cv-contact">{_contact_to_html(contact)}</div>
 {body_html}
 </body>
 </html>"""
@@ -353,7 +354,7 @@ def _build_cover_letter_html(
     if label:
         header_html += f'<div class="cv-label">{_esc(label)}</div>\n'
     if contact:
-        header_html += f'<div class="cv-contact">{_esc(contact)}</div>\n'
+        header_html += f'<div class="cv-contact">{_contact_to_html(contact)}</div>\n'
     if header_html:
         header_html += "<br>\n"
 
@@ -381,6 +382,26 @@ def _esc(text: str) -> str:
         .replace(">", "&gt;")
         .replace('"', "&quot;")
     )
+
+
+def _contact_to_html(text: str) -> str:
+    """Render a contact line as HTML.
+
+    Converts ``[label](url)`` markdown links into real ``<a href>`` anchors so
+    the resulting PDF keeps clickable links (GitHub / LinkedIn / Portfolio).
+    All surrounding plain text is HTML-escaped. Text with no links behaves
+    identically to ``_esc``.
+    """
+    parts: list[str] = []
+    last = 0
+    for m in re.finditer(r"\[([^\]]+)\]\(([^)]+)\)", text):
+        parts.append(_esc(text[last : m.start()]))
+        label = _esc(m.group(1))
+        url = _esc(m.group(2))
+        parts.append(f'<a href="{url}">{label}</a>')
+        last = m.end()
+    parts.append(_esc(text[last:]))
+    return "".join(parts)
 
 
 # ---------------------------------------------------------------------------

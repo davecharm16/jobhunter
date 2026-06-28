@@ -18,21 +18,21 @@ Drives the whole pipeline through POST /api/paste with a custom canonical CV
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-
-from jobhunter.claim_extractor import ClaimExtractionResult
-from jobhunter.web.api import create_app
 from tests.integration._web_helpers import (
     make_fake_parse,
     make_fake_tailor,
     stage_tailoring,
 )
 
+from jobhunter.claim_extractor import ClaimExtractionResult
+from jobhunter.web.api import create_app
 
 # ---- canonical-CV staging with Story 2.1 extensions -----------------------
 
@@ -335,7 +335,6 @@ def test_re_run_replaces_content_loss_block_wholesale_and_preserves_fabrication(
     own re-run idempotency by writing twice into the same dir)."""
     from jobhunter.content_loss_matcher import (
         ContentLossCheck,
-        DroppedEntry,
         PreservedEntry,
     )
     from jobhunter.content_loss_writer import write_content_loss_block

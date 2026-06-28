@@ -13,8 +13,6 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-
-from jobhunter.web.api import create_app
 from tests.integration._web_helpers import (
     make_fake_parse,
     make_fake_tailor,
@@ -22,6 +20,7 @@ from tests.integration._web_helpers import (
     stage_tailoring,
 )
 
+from jobhunter.web.api import create_app
 
 # Greek-alphabet filler avoids any tokenizer / stop-word quirks and gives
 # the keyword-stuffing density check enough total tokens (~100) so a single

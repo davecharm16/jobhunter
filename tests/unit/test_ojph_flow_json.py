@@ -32,7 +32,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OJPH_FLOW = PROJECT_ROOT / "n8n" / "onlinejobs-ph-listings-flow.json"
 

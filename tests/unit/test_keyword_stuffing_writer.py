@@ -8,7 +8,7 @@ checks, sibling-key preservation across drift dimensions. No LLM stubs.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from jobhunter.keyword_stuffing_matcher import (
@@ -21,8 +21,7 @@ from jobhunter.keyword_stuffing_writer import (
     write_keyword_stuffing_block,
 )
 
-
-FIXED_RAN_AT = datetime(2026, 5, 24, 3, 15, 30, tzinfo=timezone.utc)
+FIXED_RAN_AT = datetime(2026, 5, 24, 3, 15, 30, tzinfo=UTC)
 EXPECTED_RAN_AT_STR = "2026-05-24T03:15:30Z"
 
 _DEFAULT_THRESHOLDS = {

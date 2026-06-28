@@ -29,10 +29,20 @@ export type Application = {
   url: string | null;
   status: ApplicationStatus;
   notes: string | null;
+  cv_markdown: string | null;
+  cover_letter_markdown: string | null;
   applied_at: string;
   created_at: string;
   updated_at: string;
 };
+
+// Browser-navigable URL for re-downloading a snapshotted artifact.
+export function applicationDownloadUrl(
+  id: string,
+  kind: "cv" | "cover",
+): string {
+  return `/api/applications/${encodeURIComponent(id)}/download/${kind}`;
+}
 
 export async function createApplication(input: {
   slug?: string;

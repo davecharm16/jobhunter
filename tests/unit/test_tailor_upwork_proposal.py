@@ -18,11 +18,11 @@ pytest.importorskip("anthropic")
 import anthropic  # noqa: E402
 
 from jobhunter.llm_client import (  # noqa: E402
-    LLMCallFailed,
-    LLMResponseInvalid,
     MODEL_NAME,
     UPWORK_PROPOSAL_SYSTEM_PROMPT,
     UPWORK_PROPOSAL_TOOL,
+    LLMCallFailed,
+    LLMResponseInvalid,
     UpworkProposalOverLength,
     UpworkProposalResult,
     count_words,
@@ -63,7 +63,7 @@ class _FakeMessages:
 
 
 class _FakeClient:
-    instances: list["_FakeClient"] = []
+    instances: list[_FakeClient] = []
 
     def __init__(self, *, api_key: str, timeout: float, response: Any) -> None:
         self.api_key = api_key

@@ -26,7 +26,6 @@ import ast
 
 from jobhunter.config import PROJECT_ROOT
 
-
 OVERRIDE_ROUTE_PATH = (
     PROJECT_ROOT / "src" / "jobhunter" / "web" / "routes" / "override.py"
 )

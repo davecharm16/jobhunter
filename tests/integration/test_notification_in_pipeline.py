@@ -24,21 +24,20 @@ network traffic leaves the process.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import httpx
-import pytest
 
 from jobhunter.claim_extractor import Claim, ClaimExtractionResult
 from jobhunter.llm_client import TailoringResult
 from jobhunter.runtime_config import RuntimeConfig
 from jobhunter.tailoring import run_tailoring
 
-
-FIXED_NOW = datetime(2026, 5, 23, 4, 0, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 5, 23, 4, 0, 0, tzinfo=UTC)
 
 
 def _config(*, gchat_webhook_url: str | None = None) -> RuntimeConfig:

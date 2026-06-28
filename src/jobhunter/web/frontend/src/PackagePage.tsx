@@ -518,12 +518,16 @@ export function PackagePage() {
               </button>
             </>
           )}
-          <ApplyControl
-            slug={slug!}
-            jobTitle={payload.metadata.job_title ?? parsed.job_title ?? slug!}
-            company={payload.metadata.company_name ?? null}
-            url={payload.metadata.url ?? null}
-          />
+          {/* Held packages keep the compact control here; ready/approved
+              packages get the prominent banner below the header instead. */}
+          {isHeld && (
+            <ApplyControl
+              slug={slug!}
+              jobTitle={payload.metadata.job_title ?? parsed.job_title ?? slug!}
+              company={payload.metadata.company_name ?? null}
+              url={payload.metadata.url ?? null}
+            />
+          )}
         </div>
         {overrideApplied && overrideNote && (
           <div
@@ -637,6 +641,20 @@ export function PackagePage() {
           </div>
         )}
       </header>
+
+      {/* Prominent "Mark as Applied" CTA: shown near the top once a package is
+          ready (not held) or has been approved/overridden, so the user can't
+          miss it after generating/approving. Held packages keep the compact
+          control in the header instead. */}
+      {!isHeld && (
+        <ApplyControl
+          variant="banner"
+          slug={slug!}
+          jobTitle={payload.metadata.job_title ?? parsed.job_title ?? slug!}
+          company={payload.metadata.company_name ?? null}
+          url={payload.metadata.url ?? null}
+        />
+      )}
 
       {/* 04-6: Red Flags — prominent card shown near the top when non-empty */}
       {redFlags.length > 0 && (

@@ -1,5 +1,7 @@
-from jobhunter.scan import CandidateInput
 from tests.fake_scan_store import FakeScanStore
+
+from jobhunter.scan import CandidateInput
+
 
 def _ci(url, site="indeed"):
     return CandidateInput(site=site, url=url, title="Dev", company="Acme",

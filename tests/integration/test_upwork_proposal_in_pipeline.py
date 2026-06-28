@@ -16,34 +16,27 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC
 from decimal import Decimal
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
-
-from jobhunter.jd_parser import ParsedJD
-from jobhunter.llm_client import (
-    LLMCallFailed,
-    TailoringResult,
-    UpworkProposalOverLength,
-    UpworkProposalResult,
-)
-from jobhunter.runtime_config import RuntimeConfig
-from jobhunter.spend_tracker import SpendCapExceeded
-from jobhunter.tailoring import run_tailoring
-from jobhunter.web.api import create_app
 from tests.integration._web_helpers import (
-    FAKE_PROPOSAL_COST_USD,
     FAKE_UPWORK_PROPOSAL_MARKDOWN,
-    make_fake_classifier,
-    make_fake_parse,
     make_fake_upwork_proposal_tailor,
     stage_canonical_cv,
     stage_tailoring,
     write_ledger,
 )
 
+from jobhunter.llm_client import (
+    LLMCallFailed,
+    TailoringResult,
+    UpworkProposalResult,
+)
+from jobhunter.runtime_config import RuntimeConfig
+from jobhunter.tailoring import run_tailoring
+from jobhunter.web.api import create_app
 
 _FIXED_NOW = None  # tests use real wall clock for slug generation
 
@@ -460,7 +453,7 @@ def test_cap_breach_between_calls_aborts_proposal_call(
     tmp_path, monkeypatch,
 ) -> None:
     """If cv-letter call lifts spend over the cap, the proposal call is refused."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("MONTHLY_SPEND_CAP_USD", "25.00")
@@ -471,7 +464,7 @@ def test_cap_breach_between_calls_aborts_proposal_call(
     # the cap. The SECOND cap check (before the proposal LLM call) then
     # fires and raises. The default fake tailor records $0.004200, so
     # 24.9960 + 0.004200 = 25.0002 > 25.00.
-    month_key = datetime.now(timezone.utc).strftime("%Y-%m")
+    month_key = datetime.now(UTC).strftime("%Y-%m")
     ledger_path = tmp_path / ".cost-ledger.json"
     write_ledger(ledger_path, month_key, "24.9960", 100)
 

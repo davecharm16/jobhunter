@@ -11,14 +11,13 @@ from __future__ import annotations
 import json
 
 from fastapi.testclient import TestClient
-
-from jobhunter.web.api import create_app
 from tests.integration._web_helpers import (
     make_fake_classifier,
     stage_canonical_cv,
     stage_tailoring,
 )
 
+from jobhunter.web.api import create_app
 
 # --- AC1 + AC3: per-board defaults land in metadata.artifacts_produced ----
 

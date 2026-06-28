@@ -31,7 +31,6 @@ from jobhunter.llm_client import (  # noqa: E402
 )
 from jobhunter.prompts import PromptTemplate  # noqa: E402
 
-
 # ---- helpers -------------------------------------------------------------
 
 
@@ -331,8 +330,9 @@ def test_llm_client_extract_claims_uses_correct_tool() -> None:
     """End-to-end through `llm_client.extract_claims` with a fake SDK client
     confirming the tool-use API shape, model pin, and tool_choice match the
     Story-3.1 contract."""
-    import anthropic  # noqa: F401  — pytest.importorskip already gated
     from typing import Any
+
+    import anthropic  # noqa: F401  — pytest.importorskip already gated
 
     from jobhunter.llm_client import (
         CLAIMS_EXTRACT_SYSTEM_PROMPT,

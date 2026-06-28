@@ -20,15 +20,15 @@ import anthropic  # noqa: E402
 from jobhunter.llm_client import (  # noqa: E402
     DEFAULT_TIMEOUT_SECONDS,
     INPUT_PRICE_PER_MTOK,
-    LLMCallFailed,
-    LLMResponseInvalid,
     MODEL_NAME,
     OUTPUT_PRICE_PER_MTOK,
     SYSTEM_PROMPT,
     TAILORING_TOOL,
+    LLMCallFailed,
+    LLMResponseInvalid,
     TailoringResult,
-    _compute_cost,
     _build_user_prompt,
+    _compute_cost,
     tailor,
 )
 
@@ -74,7 +74,7 @@ class _FakeMessages:
 class _FakeClient:
     """Mimics the surface jobhunter.llm_client uses: `client.messages.create()`."""
 
-    instances: list["_FakeClient"] = []
+    instances: list[_FakeClient] = []
 
     def __init__(self, *, api_key: str, timeout: float, response: Any) -> None:
         self.api_key = api_key

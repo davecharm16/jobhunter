@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -19,15 +19,13 @@ from jobhunter.fabrication_matcher import UnsourcedClaim
 from jobhunter.held_package import (
     AUDIT_LOG_NAME,
     HELD_SIDECAR_NAME,
-    FailedClaim,
     HeldPackageRecord,
     compose_held_record,
     sweep_expired,
     write_held_sidecar,
 )
 
-
-FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 5, 24, 3, 15, 30, tzinfo=UTC)
 EXPECTED_HELD_AT = "2026-05-24T03:15:30Z"
 EXPECTED_EXPIRES_AT_7D = "2026-05-31T03:15:30Z"
 

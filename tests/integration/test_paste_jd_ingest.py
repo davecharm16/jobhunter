@@ -8,14 +8,13 @@ and source-attribution behaviors at the HTTP boundary. Uses FastAPI's
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-
-from jobhunter.config import PROJECT_ROOT
-from jobhunter.web.api import create_app
 from tests.integration._web_helpers import (
     stage_canonical_cv,
     stage_tailoring,
 )
 
+from jobhunter.config import PROJECT_ROOT
+from jobhunter.web.api import create_app
 
 # --- AC11 forbidden-imports static guardrail -------------------------------
 
@@ -181,8 +180,9 @@ def test_paste_unicode_jd_round_trips_to_tailoring(tmp_path, monkeypatch) -> Non
     seen: dict[str, str] = {}
 
     def capturing_tailor(canonical_cv, jd_text, *, api_key, timeout_seconds):
-        from jobhunter.llm_client import TailoringResult
         from decimal import Decimal as _Decimal
+
+        from jobhunter.llm_client import TailoringResult
 
         seen["jd"] = jd_text
         return TailoringResult(

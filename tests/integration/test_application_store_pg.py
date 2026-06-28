@@ -77,3 +77,24 @@ def test_malformed_id_is_treated_as_not_found(store):
     assert store.get("nope") is None
     assert store.update("nope", status="offer") is None
     assert store.history("nope") == []
+
+
+def test_create_persists_markdown_snapshots(store):
+    app = store.create(
+        slug="pgsnap",
+        job_title="Eng",
+        company=None,
+        url=None,
+        cv_markdown="# CV",
+        cover_letter_markdown="# Cover",
+    )
+    assert app.cv_markdown == "# CV"
+    fetched = store.get(app.id)
+    assert fetched.cv_markdown == "# CV"
+    assert fetched.cover_letter_markdown == "# Cover"
+
+
+def test_create_without_snapshots_defaults_to_none(store):
+    app = store.create(slug="pgnosnap", job_title="Eng", company=None, url=None)
+    assert app.cv_markdown is None
+    assert store.get(app.id).cover_letter_markdown is None

@@ -37,6 +37,8 @@ class Application:
     applied_at: str
     created_at: str
     updated_at: str
+    cv_markdown: str | None = None
+    cover_letter_markdown: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -62,6 +64,8 @@ class ApplicationStore(Protocol):
         job_title: str,
         company: str | None,
         url: str | None,
+        cv_markdown: str | None = None,
+        cover_letter_markdown: str | None = None,
     ) -> Application: ...
 
     def get(self, app_id: str) -> Application | None: ...

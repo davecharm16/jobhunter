@@ -21,7 +21,6 @@ from jobhunter.yaml_config import (
     load_yaml_config,
 )
 
-
 _DRIFT_DEFAULTS = {
     "relevance_matcher": "tag_overlap",
     "presence_matcher": "substring",
@@ -218,9 +217,10 @@ def test_writer_records_error_on_unavailable_matcher(tmp_path: Path) -> None:
 
 
 def test_default_mode_does_not_import_llm_client() -> None:
-    import jobhunter.content_loss_matcher as m
     import ast
     import pathlib
+
+    import jobhunter.content_loss_matcher as m
 
     source = pathlib.Path(m.__file__).read_text(encoding="utf-8")
     tree = ast.parse(source)

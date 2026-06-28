@@ -11,10 +11,12 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from jobhunter.application_store_pg import PostgresApplicationStore
 from jobhunter.application_tracker import ApplicationStore, validate_status
+from jobhunter.web.routes import package as package_module
 
 router = APIRouter()
 
@@ -43,16 +45,24 @@ def create_application(
     store: ApplicationStore = Depends(get_store),
 ) -> dict[str, Any]:
     # Idempotency: if this package is already tracked, return the existing row (200).
+    cv_markdown: str | None = None
+    cover_letter_markdown: str | None = None
     if payload.slug:
         existing = store.get_by_slug(payload.slug)
         if existing is not None:
             response.status_code = 200
             return existing.to_dict()
+        # Snapshot the generated artifacts so they survive an ./out/ wipe.
+        cv_markdown, cover_letter_markdown = package_module.read_snapshot_markdown(
+            payload.slug
+        )
     app = store.create(
         slug=payload.slug,
         job_title=payload.job_title,
         company=payload.company,
         url=payload.url,
+        cv_markdown=cv_markdown,
+        cover_letter_markdown=cover_letter_markdown,
     )
     response.status_code = 201
     return app.to_dict()
@@ -86,6 +96,37 @@ def list_applications(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return [a.to_dict() for a in store.list(status=status)]
+
+
+# kind -> (Application attribute, download filename)
+_SNAPSHOT_KINDS: dict[str, tuple[str, str]] = {
+    "cv": ("cv_markdown", "cv.md"),
+    "cover": ("cover_letter_markdown", "cover-letter.md"),
+}
+
+
+@router.get("/api/applications/{app_id}/download/{kind}")
+def download_application_snapshot(
+    app_id: str,
+    kind: str,
+    store: ApplicationStore = Depends(get_store),
+) -> PlainTextResponse:
+    """Re-download the CV/cover markdown snapshotted at apply-time."""
+    mapping = _SNAPSHOT_KINDS.get(kind)
+    if mapping is None:
+        raise HTTPException(status_code=404, detail=f"unknown_download_kind: {kind}")
+    attr, filename = mapping
+    app = store.get(app_id)
+    if app is None:
+        raise HTTPException(status_code=404, detail="application not found")
+    content = getattr(app, attr)
+    if content is None:
+        raise HTTPException(status_code=404, detail=f"snapshot_not_found: {kind}")
+    return PlainTextResponse(
+        content=content,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/api/applications/{app_id}")

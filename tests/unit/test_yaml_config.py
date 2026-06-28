@@ -15,6 +15,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from tests.unit._yaml_fixtures import DEFAULT_CONFIG_YAML, write_config_yaml
 
 from jobhunter.config import CONFIG_YAML_PATH, PROJECT_ROOT
 from jobhunter.yaml_config import (
@@ -22,9 +23,6 @@ from jobhunter.yaml_config import (
     YamlConfigError,
     load_yaml_config,
 )
-
-from tests.unit._yaml_fixtures import DEFAULT_CONFIG_YAML, write_config_yaml
-
 
 # --- AC1: config.yaml separation -------------------------------------------
 
@@ -187,9 +185,10 @@ def test_load_yaml_config_runtime_config_env_still_wins() -> None:
     secret-adjacent monthly cap; yaml is the defensive default for the new
     per_app_max_usd field. This test pins that runtime_config is untouched.
     """
-    from jobhunter.runtime_config import load_runtime_config  # noqa: F401
     # Importing succeeds; signature is unchanged.
     import inspect
+
+    from jobhunter.runtime_config import load_runtime_config  # noqa: F401
 
     sig = inspect.signature(load_runtime_config)
     assert list(sig.parameters) == ["env_path"]

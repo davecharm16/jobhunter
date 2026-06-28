@@ -9,7 +9,7 @@ checks. No LLM stubs (the writer is rule-based and consumes only the
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from jobhunter.content_loss_matcher import (
@@ -24,8 +24,7 @@ from jobhunter.content_loss_writer import (
     write_content_loss_block,
 )
 
-
-FIXED_RAN_AT = datetime(2026, 5, 24, 3, 15, 30, tzinfo=timezone.utc)
+FIXED_RAN_AT = datetime(2026, 5, 24, 3, 15, 30, tzinfo=UTC)
 EXPECTED_RAN_AT_STR = "2026-05-24T03:15:30Z"
 
 
@@ -291,7 +290,7 @@ def test_writer_re_run_with_different_check_replaces_content_loss(
     )
     write_content_loss_block(tmp_path, first, ran_at=FIXED_RAN_AT)
 
-    second_moment = datetime(2026, 5, 25, 0, 0, 0, tzinfo=timezone.utc)
+    second_moment = datetime(2026, 5, 25, 0, 0, 0, tzinfo=UTC)
     second = ContentLossCheck(
         verdict="pass",
         preserved_entries=[_preserved("work[0]:secnd1")],
