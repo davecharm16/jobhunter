@@ -25,10 +25,18 @@ export function JobScanPage() {
   const prevStatusRef = useRef<string | null>(null);
 
   // filters
+  type StatusFilter = "active" | "new" | "generated" | "dismissed" | "all";
   const [tab, setTab] = useState<Tab>("all");
   const [query, setQuery] = useState("");
-  const [showDismissed, setShowDismissed] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [sortByFit, setSortByFit] = useState(true);
+
+  // does a candidate's status pass the current status filter?
+  const passesStatus = (cstatus: string): boolean => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "active") return cstatus !== "dismissed";
+    return cstatus === statusFilter;
+  };
 
   const refresh = () => {
     Promise.all([listScans(), listCandidates()])
@@ -165,19 +173,19 @@ export function JobScanPage() {
     }
   };
 
-  // count per site honoring the show-dismissed toggle (for tab badges)
+  // count per site honoring the status filter (for tab badges)
   const counts = useMemo(() => {
-    const base = cands.filter((c) => showDismissed || c.status !== "dismissed");
+    const base = cands.filter((c) => passesStatus(c.status));
     const m: Record<string, number> = { all: base.length };
     for (const s of SITES) m[s] = base.filter((c) => c.site === s).length;
     return m;
-  }, [cands, showDismissed]);
+  }, [cands, statusFilter]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = cands
       .filter((c) => tab === "all" || c.site === tab)
-      .filter((c) => showDismissed || c.status !== "dismissed")
+      .filter((c) => passesStatus(c.status))
       .filter((c) =>
         !q ||
         c.title.toLowerCase().includes(q) ||
@@ -187,7 +195,7 @@ export function JobScanPage() {
       list = [...list].sort((a, b) => (b.fit_score ?? 0) - (a.fit_score ?? 0));
     }
     return list;
-  }, [cands, tab, query, showDismissed, sortByFit]);
+  }, [cands, tab, query, statusFilter, sortByFit]);
 
   const latestScan = scans[0];
 
@@ -297,8 +305,18 @@ export function JobScanPage() {
           Sort by fit
         </label>
         <label className="flex items-center gap-1">
-          <input type="checkbox" checked={showDismissed} onChange={(e) => setShowDismissed(e.target.checked)} />
-          Show dismissed
+          <span className="text-on-surface-variant">Status:</span>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            className="border border-outline-variant rounded px-2 py-1 bg-surface-container-lowest"
+          >
+            <option value="active">Active (new + generated)</option>
+            <option value="new">New</option>
+            <option value="generated">Generated (CV made)</option>
+            <option value="dismissed">Dismissed</option>
+            <option value="all">All</option>
+          </select>
         </label>
         <span className="text-on-surface-variant">{visible.length} shown</span>
       </div>
