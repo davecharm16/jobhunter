@@ -92,3 +92,28 @@ before building everything that depends on it.
 **Correction:** Never created `tasks/todo.md` / `tasks/lessons.md` this session.
 **Rule:** At the start of multi-step work, write the plan to `tasks/todo.md`
 with checkable items and keep it updated; log lessons here after corrections.
+
+## 2026-06-28 — n8n get_execution returns empty runData for RUNNING executions
+**Symptom:** every new-workflow execution showed `runData={}` mid-run; I concluded
+"n8n won't execute the workflow / stuck at webhook" and chased zombies, restarts,
+re-publishes for a long time.
+**Reality:** the n8n API only populates `runData` for TERMINAL executions. A running
+one shows just the nodeExecutionStack. The workflow WAS executing fine — once it was
+canceled/terminal, runData revealed the prelude all ran and it was on the slow scan
+node. **Rule:** to RCA an n8n run, wait for it to reach a terminal state (or cancel
+it) THEN read runData — don't infer "stuck" from empty runData on a live run. Use the
+app-side effect (per_site / saved rows) as the ground-truth progress signal.
+
+## 2026-06-28 — verify subagent-written shell/JS, not just "it built"
+**Symptom:** a subagent's run-scan.sh extractor used a top-level `return` inside
+`node -e` → `Illegal return statement` at runtime; it lost Claude's results AFTER a
+successful 15-min scrape. bash -n passed; the bug was runtime-only.
+**Rule:** for generated shell/`node -e`/eval snippets, run them with sample input
+(not just syntax-check) before shipping — top-level return, E2BIG arg limits, and
+CHECK-constraint mismatches all pass static checks but fail at runtime.
+
+## 2026-06-28 — scope ruff --fix narrowly
+**Correction:** `ruff check --fix … tests/` auto-fixed 218 issues across the whole
+test suite (lint backlog) and got bundled into a feature commit.
+**Rule:** pass ruff --fix only the files you actually changed; don't hand it a whole
+dir, or you'll commit a large unrelated reformat.
